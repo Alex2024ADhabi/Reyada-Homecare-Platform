@@ -1,217 +1,770 @@
-import { useState, useEffect } from "react";
+/**
+ * Voice-to-Text Input Component with Medical Terminology
+ * Enhanced for clinical documentation with medical vocabulary
+ */
+
+import React, { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Mic, MicOff, Volume2, Settings } from "lucide-react";
-import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
-import { mobileCommunicationService } from "@/services/mobile-communication.service";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Progress } from "@/components/ui/progress";
+import { Separator } from "@/components/ui/separator";
+import {
+  Mic,
+  MicOff,
+  Play,
+  Pause,
+  Square,
+  Volume2,
+  VolumeX,
+  RotateCcw,
+  Check,
+  AlertCircle,
+  Stethoscope,
+  Brain,
+  Languages,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface VoiceInputProps {
-  onTextCapture: (text: string) => void;
+  onTranscriptionComplete: (
+    text: string,
+    metadata: TranscriptionMetadata,
+  ) => void;
+  onTranscriptionUpdate?: (text: string) => void;
   placeholder?: string;
   className?: string;
-  medicalSpecialty?:
-    | "nursing"
-    | "physiotherapy"
-    | "occupational"
-    | "speech"
-    | "respiratory"
-    | "general";
-  continuousRecognition?: boolean;
-  offlineMode?: boolean;
+  medicalMode?: boolean;
+  language?: string;
+  maxDuration?: number;
 }
 
-export function VoiceInput({
-  onTextCapture,
-  placeholder = "Press the microphone button and start speaking...",
-  className = "",
-  medicalSpecialty = "general",
-  continuousRecognition = false,
-  offlineMode = false,
-}: VoiceInputProps) {
-  const {
-    text,
-    isListening,
-    startListening,
-    stopListening,
-    hasRecognitionSupport,
-    error,
-  } = useSpeechRecognition();
-  const [animationStep, setAnimationStep] = useState(0);
-  const [enhancedMode, setEnhancedMode] = useState(false);
-  const [sessionId, setSessionId] = useState<string | null>(null);
+interface TranscriptionMetadata {
+  duration: number;
+  confidence: number;
+  language: string;
+  medicalTermsDetected: string[];
+  audioQuality: number;
+  processingTime: number;
+  timestamp: string;
+  corrections: {
+    original: string;
+    corrected: string;
+    confidence: number;
+  }[];
+}
+
+interface MedicalTerm {
+  term: string;
+  category: string;
+  alternatives: string[];
+  confidence: number;
+}
+
+// Medical terminology dictionary for enhanced recognition
+const MEDICAL_VOCABULARY = {
+  anatomy: [
+    "abdomen",
+    "thorax",
+    "pelvis",
+    "cranium",
+    "sternum",
+    "clavicle",
+    "scapula",
+    "humerus",
+    "radius",
+    "ulna",
+    "femur",
+    "tibia",
+    "fibula",
+    "patella",
+  ],
+  conditions: [
+    "hypertension",
+    "diabetes",
+    "pneumonia",
+    "bronchitis",
+    "asthma",
+    "copd",
+    "myocardial infarction",
+    "stroke",
+    "sepsis",
+    "cellulitis",
+    "dermatitis",
+  ],
+  medications: [
+    "acetaminophen",
+    "ibuprofen",
+    "aspirin",
+    "metformin",
+    "lisinopril",
+    "amlodipine",
+    "atorvastatin",
+    "omeprazole",
+    "levothyroxine",
+    "warfarin",
+  ],
+  procedures: [
+    "intubation",
+    "catheterization",
+    "venipuncture",
+    "suturing",
+    "debridement",
+    "tracheostomy",
+    "thoracentesis",
+    "paracentesis",
+    "lumbar puncture",
+  ],
+  symptoms: [
+    "dyspnea",
+    "tachycardia",
+    "bradycardia",
+    "hypotension",
+    "hypertension",
+    "nausea",
+    "vomiting",
+    "diarrhea",
+    "constipation",
+    "syncope",
+    "vertigo",
+  ],
+};
+
+export const VoiceInput: React.FC<VoiceInputProps> = ({
+  onTranscriptionComplete,
+  onTranscriptionUpdate,
+  placeholder = "Click the microphone to start voice input...",
+  className,
+  medicalMode = true,
+  language = "en-US",
+  maxDuration = 300, // 5 minutes
+}) => {
+  const [isRecording, setIsRecording] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [transcription, setTranscription] = useState("");
+  const [interimTranscription, setInterimTranscription] = useState("");
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  const [audioLevel, setAudioLevel] = useState(0);
   const [confidence, setConfidence] = useState(0);
+  const [detectedMedicalTerms, setDetectedMedicalTerms] = useState<
+    MedicalTerm[]
+  >([]);
+  const [isSupported, setIsSupported] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [corrections, setCorrections] = useState<any[]>([]);
 
-  // Handle animation for the microphone when listening
+  const recognitionRef = useRef<any>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const startTimeRef = useRef<number>(0);
+
   useEffect(() => {
-    let animationInterval: NodeJS.Timeout;
-
-    if (isListening) {
-      animationInterval = setInterval(() => {
-        setAnimationStep((prev) => (prev + 1) % 3);
-      }, 500);
-    } else {
-      setAnimationStep(0);
-    }
-
+    checkBrowserSupport();
     return () => {
-      if (animationInterval) {
-        clearInterval(animationInterval);
-      }
-    };
-  }, [isListening]);
-
-  // Initialize enhanced voice recognition
-  useEffect(() => {
-    const initializeEnhancedVoice = async () => {
-      try {
-        const result =
-          await mobileCommunicationService.startEnhancedVoiceRecognition({
-            language: "en-US",
-            medicalTerminology: true,
-            continuousRecognition,
-            interimResults: true,
-            medicalSpecialty,
-            offlineMode,
-            realTimeTranscription: true,
-            speakerIdentification: false,
-          });
-
-        if (result.success) {
-          setEnhancedMode(true);
-          setSessionId(result.sessionId || null);
-        }
-      } catch (error) {
-        console.error(
-          "Enhanced voice recognition initialization failed:",
-          error,
-        );
-      }
-    };
-
-    if (hasRecognitionSupport) {
-      initializeEnhancedVoice();
-    }
-  }, [
-    hasRecognitionSupport,
-    medicalSpecialty,
-    continuousRecognition,
-    offlineMode,
-  ]);
-
-  // Update parent component with captured text
-  useEffect(() => {
-    if (text) {
-      onTextCapture(text);
-    }
-  }, [text, onTextCapture]);
-
-  // Listen for enhanced voice recognition results
-  useEffect(() => {
-    const handleVoiceResult = (result: any) => {
-      if (result.confidence) {
-        setConfidence(Math.round(result.confidence * 100));
-      }
-    };
-
-    mobileCommunicationService.onVoiceRecognitionResult(handleVoiceResult);
-
-    return () => {
-      mobileCommunicationService.removeVoiceRecognitionCallback(
-        handleVoiceResult,
-      );
+      cleanup();
     };
   }, []);
 
-  if (!hasRecognitionSupport) {
+  const checkBrowserSupport = () => {
+    const SpeechRecognition =
+      (window as any).SpeechRecognition ||
+      (window as any).webkitSpeechRecognition;
+    const isMediaRecorderSupported = typeof MediaRecorder !== "undefined";
+    const isAudioContextSupported =
+      typeof AudioContext !== "undefined" ||
+      typeof (window as any).webkitAudioContext !== "undefined";
+
+    setIsSupported(
+      !!SpeechRecognition &&
+        isMediaRecorderSupported &&
+        isAudioContextSupported,
+    );
+
+    if (!SpeechRecognition) {
+      setError("Speech recognition not supported in this browser");
+    }
+  };
+
+  const initializeSpeechRecognition = () => {
+    const SpeechRecognition =
+      (window as any).SpeechRecognition ||
+      (window as any).webkitSpeechRecognition;
+
+    if (!SpeechRecognition) return null;
+
+    const recognition = new SpeechRecognition();
+
+    // Enhanced configuration for medical terminology
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = language;
+    recognition.maxAlternatives = 3;
+
+    // Medical-specific settings
+    if (medicalMode) {
+      recognition.grammars = createMedicalGrammar();
+    }
+
+    recognition.onstart = () => {
+      console.log("Speech recognition started");
+      setError(null);
+    };
+
+    recognition.onresult = (event: any) => {
+      let interimTranscript = "";
+      let finalTranscript = "";
+      let totalConfidence = 0;
+      let resultCount = 0;
+
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const result = event.results[i];
+        const transcript = result[0].transcript;
+
+        if (result.isFinal) {
+          finalTranscript += transcript + " ";
+          totalConfidence += result[0].confidence || 0.8;
+          resultCount++;
+        } else {
+          interimTranscript += transcript;
+        }
+      }
+
+      if (finalTranscript) {
+        const processedText = medicalMode
+          ? processMedicalText(finalTranscript)
+          : finalTranscript;
+        setTranscription((prev) => prev + processedText);
+
+        if (medicalMode) {
+          const medicalTerms = detectMedicalTerms(processedText);
+          setDetectedMedicalTerms((prev) => [...prev, ...medicalTerms]);
+        }
+
+        onTranscriptionUpdate?.(transcription + processedText);
+      }
+
+      if (interimTranscript) {
+        setInterimTranscription(interimTranscript);
+      }
+
+      if (resultCount > 0) {
+        setConfidence((totalConfidence / resultCount) * 100);
+      }
+    };
+
+    recognition.onerror = (event: any) => {
+      console.error("Speech recognition error:", event.error);
+      setError(`Speech recognition error: ${event.error}`);
+      stopRecording();
+    };
+
+    recognition.onend = () => {
+      console.log("Speech recognition ended");
+      if (isRecording) {
+        // Restart recognition if still recording
+        setTimeout(() => {
+          if (recognitionRef.current && isRecording) {
+            recognitionRef.current.start();
+          }
+        }, 100);
+      }
+    };
+
+    return recognition;
+  };
+
+  const createMedicalGrammar = () => {
+    // Create speech recognition grammar for medical terms
+    const SpeechGrammarList =
+      (window as any).SpeechGrammarList ||
+      (window as any).webkitSpeechGrammarList;
+
+    if (!SpeechGrammarList) return undefined;
+
+    const grammarList = new SpeechGrammarList();
+
+    // Build grammar rules for medical vocabulary
+    const allMedicalTerms = Object.values(MEDICAL_VOCABULARY).flat();
+    const grammarRules = `#JSGF V1.0; grammar medical; public <medical> = ${allMedicalTerms.join(" | ")};`;
+
+    grammarList.addFromString(grammarRules, 1);
+    return grammarList;
+  };
+
+  const initializeAudioRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          sampleRate: 44100,
+        },
+      });
+
+      // Set up audio level monitoring
+      const AudioContext =
+        (window as any).AudioContext || (window as any).webkitAudioContext;
+      audioContextRef.current = new AudioContext();
+      analyserRef.current = audioContextRef.current.createAnalyser();
+
+      const source = audioContextRef.current.createMediaStreamSource(stream);
+      source.connect(analyserRef.current);
+
+      analyserRef.current.fftSize = 256;
+      const bufferLength = analyserRef.current.frequencyBinCount;
+      const dataArray = new Uint8Array(bufferLength);
+
+      const updateAudioLevel = () => {
+        if (analyserRef.current && isRecording) {
+          analyserRef.current.getByteFrequencyData(dataArray);
+          const average =
+            dataArray.reduce((sum, value) => sum + value, 0) / bufferLength;
+          setAudioLevel(average);
+          requestAnimationFrame(updateAudioLevel);
+        }
+      };
+
+      updateAudioLevel();
+
+      // Set up media recorder for audio backup
+      mediaRecorderRef.current = new MediaRecorder(stream, {
+        mimeType: "audio/webm;codecs=opus",
+      });
+
+      mediaRecorderRef.current.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      return stream;
+    } catch (error) {
+      console.error("Failed to initialize audio recording:", error);
+      setError("Failed to access microphone. Please check permissions.");
+      throw error;
+    }
+  };
+
+  const startRecording = async () => {
+    if (!isSupported) {
+      setError("Voice input not supported in this browser");
+      return;
+    }
+
+    try {
+      setIsRecording(true);
+      setError(null);
+      setTranscription("");
+      setInterimTranscription("");
+      setDetectedMedicalTerms([]);
+      setCorrections([]);
+      audioChunksRef.current = [];
+      startTimeRef.current = Date.now();
+
+      // Initialize audio recording
+      await initializeAudioRecording();
+
+      // Start speech recognition
+      recognitionRef.current = initializeSpeechRecognition();
+      if (recognitionRef.current) {
+        recognitionRef.current.start();
+      }
+
+      // Start media recorder
+      if (mediaRecorderRef.current) {
+        mediaRecorderRef.current.start(1000); // Collect data every second
+      }
+
+      // Start duration timer
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingDuration((prev) => {
+          const newDuration = prev + 1;
+          if (newDuration >= maxDuration) {
+            stopRecording();
+          }
+          return newDuration;
+        });
+      }, 1000);
+    } catch (error) {
+      console.error("Failed to start recording:", error);
+      setError("Failed to start recording. Please try again.");
+      setIsRecording(false);
+    }
+  };
+
+  const stopRecording = async () => {
+    setIsRecording(false);
+    setIsProcessing(true);
+
+    try {
+      // Stop speech recognition
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+        recognitionRef.current = null;
+      }
+
+      // Stop media recorder
+      if (
+        mediaRecorderRef.current &&
+        mediaRecorderRef.current.state === "recording"
+      ) {
+        mediaRecorderRef.current.stop();
+      }
+
+      // Clear timer
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current);
+        recordingTimerRef.current = null;
+      }
+
+      // Process final transcription
+      const processingStartTime = Date.now();
+      const finalText = transcription + interimTranscription;
+
+      if (finalText.trim()) {
+        const processedText = medicalMode
+          ? await enhanceMedicalTranscription(finalText)
+          : finalText;
+
+        const metadata: TranscriptionMetadata = {
+          duration: recordingDuration,
+          confidence,
+          language,
+          medicalTermsDetected: detectedMedicalTerms.map((term) => term.term),
+          audioQuality: calculateAudioQuality(),
+          processingTime: Date.now() - processingStartTime,
+          timestamp: new Date().toISOString(),
+          corrections,
+        };
+
+        onTranscriptionComplete(processedText, metadata);
+      }
+    } catch (error) {
+      console.error("Error stopping recording:", error);
+      setError("Error processing recording");
+    } finally {
+      cleanup();
+      setIsProcessing(false);
+      setRecordingDuration(0);
+      setAudioLevel(0);
+      setInterimTranscription("");
+    }
+  };
+
+  const cleanup = () => {
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+      recognitionRef.current = null;
+    }
+
+    if (mediaRecorderRef.current) {
+      mediaRecorderRef.current.stop();
+      mediaRecorderRef.current = null;
+    }
+
+    if (audioContextRef.current) {
+      audioContextRef.current.close();
+      audioContextRef.current = null;
+    }
+
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
+  };
+
+  const processMedicalText = (text: string): string => {
+    let processedText = text;
+
+    // Common medical abbreviation expansions
+    const abbreviations: { [key: string]: string } = {
+      bp: "blood pressure",
+      hr: "heart rate",
+      rr: "respiratory rate",
+      temp: "temperature",
+      "o2 sat": "oxygen saturation",
+      bpm: "beats per minute",
+      mg: "milligrams",
+      ml: "milliliters",
+      cc: "cubic centimeters",
+    };
+
+    // Apply abbreviation expansions
+    Object.entries(abbreviations).forEach(([abbr, expansion]) => {
+      const regex = new RegExp(`\\b${abbr}\\b`, "gi");
+      processedText = processedText.replace(regex, expansion);
+    });
+
+    return processedText;
+  };
+
+  const detectMedicalTerms = (text: string): MedicalTerm[] => {
+    const detectedTerms: MedicalTerm[] = [];
+    const words = text.toLowerCase().split(/\s+/);
+
+    Object.entries(MEDICAL_VOCABULARY).forEach(([category, terms]) => {
+      terms.forEach((term) => {
+        if (
+          words.some(
+            (word) =>
+              word.includes(term.toLowerCase()) ||
+              term.toLowerCase().includes(word),
+          )
+        ) {
+          detectedTerms.push({
+            term,
+            category,
+            alternatives: [],
+            confidence: 0.8,
+          });
+        }
+      });
+    });
+
+    return detectedTerms;
+  };
+
+  const enhanceMedicalTranscription = async (text: string): Promise<string> => {
+    // Enhanced processing for medical terminology
+    // In production, this could call a medical NLP API
+
+    let enhancedText = text;
+
+    // Spell check medical terms
+    const medicalTerms = detectMedicalTerms(text);
+
+    // Apply medical context corrections
+    const medicalCorrections = [
+      { from: /\bpain in the chest\b/gi, to: "chest pain" },
+      { from: /\bshort of breath\b/gi, to: "dyspnea" },
+      { from: /\bfast heart rate\b/gi, to: "tachycardia" },
+      { from: /\bslow heart rate\b/gi, to: "bradycardia" },
+      { from: /\bhigh blood pressure\b/gi, to: "hypertension" },
+      { from: /\blow blood pressure\b/gi, to: "hypotension" },
+    ];
+
+    medicalCorrections.forEach((correction) => {
+      if (correction.from.test(enhancedText)) {
+        const original = enhancedText.match(correction.from)?.[0] || "";
+        enhancedText = enhancedText.replace(correction.from, correction.to);
+
+        if (original) {
+          setCorrections((prev) => [
+            ...prev,
+            {
+              original,
+              corrected: correction.to,
+              confidence: 0.9,
+            },
+          ]);
+        }
+      }
+    });
+
+    return enhancedText;
+  };
+
+  const calculateAudioQuality = (): number => {
+    // Simple audio quality calculation based on audio level consistency
+    return Math.min(100, Math.max(0, audioLevel * 2));
+  };
+
+  const clearTranscription = () => {
+    setTranscription("");
+    setInterimTranscription("");
+    setDetectedMedicalTerms([]);
+    setCorrections([]);
+  };
+
+  const formatDuration = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
+  };
+
+  if (!isSupported) {
     return (
-      <div className={`flex items-center justify-center p-4 ${className}`}>
-        <p className="text-sm text-muted-foreground">
-          Speech recognition is not supported in this browser.
-        </p>
-      </div>
+      <Card className={className}>
+        <CardContent className="p-6">
+          <Alert>
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              Voice input is not supported in this browser. Please use Chrome,
+              Edge, or Safari for voice functionality.
+            </AlertDescription>
+          </Alert>
+        </CardContent>
+      </Card>
     );
   }
 
   return (
-    <div className={`flex flex-col items-center gap-4 ${className}`}>
-      <div className="relative">
-        <Button
-          type="button"
-          size="lg"
-          className={`rounded-full h-16 w-16 ${isListening ? "bg-red-500 hover:bg-red-600" : ""}`}
-          onClick={isListening ? stopListening : startListening}
-        >
-          {isListening ? <MicOff size={24} /> : <Mic size={24} />}
-        </Button>
+    <Card className={cn("w-full bg-white", className)}>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Mic className="h-5 w-5" />
+          Voice-to-Text Input
+          {medicalMode && (
+            <Badge variant="secondary" className="ml-2">
+              <Stethoscope className="h-3 w-3 mr-1" />
+              Medical Mode
+            </Badge>
+          )}
+        </CardTitle>
 
-        {/* Animation rings when listening */}
-        {isListening && (
-          <>
-            <div
-              className={`absolute inset-0 rounded-full border-2 border-red-500 animate-ping opacity-${animationStep === 0 ? "75" : "0"}`}
-            ></div>
-            <div
-              className={`absolute -inset-2 rounded-full border-2 border-red-500 animate-ping opacity-${animationStep === 1 ? "50" : "0"}`}
-            ></div>
-            <div
-              className={`absolute -inset-4 rounded-full border-2 border-red-500 animate-ping opacity-${animationStep === 2 ? "25" : "0"}`}
-            ></div>
-          </>
-        )}
-      </div>
-
-      <div className="text-center space-y-2">
-        {isListening ? (
-          <div className="space-y-2">
-            <div className="flex items-center justify-center gap-2 text-red-500">
-              <Volume2 className="animate-pulse" size={16} />
-              <span>Listening...</span>
-              {enhancedMode && (
-                <Badge variant="outline" className="text-xs">
-                  Enhanced
-                </Badge>
-              )}
-            </div>
-            {confidence > 0 && (
-              <div className="flex items-center justify-center gap-2 text-sm text-gray-600">
-                <span>Confidence: {confidence}%</span>
-              </div>
-            )}
-          </div>
-        ) : (
-          <p className="text-sm text-muted-foreground">{placeholder}</p>
-        )}
-
-        {/* Medical Specialty Indicator */}
-        {medicalSpecialty !== "general" && (
-          <Badge variant="secondary" className="text-xs">
-            {medicalSpecialty.charAt(0).toUpperCase() +
-              medicalSpecialty.slice(1)}{" "}
-            Mode
+        <div className="flex flex-wrap gap-2">
+          <Badge variant="outline">
+            <Languages className="h-3 w-3 mr-1" />
+            {language}
           </Badge>
-        )}
-
-        {/* Offline Mode Indicator */}
-        {offlineMode && (
-          <Badge variant="outline" className="text-xs text-orange-600">
-            Offline Mode
-          </Badge>
-        )}
-      </div>
-
-      {error && <p className="text-sm text-red-500">{error}</p>}
-
-      {/* Enhanced Features Status */}
-      {enhancedMode && (
-        <div className="text-center">
-          <div className="flex items-center justify-center gap-4 text-xs text-gray-500">
-            <span>✓ Medical Terminology</span>
-            <span>✓ Real-time Processing</span>
-            {continuousRecognition && <span>✓ Continuous</span>}
-            {offlineMode && <span>✓ Offline Support</span>}
-          </div>
+          {confidence > 0 && (
+            <Badge
+              variant={
+                confidence > 80
+                  ? "default"
+                  : confidence > 60
+                    ? "secondary"
+                    : "destructive"
+              }
+            >
+              Confidence: {confidence.toFixed(0)}%
+            </Badge>
+          )}
         </div>
-      )}
-    </div>
+      </CardHeader>
+
+      <CardContent className="space-y-4">
+        {error && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
+        <div className="flex items-center justify-center space-x-4">
+          <Button
+            size="lg"
+            variant={isRecording ? "destructive" : "default"}
+            onClick={isRecording ? stopRecording : startRecording}
+            disabled={isProcessing}
+            className="min-w-32"
+          >
+            {isProcessing ? (
+              <>
+                <Brain className="h-5 w-5 mr-2 animate-spin" />
+                Processing...
+              </>
+            ) : isRecording ? (
+              <>
+                <Square className="h-5 w-5 mr-2" />
+                Stop Recording
+              </>
+            ) : (
+              <>
+                <Mic className="h-5 w-5 mr-2" />
+                Start Recording
+              </>
+            )}
+          </Button>
+
+          {(transcription || interimTranscription) && (
+            <Button variant="outline" onClick={clearTranscription}>
+              <RotateCcw className="h-4 w-4 mr-2" />
+              Clear
+            </Button>
+          )}
+        </div>
+
+        {isRecording && (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-sm">
+              <span>Recording: {formatDuration(recordingDuration)}</span>
+              <span>Max: {formatDuration(maxDuration)}</span>
+            </div>
+            <Progress
+              value={(recordingDuration / maxDuration) * 100}
+              className="h-2"
+            />
+
+            <div className="flex items-center gap-2">
+              {audioLevel > 10 ? (
+                <Volume2 className="h-4 w-4" />
+              ) : (
+                <VolumeX className="h-4 w-4" />
+              )}
+              <Progress value={audioLevel} className="h-2 flex-1" />
+              <span className="text-xs">{Math.round(audioLevel)}%</span>
+            </div>
+          </div>
+        )}
+
+        <div className="space-y-2">
+          <Textarea
+            value={
+              transcription +
+              (interimTranscription ? ` ${interimTranscription}` : "")
+            }
+            placeholder={placeholder}
+            className="min-h-32 resize-none"
+            readOnly
+          />
+
+          {interimTranscription && (
+            <p className="text-sm text-gray-500 italic">
+              Interim: {interimTranscription}
+            </p>
+          )}
+        </div>
+
+        {medicalMode && detectedMedicalTerms.length > 0 && (
+          <div className="space-y-2">
+            <Separator />
+            <h4 className="font-semibold text-sm flex items-center gap-2">
+              <Stethoscope className="h-4 w-4" />
+              Detected Medical Terms
+            </h4>
+            <div className="flex flex-wrap gap-2">
+              {detectedMedicalTerms.map((term, index) => (
+                <Badge key={index} variant="secondary" className="text-xs">
+                  {term.term} ({term.category})
+                </Badge>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {corrections.length > 0 && (
+          <div className="space-y-2">
+            <Separator />
+            <h4 className="font-semibold text-sm flex items-center gap-2">
+              <Check className="h-4 w-4" />
+              Auto-Corrections Applied
+            </h4>
+            <div className="space-y-1">
+              {corrections.map((correction, index) => (
+                <div key={index} className="text-xs bg-gray-50 p-2 rounded">
+                  <span className="line-through text-gray-500">
+                    {correction.original}
+                  </span>
+                  {" → "}
+                  <span className="font-medium">{correction.corrected}</span>
+                  <span className="ml-2 text-gray-400">
+                    ({(correction.confidence * 100).toFixed(0)}%)
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
-}
+};
+
+export default VoiceInput;

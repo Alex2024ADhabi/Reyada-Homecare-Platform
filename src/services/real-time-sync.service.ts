@@ -1,5 +1,7 @@
 import { EventEmitter } from "events";
 import * as React from "react";
+import { supabase } from "@/api/supabase.api";
+import { RealtimeChannel } from "@supabase/supabase-js";
 
 interface SyncEvent {
   type: "create" | "update" | "delete";
@@ -15,10 +17,19 @@ interface SyncSubscription {
   callback: (event: SyncEvent) => void;
 }
 
+interface RealtimeEvent {
+  table: string;
+  eventType: "INSERT" | "UPDATE" | "DELETE";
+  new?: any;
+  old?: any;
+  timestamp: string;
+}
+
 export class RealTimeSyncService extends EventEmitter {
   private static instance: RealTimeSyncService;
   private websocket: WebSocket | null = null;
   private subscriptions: Map<string, SyncSubscription[]> = new Map();
+  private realtimeChannels: Map<string, RealtimeChannel> = new Map();
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
   private reconnectDelay = 1000;
@@ -37,53 +48,105 @@ export class RealTimeSyncService extends EventEmitter {
   }
 
   public async connect(wsUrl?: string): Promise<void> {
-    const url = wsUrl || `ws://${window.location.host}/ws`;
-
-    try {
-      this.websocket = new WebSocket(url);
-
-      this.websocket.onopen = () => {
-        console.log("Real-time sync connected");
-        this.isConnected = true;
-        this.reconnectAttempts = 0;
-        this.emit("connected");
-
-        // Send any pending events
-        this.processPendingEvents();
-      };
-
-      this.websocket.onmessage = (event) => {
-        try {
-          const syncEvent: SyncEvent = JSON.parse(event.data);
-          this.handleSyncEvent(syncEvent);
-        } catch (error) {
-          console.error("Failed to parse sync event:", error);
-        }
-      };
-
-      this.websocket.onclose = () => {
-        console.log("Real-time sync disconnected");
-        this.isConnected = false;
-        this.emit("disconnected");
-        this.attemptReconnect();
-      };
-
-      this.websocket.onerror = (error) => {
-        console.error("WebSocket error:", error);
-        this.emit("error", error);
-      };
-    } catch (error) {
-      console.error("Failed to connect to real-time sync:", error);
-      throw error;
-    }
+    // For Supabase, we don't need a separate WebSocket connection
+    // Real-time functionality is handled through Supabase channels
+    this.isConnected = true;
+    this.emit("connected");
+    console.log("Real-time sync service connected via Supabase");
   }
 
   public disconnect(): void {
+    // Unsubscribe from all Supabase channels
+    this.realtimeChannels.forEach((channel) => {
+      supabase.removeChannel(channel);
+    });
+    this.realtimeChannels.clear();
+
     if (this.websocket) {
       this.websocket.close();
       this.websocket = null;
     }
     this.isConnected = false;
+    this.emit("disconnected");
+  }
+
+  // Subscribe to real-time changes for a specific table
+  public subscribeToTable(
+    tableName: string,
+    callback: (event: RealtimeEvent) => void,
+    filter?: { column: string; value: any },
+  ): () => void {
+    const channelName = filter
+      ? `${tableName}_${filter.column}_${filter.value}`
+      : tableName;
+
+    if (this.realtimeChannels.has(channelName)) {
+      console.log(`Already subscribed to ${channelName}`);
+      return () => this.unsubscribeFromTable(channelName);
+    }
+
+    let channel = supabase.channel(channelName);
+
+    if (filter) {
+      channel = channel.on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: tableName,
+          filter: `${filter.column}=eq.${filter.value}`,
+        },
+        (payload) => this.handleRealtimeEvent(payload, callback),
+      );
+    } else {
+      channel = channel.on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: tableName,
+        },
+        (payload) => this.handleRealtimeEvent(payload, callback),
+      );
+    }
+
+    channel.subscribe((status) => {
+      if (status === "SUBSCRIBED") {
+        console.log(`Subscribed to ${channelName}`);
+      }
+    });
+
+    this.realtimeChannels.set(channelName, channel);
+
+    return () => this.unsubscribeFromTable(channelName);
+  }
+
+  private handleRealtimeEvent(
+    payload: any,
+    callback: (event: RealtimeEvent) => void,
+  ) {
+    const event: RealtimeEvent = {
+      table: payload.table,
+      eventType: payload.eventType,
+      new: payload.new,
+      old: payload.old,
+      timestamp: new Date().toISOString(),
+    };
+
+    try {
+      callback(event);
+    } catch (error) {
+      console.error("Error in realtime event handler:", error);
+    }
+  }
+
+  private unsubscribeFromTable(channelName: string) {
+    const channel = this.realtimeChannels.get(channelName);
+    if (channel) {
+      supabase.removeChannel(channel);
+      this.realtimeChannels.delete(channelName);
+      console.log(`Unsubscribed from ${channelName}`);
+    }
   }
 
   public subscribe(
@@ -141,23 +204,11 @@ export class RealTimeSyncService extends EventEmitter {
       return;
     }
 
-    if (this.isConnected && this.websocket) {
-      try {
-        this.websocket.send(JSON.stringify(syncEvent));
-      } catch (error) {
-        console.error("Failed to send sync event:", error);
-        this.pendingEvents.push(syncEvent);
-      }
-    } else {
-      // Queue event for when connection is restored
-      this.pendingEvents.push(syncEvent);
-    }
+    // Handle the sync event locally
+    this.handleSyncEvent(syncEvent);
 
-    // Quality control: Limit pending events queue
-    if (this.pendingEvents.length > 1000) {
-      console.warn("Pending events queue is full, removing oldest events");
-      this.pendingEvents = this.pendingEvents.slice(-1000);
-    }
+    // Broadcast to other clients via Supabase
+    this.broadcastEvent("sync_events", "sync_event", syncEvent);
   }
 
   private handleSyncEvent(event: SyncEvent): void {
@@ -335,17 +386,125 @@ export class RealTimeSyncService extends EventEmitter {
       );
 
       this.pendingEvents.forEach((event) => {
-        if (this.websocket && this.isConnected) {
-          try {
-            this.websocket.send(JSON.stringify(event));
-          } catch (error) {
-            console.error("Failed to send pending sync event:", error);
-          }
-        }
+        this.handleSyncEvent(event);
       });
 
       this.pendingEvents = [];
     }
+  }
+
+  // Broadcast custom events via Supabase
+  public async broadcastEvent(
+    channel: string,
+    event: string,
+    payload: any,
+  ): Promise<void> {
+    try {
+      const broadcastChannel = supabase.channel(channel);
+      await broadcastChannel.send({
+        type: "broadcast",
+        event,
+        payload,
+      });
+    } catch (error) {
+      console.error("Failed to broadcast event:", error);
+    }
+  }
+
+  // Listen for custom broadcasts
+  public listenToBroadcast(
+    channel: string,
+    event: string,
+    callback: (payload: any) => void,
+  ): () => void {
+    const channelName = `broadcast_${channel}_${event}`;
+
+    if (this.realtimeChannels.has(channelName)) {
+      console.log(`Already listening to broadcast ${channelName}`);
+      return () => this.unsubscribeFromTable(channelName);
+    }
+
+    const broadcastChannel = supabase
+      .channel(channel)
+      .on("broadcast", { event }, callback)
+      .subscribe();
+
+    this.realtimeChannels.set(channelName, broadcastChannel);
+
+    return () => this.unsubscribeFromTable(channelName);
+  }
+
+  // Sync patient data in real-time
+  public syncPatientData(
+    patientId: string,
+    callback: (event: RealtimeEvent) => void,
+  ): () => void {
+    const unsubscribeFunctions: (() => void)[] = [];
+
+    // Subscribe to patient updates
+    unsubscribeFunctions.push(
+      this.subscribeToTable("patients", callback, {
+        column: "id",
+        value: patientId,
+      }),
+    );
+
+    // Subscribe to patient episodes
+    unsubscribeFunctions.push(
+      this.subscribeToTable("patient_episodes", callback, {
+        column: "patient_id",
+        value: patientId,
+      }),
+    );
+
+    // Subscribe to clinical forms
+    unsubscribeFunctions.push(
+      this.subscribeToTable("clinical_forms", callback, {
+        column: "patient_id",
+        value: patientId,
+      }),
+    );
+
+    // Subscribe to claims
+    unsubscribeFunctions.push(
+      this.subscribeToTable("daman_claims", callback, {
+        column: "patient_id",
+        value: patientId,
+      }),
+    );
+
+    // Return function to unsubscribe from all
+    return () => {
+      unsubscribeFunctions.forEach((unsubscribe) => unsubscribe());
+    };
+  }
+
+  // Sync clinical team updates
+  public syncClinicalTeam(
+    clinicianId: string,
+    callback: (event: RealtimeEvent) => void,
+  ): () => void {
+    const unsubscribeFunctions: (() => void)[] = [];
+
+    // Subscribe to assigned episodes
+    unsubscribeFunctions.push(
+      this.subscribeToTable("patient_episodes", callback, {
+        column: "assigned_clinician",
+        value: clinicianId,
+      }),
+    );
+
+    // Subscribe to clinical forms by clinician
+    unsubscribeFunctions.push(
+      this.subscribeToTable("clinical_forms", callback, {
+        column: "clinician_id",
+        value: clinicianId,
+      }),
+    );
+
+    return () => {
+      unsubscribeFunctions.forEach((unsubscribe) => unsubscribe());
+    };
   }
 
   public getConnectionStatus(): boolean {

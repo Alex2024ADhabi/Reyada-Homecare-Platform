@@ -44,6 +44,77 @@ export interface EmiratesIdValidationResult {
   };
 }
 
+// Enhanced data encryption utilities for Emirates ID service
+export class DataEncryption {
+  /**
+   * Encrypt sensitive fields in Emirates ID data
+   */
+  static async encryptSensitiveFields(
+    data: any,
+    isDamanData: boolean = false,
+  ): Promise<any> {
+    try {
+      if (!data || typeof data !== "object") return data;
+
+      const sensitiveFields = [
+        "emiratesId",
+        "fullNameEnglish",
+        "fullNameArabic",
+        "dateOfBirth",
+      ];
+      const encryptedData = { ...data };
+
+      for (const field of sensitiveFields) {
+        if (encryptedData[field]) {
+          // Simulate encryption - in production use proper encryption
+          encryptedData[field] = btoa(encryptedData[field]);
+        }
+      }
+
+      return encryptedData;
+    } catch (error) {
+      console.error("Encryption failed:", error);
+      return data;
+    }
+  }
+
+  /**
+   * Decrypt sensitive fields in Emirates ID data
+   */
+  static async decryptSensitiveFields(
+    data: any,
+    isDamanData: boolean = false,
+  ): Promise<any> {
+    try {
+      if (!data || typeof data !== "object") return data;
+
+      const sensitiveFields = [
+        "emiratesId",
+        "fullNameEnglish",
+        "fullNameArabic",
+        "dateOfBirth",
+      ];
+      const decryptedData = { ...data };
+
+      for (const field of sensitiveFields) {
+        if (decryptedData[field]) {
+          try {
+            // Simulate decryption - in production use proper decryption
+            decryptedData[field] = atob(decryptedData[field]);
+          } catch {
+            // If decryption fails, assume data is not encrypted
+          }
+        }
+      }
+
+      return decryptedData;
+    } catch (error) {
+      console.error("Decryption failed:", error);
+      return data;
+    }
+  }
+}
+
 class EmiratesIdVerificationService {
   private readonly API_BASE_URL =
     process.env.UAE_GOV_API_URL || "https://api.government.ae/v1";

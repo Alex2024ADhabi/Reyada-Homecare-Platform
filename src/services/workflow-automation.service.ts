@@ -558,16 +558,90 @@ class WorkflowAutomationService {
     step: WorkflowStep,
     context: Record<string, any>,
   ): Promise<any> {
-    // Simulate notification sending
-    return { success: true, result: "Notification sent" };
+    try {
+      // Import communication service dynamically to avoid circular dependency
+      const { communicationService } = await import(
+        "@/services/communication.service"
+      );
+
+      const messageId = await communicationService.sendMessage({
+        senderId: "workflow_automation",
+        recipientIds: step.parameters.recipients || ["admin"],
+        content:
+          step.parameters.message || `Workflow step ${step.name} completed`,
+        type: "alert",
+        priority: step.parameters.priority || "medium",
+        encrypted: true,
+        channelId: step.parameters.channel || "general",
+        metadata: {
+          workflowId: context.workflowId,
+          stepId: step.id,
+          executionId: context.executionId,
+        },
+      });
+
+      return {
+        success: true,
+        result: `Notification sent with ID: ${messageId}`,
+      };
+    } catch (error) {
+      return { success: false, error: `Notification failed: ${error.message}` };
+    }
   }
 
   private async executeIntegration(
     step: WorkflowStep,
     context: Record<string, any>,
   ): Promise<any> {
-    // Simulate external integration
-    return { success: true, result: "Integration completed" };
+    try {
+      // Import real-time sync service dynamically
+      const { realTimeSyncService } = await import(
+        "@/services/real-time-sync.service"
+      );
+
+      // Publish integration event
+      realTimeSyncService.publishEvent({
+        type: "update",
+        entity: "workflow_integration",
+        id: `${context.executionId}_${step.id}`,
+        data: {
+          stepName: step.name,
+          parameters: step.parameters,
+          timestamp: new Date().toISOString(),
+        },
+      });
+
+      // Simulate external API call based on step parameters
+      if (step.parameters.apiEndpoint) {
+        const response = await fetch(step.parameters.apiEndpoint, {
+          method: step.parameters.method || "GET",
+          headers: {
+            "Content-Type": "application/json",
+            ...step.parameters.headers,
+          },
+          body: step.parameters.data
+            ? JSON.stringify(step.parameters.data)
+            : undefined,
+        });
+
+        if (!response.ok) {
+          throw new Error(`API call failed with status ${response.status}`);
+        }
+
+        const result = await response.json();
+        return {
+          success: true,
+          result: `Integration completed: ${JSON.stringify(result)}`,
+        };
+      }
+
+      return {
+        success: true,
+        result: "Integration step completed successfully",
+      };
+    } catch (error) {
+      return { success: false, error: `Integration failed: ${error.message}` };
+    }
   }
 
   // Placeholder methods for optimization

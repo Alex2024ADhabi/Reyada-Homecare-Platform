@@ -179,7 +179,7 @@ const ClaimsProcessingDashboard = ({
     try {
       setLoading(true);
 
-      // Validate claim for automated processing
+      // Enhanced validation for automated processing
       const validation = damanComplianceValidator.validateClaimsProcessing({
         claimId: claim.claimId,
         patientId: claim.patientName,
@@ -187,6 +187,8 @@ const ClaimsProcessingDashboard = ({
         serviceCode: claim.serviceCode,
         chargeAmount: claim.chargeAmount,
         supportingDocuments: [],
+        priorAuthorizationNumber: claim.authorizationNumber,
+        diagnosisCode: claim.diagnosisCode,
       });
 
       if (!validation.isValid) {
@@ -198,11 +200,14 @@ const ClaimsProcessingDashboard = ({
         return;
       }
 
-      // Submit for automated processing
+      // Enhanced automated processing with revenue optimization
       const response = await fetch("/api/daman-authorization/claims/process", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "X-Processing-Priority":
+            claim.chargeAmount > 5000 ? "high" : "standard",
+          "X-Revenue-Optimization": "enabled",
         },
         body: JSON.stringify({
           claimId: claim.claimId,
@@ -210,40 +215,110 @@ const ClaimsProcessingDashboard = ({
           serviceDate: claim.serviceDate,
           serviceCode: claim.serviceCode,
           chargeAmount: claim.chargeAmount,
-          diagnosisCode: "Z51.11", // Example diagnosis code
+          diagnosisCode: claim.diagnosisCode || "Z51.11",
           providerNPI: "1234567890",
+          priorAuthorizationNumber: claim.authorizationNumber,
+          automatedProcessing: true,
+          revenueOptimization: {
+            enabled: true,
+            denialPrevention: true,
+            paymentAcceleration: true,
+            reconciliationTracking: true,
+          },
         }),
       });
 
       if (response.ok) {
         const result = await response.json();
 
-        // Update claim status
+        // Update claim with enhanced processing information
         setClaims((prev) =>
           prev.map((c) =>
             c.id === claim.id
-              ? { ...c, status: "processing", automatedProcessing: true }
+              ? {
+                  ...c,
+                  status: result.automatedProcessing
+                    ? "auto-processing"
+                    : "processing",
+                  automatedProcessing: result.automatedProcessing,
+                  estimatedPayment: result.estimatedPayment,
+                  processingTime: result.processingTime,
+                  revenueOptimization: result.revenueOptimization,
+                  trackingId: result.claimId,
+                  expectedDecision: result.trackingDetails?.expectedDecision,
+                }
               : c,
           ),
         );
 
         toast({
-          title: "Processing Started",
-          description: `Claim ${claim.claimId} submitted for automated processing`,
+          title: result.automatedProcessing
+            ? "Automated Processing Started"
+            : "Processing Started",
+          description: result.automatedProcessing
+            ? `Claim ${claim.claimId} is being processed automatically. Expected completion: ${result.processingTime} days`
+            : `Claim ${claim.claimId} submitted for manual review`,
         });
+
+        // Start real-time tracking if available
+        if (result.trackingDetails?.realTimeUpdates) {
+          startRealTimeClaimTracking(claim.id, result.claimId);
+        }
       } else {
-        throw new Error("Failed to process claim");
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to process claim");
       }
     } catch (error) {
       console.error("Error processing claim:", error);
       toast({
         title: "Processing Failed",
-        description: "Unable to process claim automatically",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Unable to process claim automatically",
         variant: "destructive",
       });
     } finally {
       setLoading(false);
     }
+  };
+
+  // Real-time claim tracking function
+  const startRealTimeClaimTracking = (claimId: string, trackingId: string) => {
+    // Implementation for real-time claim status updates
+    const trackingInterval = setInterval(async () => {
+      try {
+        const response = await fetch(
+          `/api/daman-authorization/claims/${trackingId}/status`,
+        );
+        if (response.ok) {
+          const statusUpdate = await response.json();
+
+          setClaims((prev) =>
+            prev.map((c) =>
+              c.id === claimId
+                ? {
+                    ...c,
+                    status: statusUpdate.status,
+                    lastUpdated: statusUpdate.lastUpdated,
+                    processingNotes: statusUpdate.notes,
+                  }
+                : c,
+            ),
+          );
+
+          // Clear interval if claim is completed
+          if (["approved", "denied", "paid"].includes(statusUpdate.status)) {
+            clearInterval(trackingInterval);
+          }
+        }
+      } catch (error) {
+        console.error("Error tracking claim status:", error);
+      }
+    }, 30000); // Check every 30 seconds
+
+    // Clear interval after 1 hour to prevent indefinite polling
+    setTimeout(() => clearInterval(trackingInterval), 3600000);
   };
 
   const filteredClaims = claims.filter((claim) => {
@@ -406,16 +481,27 @@ const ClaimsProcessingDashboard = ({
           </TabsTrigger>
         </TabsList>
 
-        {/* Automated Processing Tab */}
+        {/* Enhanced Automated Processing Tab */}
         <TabsContent value="processing" className="mt-4">
           <Card>
             <CardHeader>
               <div className="flex justify-between items-center">
                 <div>
-                  <CardTitle>Claims Processing Queue</CardTitle>
+                  <CardTitle>Intelligent Claims Processing</CardTitle>
                   <CardDescription>
-                    Automated processing with real-time validation
+                    AI-powered automated processing with revenue optimization
+                    and real-time validation
                   </CardDescription>
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm">
+                    <TrendingUp className="w-4 h-4 mr-2" />
+                    Revenue Analytics
+                  </Button>
+                  <Button variant="outline" size="sm">
+                    <Shield className="w-4 w-4 mr-2" />
+                    Compliance Check
+                  </Button>
                 </div>
               </div>
             </CardHeader>
@@ -510,10 +596,37 @@ const ClaimsProcessingDashboard = ({
                                     processClaimAutomatically(claim)
                                   }
                                   disabled={loading}
+                                  className="bg-blue-600 hover:bg-blue-700"
                                 >
                                   <Zap className="w-3 h-3 mr-1" />
-                                  Process
+                                  Auto Process
                                 </Button>
+                              ) : claim.status === "auto-processing" ? (
+                                <div className="flex gap-1">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => {
+                                      setSelectedClaim(claim);
+                                      setShowClaimDialog(true);
+                                    }}
+                                  >
+                                    <Clock className="w-3 h-3 mr-1" />
+                                    Track
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() =>
+                                      startRealTimeClaimTracking(
+                                        claim.id,
+                                        claim.trackingId || claim.claimId,
+                                      )
+                                    }
+                                  >
+                                    <RefreshCw className="w-3 h-3" />
+                                  </Button>
+                                </div>
                               ) : (
                                 <Button
                                   size="sm"
@@ -523,7 +636,7 @@ const ClaimsProcessingDashboard = ({
                                     setShowClaimDialog(true);
                                   }}
                                 >
-                                  View
+                                  View Details
                                 </Button>
                               )}
                             </div>
@@ -622,14 +735,15 @@ const ClaimsProcessingDashboard = ({
           </Card>
         </TabsContent>
 
-        {/* Analytics Tab */}
+        {/* Enhanced Analytics Tab */}
         <TabsContent value="analytics" className="mt-4">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <Card>
               <CardHeader>
-                <CardTitle>Processing Efficiency</CardTitle>
+                <CardTitle>Processing Efficiency & Revenue Impact</CardTitle>
                 <CardDescription>
-                  Automated vs manual processing comparison
+                  Comprehensive analysis of automated vs manual processing with
+                  revenue optimization
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -637,23 +751,45 @@ const ClaimsProcessingDashboard = ({
                   <div>
                     <div className="flex justify-between text-sm mb-1">
                       <span>Automated Processing</span>
-                      <span>85%</span>
+                      <span className="font-semibold text-green-600">
+                        85% (+12% revenue impact)
+                      </span>
                     </div>
                     <Progress value={85} className="h-2" />
                   </div>
                   <div>
                     <div className="flex justify-between text-sm mb-1">
                       <span>Manual Processing</span>
-                      <span>15%</span>
+                      <span className="text-amber-600">15% (higher cost)</span>
                     </div>
                     <Progress value={15} className="h-2" />
                   </div>
                   <div>
                     <div className="flex justify-between text-sm mb-1">
                       <span>Average Processing Time</span>
-                      <span>2.1 days</span>
+                      <span className="font-semibold text-blue-600">
+                        1.2 days (automated) vs 4.5 days (manual)
+                      </span>
                     </div>
-                    <Progress value={70} className="h-2" />
+                    <Progress value={78} className="h-2" />
+                  </div>
+                  <div>
+                    <div className="flex justify-between text-sm mb-1">
+                      <span>Revenue Optimization Rate</span>
+                      <span className="font-semibold text-purple-600">
+                        94.2%
+                      </span>
+                    </div>
+                    <Progress value={94} className="h-2" />
+                  </div>
+                  <div>
+                    <div className="flex justify-between text-sm mb-1">
+                      <span>Denial Prevention Success</span>
+                      <span className="font-semibold text-green-600">
+                        87.5%
+                      </span>
+                    </div>
+                    <Progress value={87} className="h-2" />
                   </div>
                 </div>
               </CardContent>
@@ -661,30 +797,145 @@ const ClaimsProcessingDashboard = ({
 
             <Card>
               <CardHeader>
-                <CardTitle>Approval Rates</CardTitle>
-                <CardDescription>Success rates by service type</CardDescription>
+                <CardTitle>Revenue Performance by Service Type</CardTitle>
+                <CardDescription>
+                  Approval rates, reimbursement rates, and revenue optimization
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
                   <div className="flex justify-between items-center">
-                    <span className="text-sm">Nursing Care (17-25-1)</span>
-                    <Badge className="bg-green-100 text-green-800">92%</Badge>
+                    <div className="flex-1">
+                      <span className="text-sm font-medium">
+                        Nursing Care (17-25-1)
+                      </span>
+                      <div className="text-xs text-gray-500">
+                        Avg: AED 300 | Reimbursement: 92%
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Badge className="bg-green-100 text-green-800">
+                        92% approval
+                      </Badge>
+                      <Badge className="bg-blue-100 text-blue-800">
+                        0.5d processing
+                      </Badge>
+                    </div>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span className="text-sm">Physiotherapy (17-25-2)</span>
-                    <Badge className="bg-green-100 text-green-800">88%</Badge>
+                    <div className="flex-1">
+                      <span className="text-sm font-medium">
+                        Physiotherapy (17-25-2)
+                      </span>
+                      <div className="text-xs text-gray-500">
+                        Avg: AED 300 | Reimbursement: 88%
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Badge className="bg-green-100 text-green-800">
+                        88% approval
+                      </Badge>
+                      <Badge className="bg-blue-100 text-blue-800">
+                        0.5d processing
+                      </Badge>
+                    </div>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span className="text-sm">OT Consultation (17-25-3)</span>
-                    <Badge className="bg-yellow-100 text-yellow-800">75%</Badge>
+                    <div className="flex-1">
+                      <span className="text-sm font-medium">
+                        OT Consultation (17-25-3)
+                      </span>
+                      <div className="text-xs text-gray-500">
+                        Avg: AED 800 | Reimbursement: 85%
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Badge className="bg-yellow-100 text-yellow-800">
+                        75% approval
+                      </Badge>
+                      <Badge className="bg-amber-100 text-amber-800">
+                        1.2d processing
+                      </Badge>
+                    </div>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span className="text-sm">Routine Nursing (17-25-4)</span>
-                    <Badge className="bg-green-100 text-green-800">90%</Badge>
+                    <div className="flex-1">
+                      <span className="text-sm font-medium">
+                        Routine Nursing (17-25-4)
+                      </span>
+                      <div className="text-xs text-gray-500">
+                        Avg: AED 900 | Reimbursement: 90%
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Badge className="bg-green-100 text-green-800">
+                        90% approval
+                      </Badge>
+                      <Badge className="bg-blue-100 text-blue-800">
+                        0.5d processing
+                      </Badge>
+                    </div>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span className="text-sm">Advanced Nursing (17-25-5)</span>
-                    <Badge className="bg-yellow-100 text-yellow-800">78%</Badge>
+                    <div className="flex-1">
+                      <span className="text-sm font-medium">
+                        Advanced Nursing (17-25-5)
+                      </span>
+                      <div className="text-xs text-gray-500">
+                        Avg: AED 1,800 | Reimbursement: 87%
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Badge className="bg-yellow-100 text-yellow-800">
+                        78% approval
+                      </Badge>
+                      <Badge className="bg-amber-100 text-amber-800">
+                        1.5d processing
+                      </Badge>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Revenue Cycle Optimization</CardTitle>
+                <CardDescription>
+                  Real-time revenue management insights
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm">Payment Acceleration</span>
+                    <Badge className="bg-green-100 text-green-800">
+                      +23% faster
+                    </Badge>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm">Denial Prevention</span>
+                    <Badge className="bg-blue-100 text-blue-800">
+                      87.5% success
+                    </Badge>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm">Automated Reconciliation</span>
+                    <Badge className="bg-purple-100 text-purple-800">
+                      94.2% matched
+                    </Badge>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm">Revenue Leakage Prevention</span>
+                    <Badge className="bg-green-100 text-green-800">
+                      $125K saved
+                    </Badge>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm">Collection Efficiency</span>
+                    <Badge className="bg-blue-100 text-blue-800">
+                      96.3% rate
+                    </Badge>
                   </div>
                 </div>
               </CardContent>

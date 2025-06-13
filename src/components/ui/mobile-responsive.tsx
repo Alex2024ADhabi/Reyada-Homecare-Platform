@@ -154,9 +154,9 @@ export const MobileAppAccess: React.FC<{
         )}
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <div className="text-center p-3 bg-white rounded-lg border">
+          <div className="text-center p-3 bg-white rounded-lg border hover:shadow-md transition-shadow">
             <Smartphone
-              className={`h-6 w-6 mx-auto mb-2 ${pwaCapabilities.installable ? "text-green-600" : "text-gray-400"}`}
+              className={`h-6 w-6 mx-auto mb-2 transition-colors ${pwaCapabilities.installable ? "text-green-600" : "text-gray-400"}`}
             />
             <div className="text-xs font-medium">PWA Ready</div>
             <div className="text-xs text-gray-600">

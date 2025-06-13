@@ -14,7 +14,24 @@ import {
   FileText,
   Users,
   Settings,
+  Download,
+  RefreshCw,
+  Calendar,
+  TrendingUp,
+  Database,
+  Mail,
+  Bell,
 } from "lucide-react";
+import { dohAuditAPI } from "@/api/doh-audit.api";
+import {
+  getComplianceMonitoringDashboard,
+  createComplianceMonitoringRule,
+  executeComplianceMonitoring,
+  getUpcomingComplianceAudits,
+  exportReport,
+  generateReport,
+  getReportAnalytics,
+} from "@/api/reporting.api";
 
 interface ComplianceRule {
   id: string;
@@ -126,6 +143,12 @@ const DOHComplianceValidator: React.FC = () => {
   const [adhicsValidation, setADHICSValidation] =
     useState<ADHICSValidationData | null>(null);
   const [validationInProgress, setValidationInProgress] = useState(false);
+  const [complianceMonitoringData, setComplianceMonitoringData] = useState<any>(null);
+  const [upcomingAudits, setUpcomingAudits] = useState<any[]>([]);
+  const [reportAnalytics, setReportAnalytics] = useState<any>(null);
+  const [automatedReports, setAutomatedReports] = useState<any[]>([]);
+  const [realTimeMonitoring, setRealTimeMonitoring] = useState(true);
+  const [exportInProgress, setExportInProgress] = useState(false);
 
   // 12 Comprehensive Compliance Rules
   const complianceRules: ComplianceRule[] = [
@@ -434,10 +457,88 @@ const DOHComplianceValidator: React.FC = () => {
     },
   ];
 
-  // Load DOH compliance data
+  // Load DOH compliance data and initialize automation
   useEffect(() => {
     loadDOHComplianceData();
+    initializeComplianceAutomation();
   }, []);
+
+  // Real-time monitoring effect
+  useEffect(() => {
+    if (realTimeMonitoring) {
+      const interval = setInterval(() => {
+        refreshComplianceData();
+      }, 30000); // Refresh every 30 seconds
+      return () => clearInterval(interval);
+    }
+  }, [realTimeMonitoring]);
+
+  const initializeComplianceAutomation = async () => {
+    try {
+      // Initialize automated compliance monitoring rules
+      await createComplianceMonitoringRule({
+        rule_id: "DOH-AUTO-001",
+        name: "DOH 9-Domain Assessment Compliance",
+        description: "Automated monitoring of 9-domain assessment completion rates",
+        category: "doh",
+        severity: "critical",
+        monitoring_frequency: "daily",
+        validation_query: "SELECT COUNT(*) FROM assessments WHERE completion_percentage = 100",
+        threshold_config: {
+          warning_threshold: 85,
+          critical_threshold: 70,
+          measurement_unit: "percentage",
+        },
+        automated_actions: {
+          alert_recipients: ["compliance@reyada-homecare.com", "quality@reyada-homecare.com"],
+          escalation_rules: [
+            {
+              level: 1,
+              delay_minutes: 60,
+              recipients: ["manager@reyada-homecare.com"],
+            },
+            {
+              level: 2,
+              delay_minutes: 240,
+              recipients: ["director@reyada-homecare.com"],
+            },
+          ],
+          auto_remediation: {
+            enabled: true,
+            max_attempts: 3,
+          },
+        },
+        status: "active",
+        created_by: "system",
+      });
+
+      // Load compliance monitoring dashboard
+      const monitoringData = await getComplianceMonitoringDashboard();
+      setComplianceMonitoringData(monitoringData);
+
+      // Load upcoming audits
+      const audits = await getUpcomingComplianceAudits();
+      setUpcomingAudits(audits);
+
+      // Load report analytics
+      const analytics = await getReportAnalytics();
+      setReportAnalytics(analytics);
+
+      console.log("DOH compliance automation initialized successfully");
+    } catch (error) {
+      console.error("Error initializing compliance automation:", error);
+    }
+  };
+
+  const refreshComplianceData = async () => {
+    try {
+      const monitoringData = await getComplianceMonitoringDashboard();
+      setComplianceMonitoringData(monitoringData);
+      setLastUpdate(new Date());
+    } catch (error) {
+      console.error("Error refreshing compliance data:", error);
+    }
+  };
 
   const loadDOHComplianceData = async () => {
     try {
@@ -589,22 +690,81 @@ const DOHComplianceValidator: React.FC = () => {
   const runComprehensiveValidation = async () => {
     setValidationInProgress(true);
     try {
-      // Simulate comprehensive DOH compliance validation
-      await new Promise((resolve) => setTimeout(resolve, 3000));
+      // Execute real JAWDA KPI calculations
+      const startDate = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
+      const endDate = new Date().toISOString();
 
-      // Update real-time alerts
+      const kpiResults = [
+        dohAuditAPI.calculateHC001(startDate, endDate),
+        dohAuditAPI.calculateHC002(startDate, endDate),
+        dohAuditAPI.calculateHC003(startDate, endDate),
+        dohAuditAPI.calculateHC004(startDate, endDate),
+        dohAuditAPI.calculateHC005(startDate, endDate),
+        dohAuditAPI.calculateHC006(startDate, endDate),
+      ];
+
+      // Execute compliance monitoring for all active rules
+      await executeComplianceMonitoring("DOH-AUTO-001");
+
+      // Generate automated compliance report
+      const report = await generateReport(
+        "doh-compliance-template",
+        {
+          period: "current-month",
+          includeKPIs: true,
+          includeTawteen: true,
+          includeADHICS: true,
+        },
+        "automated-system"
+      );
+
+      setAutomatedReports(prev => [report, ...prev.slice(0, 4)]);
+
+      // Update real-time alerts with actual data
       const newAlerts = [
-        "9-Domain Assessment validation completed successfully",
-        "JAWDA KPI tracking updated with latest metrics",
-        "Tawteen compliance gap identified - 3 additional Emirati staff needed",
-        "ADHICS V2 certification maintained with 91% compliance score",
+        `JAWDA KPI HC001 (Emergency Visits): ${kpiResults[0].result.toFixed(2)}% - ${kpiResults[0].result < 5 ? 'Compliant' : 'Needs Attention'}`,
+        `JAWDA KPI HC002 (Hospitalizations): ${kpiResults[1].result.toFixed(2)}% - ${kpiResults[1].result < 8 ? 'Compliant' : 'Needs Attention'}`,
+        `9-Domain Assessment completion rate: ${nineDomainAssessments.length > 0 ? nineDomainAssessments[0].completionPercentage : 0}%`,
+        `Automated compliance report generated: ${report.report_id}`,
+        `Real-time monitoring active - ${complianceMonitoringData?.overview?.total_active_rules || 0} rules monitored`,
       ];
       setRealTimeAlerts(newAlerts);
       setLastUpdate(new Date());
     } catch (error) {
       console.error("Validation failed:", error);
+      setRealTimeAlerts(["Validation failed - please check system logs"]);
     } finally {
       setValidationInProgress(false);
+    }
+  };
+
+  const exportComplianceReport = async (format: 'pdf' | 'excel' | 'csv') => {
+    setExportInProgress(true);
+    try {
+      if (automatedReports.length === 0) {
+        throw new Error("No reports available for export");
+      }
+
+      const latestReport = automatedReports[0];
+      const exported = await exportReport(latestReport._id, format);
+      
+      // Create download link
+      const blob = new Blob([exported.buffer], { type: exported.contentType });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = exported.filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      setRealTimeAlerts(prev => [`Report exported successfully: ${exported.filename}`, ...prev.slice(0, 4)]);
+    } catch (error) {
+      console.error("Export failed:", error);
+      setRealTimeAlerts(prev => ["Export failed - please try again", ...prev.slice(0, 4)]);
+    } finally {
+      setExportInProgress(false);
     }
   };
 
@@ -683,16 +843,36 @@ const DOHComplianceValidator: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header */}
+        {/* Enhanced Header with Real-time Status */}
         <div className="bg-white rounded-lg shadow-sm p-6">
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-bold text-gray-900">
-                DOH Compliance System
+                DOH Compliance Automation System
               </h1>
               <p className="text-gray-600 mt-2">
-                Comprehensive compliance monitoring and validation
+                Real-time compliance monitoring, automated reporting & regulatory validation
               </p>
+              <div className="flex items-center space-x-4 mt-3">
+                <div className="flex items-center space-x-2">
+                  <div className={`w-3 h-3 rounded-full ${realTimeMonitoring ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`}></div>
+                  <span className="text-sm text-gray-600">
+                    {realTimeMonitoring ? 'Real-time Monitoring Active' : 'Monitoring Paused'}
+                  </span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Database className="h-4 w-4 text-blue-500" />
+                  <span className="text-sm text-gray-600">
+                    {complianceMonitoringData?.overview?.total_active_rules || 0} Active Rules
+                  </span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <TrendingUp className="h-4 w-4 text-green-500" />
+                  <span className="text-sm text-gray-600">
+                    {complianceMonitoringData?.overview?.overall_compliance_score?.toFixed(1) || '0.0'}% Avg Score
+                  </span>
+                </div>
+              </div>
             </div>
             <div className="text-right">
               <div className="text-3xl font-bold text-blue-600">
@@ -701,6 +881,22 @@ const DOHComplianceValidator: React.FC = () => {
               <div className="text-sm text-gray-500">Overall Compliance</div>
               <div className="text-xs text-gray-400 mt-1">
                 Last updated: {lastUpdate.toLocaleTimeString()}
+              </div>
+              <div className="flex items-center space-x-2 mt-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setRealTimeMonitoring(!realTimeMonitoring)}
+                >
+                  {realTimeMonitoring ? <Bell className="h-4 w-4" /> : <RefreshCw className="h-4 w-4" />}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={refreshComplianceData}
+                >
+                  <RefreshCw className="h-4 w-4" />
+                </Button>
               </div>
             </div>
           </div>
@@ -726,15 +922,141 @@ const DOHComplianceValidator: React.FC = () => {
           onValueChange={setActiveTab}
           className="space-y-6"
         >
-          <TabsList className="grid w-full grid-cols-7">
+          <TabsList className="grid w-full grid-cols-9">
             <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="nine-domains">9-Domain Assessment</TabsTrigger>
+            <TabsTrigger value="automation">Automation</TabsTrigger>
+            <TabsTrigger value="nine-domains">9-Domain</TabsTrigger>
             <TabsTrigger value="jawda-kpi">JAWDA KPIs</TabsTrigger>
             <TabsTrigger value="tawteen">Tawteen</TabsTrigger>
             <TabsTrigger value="adhics">ADHICS V2</TabsTrigger>
             <TabsTrigger value="safety">Patient Safety</TabsTrigger>
-            <TabsTrigger value="rules">Compliance Rules</TabsTrigger>
+            <TabsTrigger value="reports">Reports</TabsTrigger>
+            <TabsTrigger value="audits">Audits</TabsTrigger>
           </TabsList>
+
+          {/* Automation Dashboard Tab */}
+          <TabsContent value="automation" className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Real-time Monitoring Status */}
+              <Card className="bg-white">
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <TrendingUp className="h-5 w-5 mr-2" />
+                    Real-time Compliance Monitoring
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {complianceMonitoringData && (
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="text-center">
+                          <div className="text-2xl font-bold text-green-600">
+                            {complianceMonitoringData.overview.total_active_rules}
+                          </div>
+                          <div className="text-sm text-gray-600">Active Rules</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-2xl font-bold text-blue-600">
+                            {complianceMonitoringData.overview.overall_compliance_score?.toFixed(1)}%
+                          </div>
+                          <div className="text-sm text-gray-600">Avg Score</div>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <h4 className="font-medium">Recent Alerts</h4>
+                        {complianceMonitoringData.real_time_alerts?.slice(0, 3).map((alert: any, index: number) => (
+                          <div key={index} className="flex items-center space-x-2 p-2 bg-yellow-50 rounded">
+                            <AlertTriangle className="h-4 w-4 text-yellow-500" />
+                            <span className="text-sm">{alert.message}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Automated Actions */}
+              <Card className="bg-white">
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <Settings className="h-5 w-5 mr-2" />
+                    Automated Actions Today
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {complianceMonitoringData && (
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-3 gap-4 text-center">
+                        <div>
+                          <div className="text-xl font-bold text-blue-600">
+                            {complianceMonitoringData.automated_actions.total_actions_today}
+                          </div>
+                          <div className="text-xs text-gray-600">Total Actions</div>
+                        </div>
+                        <div>
+                          <div className="text-xl font-bold text-green-600">
+                            {complianceMonitoringData.automated_actions.successful_remediations}
+                          </div>
+                          <div className="text-xs text-gray-600">Remediations</div>
+                        </div>
+                        <div>
+                          <div className="text-xl font-bold text-orange-600">
+                            {complianceMonitoringData.automated_actions.pending_escalations}
+                          </div>
+                          <div className="text-xs text-gray-600">Escalations</div>
+                        </div>
+                      </div>
+                      <div className="mt-4">
+                        <Button
+                          size="sm"
+                          className="w-full"
+                          onClick={() => executeComplianceMonitoring("DOH-AUTO-001")}
+                        >
+                          <RefreshCw className="h-4 w-4 mr-2" />
+                          Run Manual Check
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Compliance Trends */}
+            {complianceMonitoringData?.compliance_trends && (
+              <Card className="bg-white">
+                <CardHeader>
+                  <CardTitle>Compliance Performance Trends</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div>
+                      <h4 className="font-medium mb-3">DOH Compliance</h4>
+                      <div className="text-2xl font-bold text-blue-600">
+                        {complianceMonitoringData.compliance_trends.category_performance.doh?.toFixed(1)}%
+                      </div>
+                      <Progress value={complianceMonitoringData.compliance_trends.category_performance.doh} className="mt-2" />
+                    </div>
+                    <div>
+                      <h4 className="font-medium mb-3">JAWDA KPIs</h4>
+                      <div className="text-2xl font-bold text-green-600">
+                        {complianceMonitoringData.compliance_trends.category_performance.jawda?.toFixed(1)}%
+                      </div>
+                      <Progress value={complianceMonitoringData.compliance_trends.category_performance.jawda} className="mt-2" />
+                    </div>
+                    <div>
+                      <h4 className="font-medium mb-3">Daman Integration</h4>
+                      <div className="text-2xl font-bold text-purple-600">
+                        {complianceMonitoringData.compliance_trends.category_performance.daman?.toFixed(1)}%
+                      </div>
+                      <Progress value={complianceMonitoringData.compliance_trends.category_performance.daman} className="mt-2" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
 
           {/* Overview Tab */}
           <TabsContent value="overview" className="space-y-6">
@@ -1736,8 +2058,227 @@ const DOHComplianceValidator: React.FC = () => {
             </Card>
           </TabsContent>
 
-          {/* Compliance Rules Tab */}
-          <TabsContent value="rules" className="space-y-6">
+          {/* Automated Reports Tab */}
+          <TabsContent value="reports" className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Report Generation */}
+              <Card className="bg-white">
+                <CardHeader>
+                  <CardTitle className="flex items-center justify-between">
+                    <span className="flex items-center">
+                      <FileText className="h-5 w-5 mr-2" />
+                      Automated Reports
+                    </span>
+                    <Button
+                      size="sm"
+                      onClick={runComprehensiveValidation}
+                      disabled={validationInProgress}
+                    >
+                      {validationInProgress ? (
+                        <Clock className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <RefreshCw className="h-4 w-4 mr-2" />
+                      )}
+                      Generate Report
+                    </Button>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {automatedReports.length > 0 ? (
+                      automatedReports.map((report, index) => (
+                        <div key={index} className="border rounded-lg p-3">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <div className="font-medium">{report.name}</div>
+                              <div className="text-sm text-gray-600">
+                                Generated: {new Date(report.generated_at).toLocaleString()}
+                              </div>
+                            </div>
+                            <Badge className={getStatusColor(report.status)}>
+                              {report.status}
+                            </Badge>
+                          </div>
+                          <div className="flex space-x-2 mt-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => exportComplianceReport('pdf')}
+                              disabled={exportInProgress}
+                            >
+                              <Download className="h-4 w-4 mr-1" />
+                              PDF
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => exportComplianceReport('excel')}
+                              disabled={exportInProgress}
+                            >
+                              <Download className="h-4 w-4 mr-1" />
+                              Excel
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => exportComplianceReport('csv')}
+                              disabled={exportInProgress}
+                            >
+                              <Download className="h-4 w-4 mr-1" />
+                              CSV
+                            </Button>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-center py-8 text-gray-500">
+                        <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                        <p>No automated reports generated yet</p>
+                        <p className="text-sm">Click "Generate Report" to create your first automated compliance report</p>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Report Analytics */}
+              <Card className="bg-white">
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <TrendingUp className="h-5 w-5 mr-2" />
+                    Report Analytics
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {reportAnalytics ? (
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="text-center">
+                          <div className="text-2xl font-bold text-blue-600">
+                            {reportAnalytics.overview.total_reports}
+                          </div>
+                          <div className="text-sm text-gray-600">Total Reports</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-2xl font-bold text-green-600">
+                            {reportAnalytics.performance_metrics.success_rate}
+                          </div>
+                          <div className="text-sm text-gray-600">Success Rate</div>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex justify-between">
+                          <span className="text-sm">Completed</span>
+                          <span className="text-sm font-medium">{reportAnalytics.overview.completed_reports}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-sm">Scheduled</span>
+                          <span className="text-sm font-medium">{reportAnalytics.overview.scheduled_reports}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-sm">Failed</span>
+                          <span className="text-sm font-medium">{reportAnalytics.overview.failed_reports}</span>
+                        </div>
+                      </div>
+                      <div className="mt-4">
+                        <h4 className="font-medium mb-2">Export Statistics</h4>
+                        <div className="grid grid-cols-2 gap-2 text-sm">
+                          <div className="flex justify-between">
+                            <span>PDF:</span>
+                            <span>{reportAnalytics.export_statistics.pdf_exports}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Excel:</span>
+                            <span>{reportAnalytics.export_statistics.excel_exports}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>CSV:</span>
+                            <span>{reportAnalytics.export_statistics.csv_exports}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>JSON:</span>
+                            <span>{reportAnalytics.export_statistics.json_exports}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-gray-500">
+                      <TrendingUp className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                      <p>Loading analytics...</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
+          {/* Audit Management Tab */}
+          <TabsContent value="audits" className="space-y-6">
+            <Card className="bg-white">
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <Calendar className="h-5 w-5 mr-2" />
+                  Upcoming Compliance Audits
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {upcomingAudits.length > 0 ? (
+                    upcomingAudits.map((audit, index) => (
+                      <div key={index} className="border rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <div>
+                            <h3 className="font-semibold">{audit.name}</h3>
+                            <p className="text-sm text-gray-600">
+                              {audit.audit_type} - {audit.regulatory_body.toUpperCase()}
+                            </p>
+                          </div>
+                          <Badge className={getStatusColor(audit.status)}>
+                            {audit.status}
+                          </Badge>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4 text-sm">
+                          <div>
+                            <span className="font-medium">Start Date:</span>
+                            <div>{new Date(audit.schedule_config.start_date).toLocaleDateString()}</div>
+                          </div>
+                          <div>
+                            <span className="font-medium">Duration:</span>
+                            <div>{audit.schedule_config.duration_days} days</div>
+                          </div>
+                          <div>
+                            <span className="font-medium">Lead Auditor:</span>
+                            <div>{audit.audit_team.lead_auditor}</div>
+                          </div>
+                          <div>
+                            <span className="font-medium">Preparation Days:</span>
+                            <div>{audit.schedule_config.preparation_days} days</div>
+                          </div>
+                        </div>
+                        <div className="mt-3">
+                          <h4 className="font-medium text-sm mb-2">Scope:</h4>
+                          <div className="flex flex-wrap gap-1">
+                            {audit.scope.compliance_domains.map((domain: string, idx: number) => (
+                              <Badge key={idx} variant="outline" className="text-xs">
+                                {domain}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center py-8 text-gray-500">
+                      <Calendar className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                      <p>No upcoming audits scheduled</p>
+                      <p className="text-sm">Audit schedules will appear here when configured</p>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
             <Card className="bg-white">
               <CardHeader>
                 <CardTitle>12 Comprehensive Compliance Rules</CardTitle>
@@ -1831,7 +2372,7 @@ const DOHComplianceValidator: React.FC = () => {
           </TabsContent>
         </Tabs>
 
-        {/* Action Buttons */}
+        {/* Enhanced Action Buttons */}
         <div className="flex justify-center space-x-4">
           <Button
             onClick={runComprehensiveValidation}
@@ -1841,27 +2382,57 @@ const DOHComplianceValidator: React.FC = () => {
             {validationInProgress ? (
               <>
                 <Clock className="h-4 w-4 mr-2 animate-spin" />
-                Running Validation...
+                Running Automated Validation...
               </>
             ) : (
               <>
                 <Shield className="h-4 w-4 mr-2" />
-                Run Comprehensive Validation
+                Run Comprehensive Automation
               </>
             )}
           </Button>
           <Button
             variant="outline"
-            onClick={() => alert("Generating DOH compliance report...")}
+            onClick={() => exportComplianceReport('pdf')}
+            disabled={exportInProgress || automatedReports.length === 0}
           >
-            <FileText className="h-4 w-4 mr-2" />
-            Generate DOH Report
+            {exportInProgress ? (
+              <Clock className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Download className="h-4 w-4 mr-2" />
+            )}
+            Export PDF Report
           </Button>
           <Button
             variant="outline"
-            onClick={() => alert("Exporting compliance data...")}
+            onClick={() => exportComplianceReport('excel')}
+            disabled={exportInProgress || automatedReports.length === 0}
           >
-            Export Compliance Data
+            <Download className="h-4 w-4 mr-2" />
+            Export Excel Report
+          </Button>
+          <Button
+            variant="outline"
+            onClick={refreshComplianceData}
+          >
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Refresh Data
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => setRealTimeMonitoring(!realTimeMonitoring)}
+          >
+            {realTimeMonitoring ? (
+              <>
+                <Bell className="h-4 w-4 mr-2" />
+                Pause Monitoring
+              </>
+            ) : (
+              <>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Resume Monitoring
+              </>
+            )}
           </Button>
         </div>
       </div>

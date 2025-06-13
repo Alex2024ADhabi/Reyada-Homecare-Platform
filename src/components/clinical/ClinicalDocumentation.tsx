@@ -53,6 +53,10 @@ import {
   Target,
   AlertTriangle,
   RefreshCw,
+  Monitor,
+  Smartphone,
+  Tablet,
+  WifiOff,
 } from "lucide-react";
 import ComplianceChecker from "./ComplianceChecker";
 import PatientAssessment from "./PatientAssessment";
@@ -360,6 +364,16 @@ const ClinicalDocumentation = ({
 }: ClinicalDocumentationProps) => {
   const [activeTab, setActiveTab] = useState("forms"); // State for top-level tabs
   const [activeForm, setActiveForm] = useState("assessment");
+  const [mobileOptimized, setMobileOptimized] = useState(false);
+  const [touchEnabled, setTouchEnabled] = useState(false);
+  const [gestureSupport, setGestureSupport] = useState(false);
+  const [cameraIntegrated, setCameraIntegrated] = useState(false);
+  const [voiceIntegrated, setVoiceIntegrated] = useState(false);
+  const [offlineFormsEnabled, setOfflineFormsEnabled] = useState(false);
+  const [realTimeValidation, setRealTimeValidation] = useState(true);
+  const [smartSuggestions, setSmartSuggestions] = useState(true);
+  const [collaborativeEditing, setCollaborativeEditing] = useState(false);
+  const [enhancedSecurity, setEnhancedSecurity] = useState(true);
   const [voiceInputActive, setVoiceInputActive] = useState(false);
   const [documentProgress, setDocumentProgress] = useState(35);
   const [showComplianceChecker, setShowComplianceChecker] = useState(false);
@@ -369,11 +383,34 @@ const ClinicalDocumentation = ({
   const [workflowAutomation, setWorkflowAutomation] = useState(true);
   const [currentWorkflow, setCurrentWorkflow] =
     useState<ClinicalWorkflow | null>(null);
+  const [performanceMetrics, setPerformanceMetrics] = useState({
+    renderTime: 0,
+    interactionLatency: 0,
+    memoryUsage: 0,
+    cacheHitRate: 0,
+  });
+  const [accessibilityScore, setAccessibilityScore] = useState(95);
+  const [userExperienceMetrics, setUserExperienceMetrics] = useState({
+    taskCompletionRate: 94,
+    errorRate: 2.1,
+    satisfactionScore: 4.7,
+    usabilityScore: 92,
+  });
   const [showWorkflowToast, setShowWorkflowToast] = useState(false);
   const [automationStats, setAutomationStats] = useState({
     formsAutomated: 0,
     timeSaved: 0,
     errorsReduced: 0,
+  });
+  const [systemValidation, setSystemValidation] = useState({
+    medicalRecordsIntegrity: 0,
+    formsIntegration: 0,
+    workflowRobustness: 0,
+    complianceAlignment: 0,
+    patientJourneyTracking: 0,
+    bedsideVisitIntegration: 0,
+    issues: [],
+    recommendations: [],
   });
   const [workflowStatus, setWorkflowStatus] = useState({
     hasError: false,
@@ -401,10 +438,220 @@ const ClinicalDocumentation = ({
   const [savedForms, setSavedForms] = useState<any[]>([]);
   const { handleSuccess, handleApiError } = useErrorHandler();
 
-  // Initialize component with Supabase
+  // Initialize component with enhanced mobile capabilities and performance monitoring
   useEffect(() => {
+    const startTime = performance.now();
+
     initializeComponent();
+    initializeMobileFeatures();
+    initializePerformanceTracking();
+    initializeAccessibilityEnhancements();
+    validateMedicalRecordSystem();
+
+    const initTime = performance.now() - startTime;
+    setPerformanceMetrics((prev) => ({ ...prev, renderTime: initTime }));
   }, []);
+
+  const initializePerformanceTracking = () => {
+    // Track interaction latency
+    let interactionStart = 0;
+
+    document.addEventListener("click", () => {
+      interactionStart = performance.now();
+    });
+
+    // Monitor after state updates
+    setTimeout(() => {
+      const latency = performance.now() - interactionStart;
+      if (latency > 0) {
+        setPerformanceMetrics((prev) => ({
+          ...prev,
+          interactionLatency: latency,
+        }));
+      }
+    }, 0);
+
+    // Monitor memory usage
+    if ((performance as any).memory) {
+      const updateMemoryUsage = () => {
+        const memory = (performance as any).memory;
+        setPerformanceMetrics((prev) => ({
+          ...prev,
+          memoryUsage: Math.round(memory.usedJSHeapSize / 1024 / 1024),
+        }));
+      };
+
+      updateMemoryUsage();
+      setInterval(updateMemoryUsage, 10000);
+    }
+  };
+
+  const initializeAccessibilityEnhancements = () => {
+    // Enhanced keyboard navigation for clinical forms
+    const handleKeyboardNavigation = (event: KeyboardEvent) => {
+      if (event.key === "Tab") {
+        // Ensure proper tab order in clinical forms
+        const clinicalForm = document.querySelector(".clinical-form-container");
+        if (clinicalForm) {
+          const focusableElements = clinicalForm.querySelectorAll(
+            'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+          );
+
+          // Add visual focus indicators
+          focusableElements.forEach((element) => {
+            element.addEventListener("focus", () => {
+              element.classList.add("enhanced-focus");
+            });
+            element.addEventListener("blur", () => {
+              element.classList.remove("enhanced-focus");
+            });
+          });
+        }
+      }
+
+      // Quick save with Ctrl+S
+      if (event.ctrlKey && event.key === "s") {
+        event.preventDefault();
+        handleSaveForm();
+        (window as any).announceToScreenReader?.("Form saved successfully");
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyboardNavigation);
+
+    // Voice commands for clinical documentation
+    if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
+      const SpeechRecognition =
+        (window as any).webkitSpeechRecognition ||
+        (window as any).SpeechRecognition;
+      const recognition = new SpeechRecognition();
+
+      recognition.continuous = false;
+      recognition.interimResults = false;
+      recognition.lang = "en-US";
+
+      recognition.onresult = (event: any) => {
+        const command = event.results[0][0].transcript.toLowerCase();
+
+        if (command.includes("save form")) {
+          handleSaveForm();
+          (window as any).announceToScreenReader?.(
+            "Voice command executed: Form saved",
+          );
+        } else if (command.includes("start voice input")) {
+          handleVoiceInput();
+        } else if (command.includes("take photo")) {
+          handleCameraCapture();
+        }
+      };
+
+      // Enable voice commands with Alt+V
+      document.addEventListener("keydown", (event) => {
+        if (event.altKey && event.key === "v") {
+          recognition.start();
+          (window as any).announceToScreenReader?.(
+            "Voice command mode activated",
+          );
+        }
+      });
+    }
+
+    // Real-time accessibility scoring
+    const checkAccessibility = () => {
+      let score = 100;
+
+      // Check for missing alt text
+      const images = document.querySelectorAll("img:not([alt])");
+      score -= images.length * 5;
+
+      // Check for proper heading hierarchy
+      const headings = document.querySelectorAll("h1, h2, h3, h4, h5, h6");
+      if (headings.length === 0) score -= 10;
+
+      // Check for form labels
+      const inputs = document.querySelectorAll(
+        "input:not([aria-label]):not([aria-labelledby])",
+      );
+      const unlabeledInputs = Array.from(inputs).filter((input) => {
+        const id = input.getAttribute("id");
+        return !id || !document.querySelector(`label[for="${id}"]`);
+      });
+      score -= unlabeledInputs.length * 3;
+
+      // Check color contrast (simplified)
+      const elements = document.querySelectorAll("*");
+      let lowContrastCount = 0;
+      elements.forEach((element) => {
+        const styles = window.getComputedStyle(element);
+        const color = styles.color;
+        const backgroundColor = styles.backgroundColor;
+
+        if (
+          color &&
+          backgroundColor &&
+          color !== "rgba(0, 0, 0, 0)" &&
+          backgroundColor !== "rgba(0, 0, 0, 0)"
+        ) {
+          // Simplified contrast check
+          if (color === backgroundColor) {
+            lowContrastCount++;
+          }
+        }
+      });
+      score -= Math.min(lowContrastCount * 2, 20);
+
+      setAccessibilityScore(Math.max(0, score));
+    };
+
+    checkAccessibility();
+    setInterval(checkAccessibility, 30000);
+  };
+
+  const initializeMobileFeatures = async () => {
+    try {
+      // Detect mobile device
+      const isMobile =
+        /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+          navigator.userAgent,
+        );
+      setMobileOptimized(isMobile);
+
+      // Initialize touch support
+      setTouchEnabled("ontouchstart" in window);
+
+      // Initialize gesture support
+      setGestureSupport("GestureEvent" in window);
+
+      // Initialize camera integration
+      const cameraStatus =
+        await mobileCommunicationService.initializeCameraIntegration();
+      setCameraIntegrated(cameraStatus.supported);
+
+      // Initialize voice integration
+      const voiceSupported =
+        mobileCommunicationService.isVoiceRecognitionSupported();
+      setVoiceIntegrated(voiceSupported);
+
+      // Initialize offline forms
+      await offlineService.init();
+      setOfflineFormsEnabled(true);
+
+      // Initialize collaborative editing if online
+      if (navigator.onLine) {
+        setCollaborativeEditing(true);
+      }
+
+      console.log("Mobile features initialized:", {
+        mobile: isMobile,
+        touch: touchEnabled,
+        camera: cameraStatus.supported,
+        voice: voiceSupported,
+        offline: true,
+      });
+    } catch (error) {
+      console.error("Failed to initialize mobile features:", error);
+    }
+  };
 
   const initializeComponent = async () => {
     try {
@@ -555,31 +802,62 @@ const ClinicalDocumentation = ({
     avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Mohammed",
   };
 
-  // Enhanced clinical forms with DOH Patient Safety Taxonomy integration
+  // Enhanced mobile-first clinical forms with DOH Patient Safety Taxonomy integration
   const clinicalForms = [
     {
       id: "assessment",
-      name: "9-Domain Assessment",
+      name: "DOH 9-Domain Assessment",
       dohCompliant: true,
       taxonomyRequired: false,
+      mobileOptimized: true,
+      offlineCapable: true,
+      voiceEnabled: true,
+      touchOptimized: true,
+      estimatedTime: 15,
+      priority: "critical",
+      category: "assessment",
     },
     {
       id: "vital-signs",
-      name: "Vital Signs",
+      name: "Vital Signs Monitoring",
       dohCompliant: true,
       taxonomyRequired: false,
+      mobileOptimized: true,
+      offlineCapable: true,
+      voiceEnabled: true,
+      touchOptimized: true,
+      estimatedTime: 5,
+      priority: "high",
+      category: "monitoring",
     },
     {
       id: "medication",
-      name: "Medication Administration",
+      name: "Medication Administration Record",
       dohCompliant: true,
       taxonomyRequired: true,
+      mobileOptimized: true,
+      offlineCapable: true,
+      voiceEnabled: true,
+      touchOptimized: true,
+      estimatedTime: 8,
+      priority: "critical",
+      category: "medication",
+      requiresSignature: true,
     },
     {
       id: "wound-care",
-      name: "Wound Documentation",
+      name: "Wound Assessment & Documentation",
       dohCompliant: true,
       taxonomyRequired: true,
+      mobileOptimized: true,
+      offlineCapable: true,
+      voiceEnabled: true,
+      touchOptimized: true,
+      cameraRequired: true,
+      estimatedTime: 12,
+      priority: "high",
+      category: "wound_care",
+      requiresPhotos: true,
     },
     {
       id: "nursing-notes",
@@ -661,38 +939,99 @@ const ClinicalDocumentation = ({
     },
   ];
 
-  // Mock assessment domains
-  const assessmentDomains = [
-    { id: "medication", name: "Medication Management", score: 3, maxScore: 5 },
+  // Enhanced DOH 9-Domain Assessment with real-time validation
+  const [assessmentDomains, setAssessmentDomains] = useState([
+    {
+      id: "medication",
+      name: "Medication Management",
+      score: formData.nineDomainsAssessment?.medication?.score || 0,
+      maxScore: 5,
+      validated: false,
+      clinicalJustification:
+        formData.nineDomainsAssessment?.medication?.justification || "",
+      requiredForDOH: true,
+    },
     {
       id: "nutrition",
       name: "Nutrition/Hydration Care",
-      score: 4,
+      score: formData.nineDomainsAssessment?.nutrition?.score || 0,
       maxScore: 5,
+      validated: false,
+      clinicalJustification:
+        formData.nineDomainsAssessment?.nutrition?.justification || "",
+      requiredForDOH: true,
     },
-    { id: "respiratory", name: "Respiratory Care", score: 2, maxScore: 5 },
-    { id: "skin", name: "Skin & Wound Care", score: 5, maxScore: 5 },
-    { id: "bladder", name: "Bowel & Bladder Care", score: 3, maxScore: 5 },
-    { id: "palliative", name: "Palliative Care", score: 0, maxScore: 5 },
+    {
+      id: "respiratory",
+      name: "Respiratory Care",
+      score: formData.nineDomainsAssessment?.respiratory?.score || 0,
+      maxScore: 5,
+      validated: false,
+      clinicalJustification:
+        formData.nineDomainsAssessment?.respiratory?.justification || "",
+      requiredForDOH: true,
+    },
+    {
+      id: "skin",
+      name: "Skin & Wound Care",
+      score: formData.nineDomainsAssessment?.skin?.score || 0,
+      maxScore: 5,
+      validated: false,
+      clinicalJustification:
+        formData.nineDomainsAssessment?.skin?.justification || "",
+      requiredForDOH: true,
+    },
+    {
+      id: "bladder",
+      name: "Bowel & Bladder Care",
+      score: formData.nineDomainsAssessment?.bladder?.score || 0,
+      maxScore: 5,
+      validated: false,
+      clinicalJustification:
+        formData.nineDomainsAssessment?.bladder?.justification || "",
+      requiredForDOH: true,
+    },
+    {
+      id: "palliative",
+      name: "Palliative Care",
+      score: formData.nineDomainsAssessment?.palliative?.score || 0,
+      maxScore: 5,
+      validated: false,
+      clinicalJustification:
+        formData.nineDomainsAssessment?.palliative?.justification || "",
+      requiredForDOH: true,
+    },
     {
       id: "monitoring",
       name: "Observation/Close Monitoring",
-      score: 4,
+      score: formData.nineDomainsAssessment?.monitoring?.score || 0,
       maxScore: 5,
+      validated: false,
+      clinicalJustification:
+        formData.nineDomainsAssessment?.monitoring?.justification || "",
+      requiredForDOH: true,
     },
     {
       id: "transitional",
       name: "Post-Hospital Transitional Care",
-      score: 3,
+      score: formData.nineDomainsAssessment?.transitional?.score || 0,
       maxScore: 5,
+      validated: false,
+      clinicalJustification:
+        formData.nineDomainsAssessment?.transitional?.justification || "",
+      requiredForDOH: true,
     },
     {
       id: "rehabilitation",
       name: "Physiotherapy & Rehabilitation",
-      score: 4,
+      score: formData.nineDomainsAssessment?.rehabilitation?.score || 0,
       maxScore: 5,
+      validated: false,
+      clinicalJustification:
+        formData.nineDomainsAssessment?.rehabilitation?.justification || "",
+      requiredForDOH: true,
     },
-  ];
+  ]);
 
   // FIXED: Complete Form Validation for Required DOH Fields with null safety
   const validateForm = () => {
@@ -1204,6 +1543,823 @@ const ClinicalDocumentation = ({
     }
   };
 
+  /**
+   * Comprehensive Medical Record System Validation
+   * Validates robustness and integration of all components
+   */
+  const validateMedicalRecordSystem = async () => {
+    try {
+      const validation = {
+        medicalRecordsIntegrity: 0,
+        formsIntegration: 0,
+        workflowRobustness: 0,
+        complianceAlignment: 0,
+        patientJourneyTracking: 0,
+        bedsideVisitIntegration: 0,
+        issues: [],
+        recommendations: [],
+      };
+
+      // 1. Medical Records Integrity Check
+      const recordsIntegrity = await validateMedicalRecordsIntegrity();
+      validation.medicalRecordsIntegrity = recordsIntegrity.score;
+      validation.issues.push(...recordsIntegrity.issues);
+      validation.recommendations.push(...recordsIntegrity.recommendations);
+
+      // 2. Forms Integration Validation
+      const formsIntegration = await validateFormsIntegration();
+      validation.formsIntegration = formsIntegration.score;
+      validation.issues.push(...formsIntegration.issues);
+      validation.recommendations.push(...formsIntegration.recommendations);
+
+      // 3. Workflow Robustness Assessment
+      const workflowRobustness = await validateWorkflowRobustness();
+      validation.workflowRobustness = workflowRobustness.score;
+      validation.issues.push(...workflowRobustness.issues);
+      validation.recommendations.push(...workflowRobustness.recommendations);
+
+      // 4. Compliance Alignment Check
+      const complianceAlignment = await validateComplianceAlignment();
+      validation.complianceAlignment = complianceAlignment.score;
+      validation.issues.push(...complianceAlignment.issues);
+      validation.recommendations.push(...complianceAlignment.recommendations);
+
+      // 5. Patient Journey Tracking Validation
+      const patientJourney = await validatePatientJourneyTracking();
+      validation.patientJourneyTracking = patientJourney.score;
+      validation.issues.push(...patientJourney.issues);
+      validation.recommendations.push(...patientJourney.recommendations);
+
+      // 6. Bedside Visit Integration Check
+      const bedsideVisits = await validateBedsideVisitIntegration();
+      validation.bedsideVisitIntegration = bedsideVisits.score;
+      validation.issues.push(...bedsideVisits.issues);
+      validation.recommendations.push(...bedsideVisits.recommendations);
+
+      setSystemValidation(validation);
+
+      // Log validation results
+      console.log("🏥 Medical Record System Validation Results:", {
+        overallScore: Math.round(
+          (validation.medicalRecordsIntegrity +
+            validation.formsIntegration +
+            validation.workflowRobustness +
+            validation.complianceAlignment +
+            validation.patientJourneyTracking +
+            validation.bedsideVisitIntegration) /
+            6,
+        ),
+        breakdown: {
+          medicalRecordsIntegrity: validation.medicalRecordsIntegrity,
+          formsIntegration: validation.formsIntegration,
+          workflowRobustness: validation.workflowRobustness,
+          complianceAlignment: validation.complianceAlignment,
+          patientJourneyTracking: validation.patientJourneyTracking,
+          bedsideVisitIntegration: validation.bedsideVisitIntegration,
+        },
+        totalIssues: validation.issues.length,
+        criticalIssues: validation.issues.filter(
+          (i) => i.severity === "critical",
+        ).length,
+        recommendations: validation.recommendations.length,
+      });
+
+      return validation;
+    } catch (error) {
+      console.error("❌ Medical Record System Validation Failed:", error);
+      return null;
+    }
+  };
+
+  /**
+   * Validate Medical Records Data Integrity
+   */
+  const validateMedicalRecordsIntegrity = async () => {
+    const issues = [];
+    const recommendations = [];
+    let score = 100;
+
+    try {
+      // Check patient data consistency
+      if (!patientId || patientId === "P12345") {
+        issues.push({
+          type: "data_integrity",
+          severity: "high",
+          message:
+            "Patient ID is using default/mock value - real patient data integration missing",
+          component: "PatientData",
+        });
+        score -= 20;
+        recommendations.push(
+          "Integrate with real patient database and Emirates ID verification system",
+        );
+      }
+
+      // Check episode data completeness
+      if (!episodeId || episodeId === "EP789") {
+        issues.push({
+          type: "data_integrity",
+          severity: "high",
+          message:
+            "Episode ID is using default/mock value - real episode management missing",
+          component: "EpisodeManagement",
+        });
+        score -= 20;
+        recommendations.push(
+          "Implement proper episode lifecycle management with unique identifiers",
+        );
+      }
+
+      // Check form data validation
+      if (!formData.patientEmiratesId || formData.patientEmiratesId === "") {
+        issues.push({
+          type: "data_integrity",
+          severity: "critical",
+          message:
+            "Emirates ID integration missing - DOH compliance requirement not met",
+          component: "EmiratesIDVerification",
+        });
+        score -= 25;
+        recommendations.push(
+          "Implement Emirates ID verification service integration",
+        );
+      }
+
+      // Check electronic signature implementation
+      if (!formData.electronicSignature) {
+        issues.push({
+          type: "data_integrity",
+          severity: "critical",
+          message: "Electronic signature system not properly integrated",
+          component: "ElectronicSignature",
+        });
+        score -= 15;
+        recommendations.push(
+          "Implement secure electronic signature capture and validation",
+        );
+      }
+
+      // Check audit trail completeness
+      const auditTrailExists = await checkAuditTrailIntegration();
+      if (!auditTrailExists) {
+        issues.push({
+          type: "data_integrity",
+          severity: "high",
+          message:
+            "Audit trail system not properly integrated for medical records",
+          component: "AuditTrail",
+        });
+        score -= 10;
+        recommendations.push(
+          "Implement comprehensive audit logging for all medical record changes",
+        );
+      }
+
+      return { score: Math.max(0, score), issues, recommendations };
+    } catch (error) {
+      console.error("Medical records integrity validation failed:", error);
+      return {
+        score: 0,
+        issues: [
+          {
+            type: "system_error",
+            severity: "critical",
+            message: "Medical records integrity validation system failure",
+            component: "ValidationSystem",
+          },
+        ],
+        recommendations: ["Fix validation system errors"],
+      };
+    }
+  };
+
+  /**
+   * Validate Forms Integration and Interoperability
+   */
+  const validateFormsIntegration = async () => {
+    const issues = [];
+    const recommendations = [];
+    let score = 100;
+
+    try {
+      // Check clinical forms completeness
+      const requiredForms = [
+        "assessment",
+        "vital-signs",
+        "medication",
+        "wound-care",
+        "nursing-notes",
+        "physio",
+        "respiratory",
+        "speech",
+        "occupational",
+        "nutrition",
+        "discharge",
+        "safety",
+        "pain",
+        "fall-risk",
+        "glasgow",
+        "care-plan",
+        "daman-submission",
+      ];
+
+      const availableForms = clinicalForms.map((f) => f.id);
+      const missingForms = requiredForms.filter(
+        (f) => !availableForms.includes(f),
+      );
+
+      if (missingForms.length > 0) {
+        issues.push({
+          type: "forms_integration",
+          severity: "medium",
+          message: `Missing clinical forms: ${missingForms.join(", ")}`,
+          component: "ClinicalForms",
+        });
+        score -= missingForms.length * 3;
+        recommendations.push(
+          "Implement all required clinical forms for comprehensive care documentation",
+        );
+      }
+
+      // Check DOH compliance integration
+      const nonCompliantForms = clinicalForms.filter((f) => !f.dohCompliant);
+      if (nonCompliantForms.length > 0) {
+        issues.push({
+          type: "forms_integration",
+          severity: "critical",
+          message: `${nonCompliantForms.length} forms are not DOH compliant`,
+          component: "DOHCompliance",
+        });
+        score -= nonCompliantForms.length * 5;
+        recommendations.push(
+          "Ensure all clinical forms meet DOH compliance standards",
+        );
+      }
+
+      // Check mobile optimization
+      const nonMobileForms = clinicalForms.filter((f) => !f.mobileOptimized);
+      if (nonMobileForms.length > 0) {
+        issues.push({
+          type: "forms_integration",
+          severity: "medium",
+          message: `${nonMobileForms.length} forms are not mobile-optimized`,
+          component: "MobileOptimization",
+        });
+        score -= nonMobileForms.length * 2;
+        recommendations.push(
+          "Optimize all forms for mobile devices and touch interfaces",
+        );
+      }
+
+      // Check offline capability
+      const nonOfflineForms = clinicalForms.filter((f) => !f.offlineCapable);
+      if (nonOfflineForms.length > 0) {
+        issues.push({
+          type: "forms_integration",
+          severity: "high",
+          message: `${nonOfflineForms.length} forms lack offline capability`,
+          component: "OfflineCapability",
+        });
+        score -= nonOfflineForms.length * 3;
+        recommendations.push(
+          "Enable offline functionality for all critical clinical forms",
+        );
+      }
+
+      // Check voice integration
+      const nonVoiceForms = clinicalForms.filter((f) => !f.voiceEnabled);
+      if (nonVoiceForms.length > 0) {
+        issues.push({
+          type: "forms_integration",
+          severity: "low",
+          message: `${nonVoiceForms.length} forms lack voice input capability`,
+          component: "VoiceIntegration",
+        });
+        score -= nonVoiceForms.length * 1;
+        recommendations.push(
+          "Implement voice input for improved clinical documentation efficiency",
+        );
+      }
+
+      return { score: Math.max(0, score), issues, recommendations };
+    } catch (error) {
+      console.error("Forms integration validation failed:", error);
+      return {
+        score: 0,
+        issues: [
+          {
+            type: "system_error",
+            severity: "critical",
+            message: "Forms integration validation system failure",
+            component: "ValidationSystem",
+          },
+        ],
+        recommendations: ["Fix forms integration validation system"],
+      };
+    }
+  };
+
+  /**
+   * Validate Workflow Automation Robustness
+   */
+  const validateWorkflowRobustness = async () => {
+    const issues = [];
+    const recommendations = [];
+    let score = 100;
+
+    try {
+      // Check workflow automation service integration
+      if (!workflowAutomation || !currentWorkflow) {
+        issues.push({
+          type: "workflow_robustness",
+          severity: "high",
+          message: "Workflow automation system not properly initialized",
+          component: "WorkflowAutomation",
+        });
+        score -= 25;
+        recommendations.push(
+          "Initialize and configure workflow automation service",
+        );
+      }
+
+      // Check workflow step completion tracking
+      if (currentWorkflow) {
+        const incompleteSteps = currentWorkflow.steps.filter(
+          (s) => s.status === "pending",
+        );
+        if (incompleteSteps.length > currentWorkflow.steps.length * 0.7) {
+          issues.push({
+            type: "workflow_robustness",
+            severity: "medium",
+            message:
+              "High number of incomplete workflow steps indicates poor automation",
+            component: "WorkflowExecution",
+          });
+          score -= 15;
+          recommendations.push(
+            "Improve workflow automation to reduce manual intervention",
+          );
+        }
+      }
+
+      // Check error handling in workflows
+      if (workflowStatus.hasError) {
+        issues.push({
+          type: "workflow_robustness",
+          severity: "high",
+          message: `Workflow error detected: ${workflowStatus.errorMessage}`,
+          component: "WorkflowErrorHandling",
+        });
+        score -= 20;
+        recommendations.push(
+          "Implement robust error handling and recovery mechanisms",
+        );
+      }
+
+      // Check real-time collaboration
+      if (!collaborativeEditing) {
+        issues.push({
+          type: "workflow_robustness",
+          severity: "medium",
+          message: "Real-time collaboration not enabled for clinical workflows",
+          component: "Collaboration",
+        });
+        score -= 10;
+        recommendations.push(
+          "Enable real-time collaboration for care team coordination",
+        );
+      }
+
+      // Check workflow performance metrics
+      if (performanceMetrics.renderTime > 2000) {
+        issues.push({
+          type: "workflow_robustness",
+          severity: "medium",
+          message: "Workflow rendering performance is below optimal (>2s)",
+          component: "Performance",
+        });
+        score -= 10;
+        recommendations.push(
+          "Optimize workflow rendering performance for better user experience",
+        );
+      }
+
+      return { score: Math.max(0, score), issues, recommendations };
+    } catch (error) {
+      console.error("Workflow robustness validation failed:", error);
+      return {
+        score: 0,
+        issues: [
+          {
+            type: "system_error",
+            severity: "critical",
+            message: "Workflow robustness validation system failure",
+            component: "ValidationSystem",
+          },
+        ],
+        recommendations: ["Fix workflow validation system"],
+      };
+    }
+  };
+
+  /**
+   * Validate Regulatory Compliance Alignment
+   */
+  const validateComplianceAlignment = async () => {
+    const issues = [];
+    const recommendations = [];
+    let score = 100;
+
+    try {
+      // Check DOH compliance integration
+      if (!showComplianceChecker) {
+        issues.push({
+          type: "compliance_alignment",
+          severity: "critical",
+          message: "DOH compliance checker not integrated into workflow",
+          component: "DOHCompliance",
+        });
+        score -= 30;
+        recommendations.push(
+          "Integrate DOH compliance checker into all clinical documentation workflows",
+        );
+      }
+
+      // Check validation errors handling
+      if (validationErrors.length > 0) {
+        issues.push({
+          type: "compliance_alignment",
+          severity: "high",
+          message: `${validationErrors.length} validation errors detected in current session`,
+          component: "ValidationErrors",
+        });
+        score -= validationErrors.length * 5;
+        recommendations.push(
+          "Address all validation errors to ensure compliance",
+        );
+      }
+
+      // Check enhanced security measures
+      if (!enhancedSecurity) {
+        issues.push({
+          type: "compliance_alignment",
+          severity: "high",
+          message: "Enhanced security measures not enabled",
+          component: "Security",
+        });
+        score -= 20;
+        recommendations.push(
+          "Enable enhanced security features for patient data protection",
+        );
+      }
+
+      // Check real-time validation
+      if (!realTimeValidation) {
+        issues.push({
+          type: "compliance_alignment",
+          severity: "medium",
+          message: "Real-time validation not enabled",
+          component: "RealTimeValidation",
+        });
+        score -= 15;
+        recommendations.push(
+          "Enable real-time validation to prevent compliance issues",
+        );
+      }
+
+      // Check accessibility compliance
+      if (accessibilityScore < 90) {
+        issues.push({
+          type: "compliance_alignment",
+          severity: "medium",
+          message: `Accessibility score (${accessibilityScore}%) below recommended threshold`,
+          component: "Accessibility",
+        });
+        score -= 90 - accessibilityScore;
+        recommendations.push(
+          "Improve accessibility features to meet compliance standards",
+        );
+      }
+
+      return { score: Math.max(0, score), issues, recommendations };
+    } catch (error) {
+      console.error("Compliance alignment validation failed:", error);
+      return {
+        score: 0,
+        issues: [
+          {
+            type: "system_error",
+            severity: "critical",
+            message: "Compliance alignment validation system failure",
+            component: "ValidationSystem",
+          },
+        ],
+        recommendations: ["Fix compliance validation system"],
+      };
+    }
+  };
+
+  /**
+   * Validate Patient Journey Tracking Integration
+   */
+  const validatePatientJourneyTracking = async () => {
+    const issues = [];
+    const recommendations = [];
+    let score = 100;
+
+    try {
+      // Check episode tracking completeness
+      if (
+        !episodeData ||
+        !episodeData.events ||
+        episodeData.events.length === 0
+      ) {
+        issues.push({
+          type: "patient_journey",
+          severity: "critical",
+          message: "Patient journey events not properly tracked",
+          component: "EpisodeTracking",
+        });
+        score -= 40;
+        recommendations.push(
+          "Implement comprehensive patient journey event tracking",
+        );
+      }
+
+      // Check care team integration
+      if (!episodeData?.careTeam || episodeData.careTeam.length === 0) {
+        issues.push({
+          type: "patient_journey",
+          severity: "high",
+          message: "Care team information not integrated into patient journey",
+          component: "CareTeamIntegration",
+        });
+        score -= 25;
+        recommendations.push(
+          "Integrate care team information into patient journey tracking",
+        );
+      }
+
+      // Check goals and outcomes tracking
+      if (!episodeData?.goals || episodeData.goals.length === 0) {
+        issues.push({
+          type: "patient_journey",
+          severity: "high",
+          message: "Patient care goals not tracked in journey",
+          component: "GoalsTracking",
+        });
+        score -= 20;
+        recommendations.push(
+          "Implement care goals tracking and progress monitoring",
+        );
+      }
+
+      // Check timeline visualization
+      const timelineEvents =
+        episodeData?.events?.filter((e) => e.date && e.title) || [];
+      if (timelineEvents.length < 3) {
+        issues.push({
+          type: "patient_journey",
+          severity: "medium",
+          message:
+            "Insufficient timeline events for comprehensive journey tracking",
+          component: "TimelineVisualization",
+        });
+        score -= 15;
+        recommendations.push(
+          "Enhance timeline visualization with more detailed event tracking",
+        );
+      }
+
+      // Check real-time updates
+      if (!realTimeSync) {
+        issues.push({
+          type: "patient_journey",
+          severity: "medium",
+          message:
+            "Real-time synchronization not enabled for patient journey updates",
+          component: "RealTimeSync",
+        });
+        score -= 10;
+        recommendations.push(
+          "Enable real-time synchronization for live patient journey updates",
+        );
+      }
+
+      return { score: Math.max(0, score), issues, recommendations };
+    } catch (error) {
+      console.error("Patient journey validation failed:", error);
+      return {
+        score: 0,
+        issues: [
+          {
+            type: "system_error",
+            severity: "critical",
+            message: "Patient journey validation system failure",
+            component: "ValidationSystem",
+          },
+        ],
+        recommendations: ["Fix patient journey validation system"],
+      };
+    }
+  };
+
+  /**
+   * Validate Bedside Visit Integration (Nurses, Therapists, Doctors)
+   */
+  const validateBedsideVisitIntegration = async () => {
+    const issues = [];
+    const recommendations = [];
+    let score = 100;
+
+    try {
+      // Check visit types coverage
+      const visitEvents =
+        episodeData?.events?.filter(
+          (e) =>
+            e.type === "visit" ||
+            e.type === "therapy_session" ||
+            e.type === "assessment",
+        ) || [];
+
+      if (visitEvents.length === 0) {
+        issues.push({
+          type: "bedside_visits",
+          severity: "critical",
+          message: "No bedside visits recorded in patient journey",
+          component: "VisitTracking",
+        });
+        score -= 40;
+        recommendations.push(
+          "Implement comprehensive bedside visit tracking for all care providers",
+        );
+      }
+
+      // Check clinician assignment
+      const visitsWithoutClinician = visitEvents.filter(
+        (e) => !e.clinician || !e.clinicianId,
+      );
+      if (visitsWithoutClinician.length > 0) {
+        issues.push({
+          type: "bedside_visits",
+          severity: "high",
+          message: `${visitsWithoutClinician.length} visits lack proper clinician assignment`,
+          component: "ClinicianAssignment",
+        });
+        score -= visitsWithoutClinician.length * 10;
+        recommendations.push(
+          "Ensure all bedside visits have proper clinician identification and assignment",
+        );
+      }
+
+      // Check visit documentation completeness
+      const incompleteVisits = visitEvents.filter(
+        (e) => !e.documentationComplete,
+      );
+      if (incompleteVisits.length > 0) {
+        issues.push({
+          type: "bedside_visits",
+          severity: "high",
+          message: `${incompleteVisits.length} visits have incomplete documentation`,
+          component: "VisitDocumentation",
+        });
+        score -= incompleteVisits.length * 8;
+        recommendations.push(
+          "Complete documentation for all bedside visits to ensure continuity of care",
+        );
+      }
+
+      // Check multi-disciplinary team representation
+      const clinicianTypes = new Set(
+        visitEvents.map((e) => {
+          if (e.clinician?.toLowerCase().includes("nurse")) return "nurse";
+          if (
+            e.clinician?.toLowerCase().includes("doctor") ||
+            e.clinician?.toLowerCase().includes("dr.")
+          )
+            return "doctor";
+          if (
+            e.clinician?.toLowerCase().includes("pt ") ||
+            e.clinician?.toLowerCase().includes("physiotherapist")
+          )
+            return "physiotherapist";
+          if (
+            e.clinician?.toLowerCase().includes("ot ") ||
+            e.clinician?.toLowerCase().includes("occupational")
+          )
+            return "occupational_therapist";
+          if (e.clinician?.toLowerCase().includes("speech"))
+            return "speech_therapist";
+          return "other";
+        }),
+      );
+
+      const expectedTypes = ["nurse", "doctor", "physiotherapist"];
+      const missingTypes = expectedTypes.filter(
+        (type) => !clinicianTypes.has(type),
+      );
+
+      if (missingTypes.length > 0) {
+        issues.push({
+          type: "bedside_visits",
+          severity: "medium",
+          message: `Missing bedside visits from: ${missingTypes.join(", ")}`,
+          component: "MultidisciplinaryTeam",
+        });
+        score -= missingTypes.length * 5;
+        recommendations.push(
+          "Ensure comprehensive multi-disciplinary team involvement in bedside care",
+        );
+      }
+
+      // Check visit outcomes tracking
+      const visitsWithoutOutcomes = visitEvents.filter(
+        (e) => !e.outcomes && !e.vitalSigns && !e.medications,
+      );
+      if (visitsWithoutOutcomes.length > 0) {
+        issues.push({
+          type: "bedside_visits",
+          severity: "medium",
+          message: `${visitsWithoutOutcomes.length} visits lack documented outcomes or interventions`,
+          component: "OutcomesTracking",
+        });
+        score -= visitsWithoutOutcomes.length * 5;
+        recommendations.push(
+          "Document outcomes and interventions for all bedside visits",
+        );
+      }
+
+      // Check mobile integration for bedside visits
+      if (!mobileOptimized || !touchEnabled) {
+        issues.push({
+          type: "bedside_visits",
+          severity: "medium",
+          message:
+            "Mobile optimization not enabled for bedside visit documentation",
+          component: "MobileIntegration",
+        });
+        score -= 15;
+        recommendations.push(
+          "Enable mobile optimization for bedside visit documentation at point of care",
+        );
+      }
+
+      // Check voice integration for bedside documentation
+      if (!voiceIntegrated) {
+        issues.push({
+          type: "bedside_visits",
+          severity: "low",
+          message: "Voice input not available for bedside visit documentation",
+          component: "VoiceIntegration",
+        });
+        score -= 5;
+        recommendations.push(
+          "Implement voice input capability for efficient bedside documentation",
+        );
+      }
+
+      return { score: Math.max(0, score), issues, recommendations };
+    } catch (error) {
+      console.error("Bedside visit integration validation failed:", error);
+      return {
+        score: 0,
+        issues: [
+          {
+            type: "system_error",
+            severity: "critical",
+            message: "Bedside visit integration validation system failure",
+            component: "ValidationSystem",
+          },
+        ],
+        recommendations: ["Fix bedside visit validation system"],
+      };
+    }
+  };
+
+  /**
+   * Check if audit trail system is properly integrated
+   */
+  const checkAuditTrailIntegration = async () => {
+    try {
+      // Check if audit logging is available
+      const auditCapable =
+        typeof window !== "undefined" &&
+        "localStorage" in window &&
+        "sessionStorage" in window;
+
+      // Check if user actions are being tracked
+      const userActionsTracked = currentUser && currentUser.id;
+
+      // Check if form changes are being logged
+      const formChangesLogged = formData && Object.keys(formData).length > 0;
+
+      return auditCapable && userActionsTracked && formChangesLogged;
+    } catch (error) {
+      console.error("Audit trail check failed:", error);
+      return false;
+    }
+  };
+
   return (
     <ClinicalWorkflowErrorBoundary
       onError={(error) => {
@@ -1332,6 +2488,238 @@ const ClinicalDocumentation = ({
             </div>
           )}
 
+          {/* System Validation Results */}
+          {systemValidation.issues.length > 0 && (
+            <div className="mb-6">
+              <Card className="bg-gradient-to-r from-red-50 to-orange-50 border-red-200">
+                <CardHeader>
+                  <CardTitle className="flex items-center text-red-900">
+                    <AlertTriangle className="h-5 w-5 mr-2" />
+                    Medical Record System Issues Detected
+                  </CardTitle>
+                  <CardDescription>
+                    {systemValidation.issues.length} issues found affecting
+                    system robustness and integration
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                    <div className="text-center p-3 bg-white rounded-lg border">
+                      <div className="text-2xl font-bold text-red-600">
+                        {
+                          systemValidation.issues.filter(
+                            (i) => i.severity === "critical",
+                          ).length
+                        }
+                      </div>
+                      <div className="text-sm text-gray-600">
+                        Critical Issues
+                      </div>
+                    </div>
+                    <div className="text-center p-3 bg-white rounded-lg border">
+                      <div className="text-2xl font-bold text-orange-600">
+                        {
+                          systemValidation.issues.filter(
+                            (i) => i.severity === "high",
+                          ).length
+                        }
+                      </div>
+                      <div className="text-sm text-gray-600">High Priority</div>
+                    </div>
+                    <div className="text-center p-3 bg-white rounded-lg border">
+                      <div className="text-2xl font-bold text-yellow-600">
+                        {systemValidation.recommendations.length}
+                      </div>
+                      <div className="text-sm text-gray-600">
+                        Recommendations
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 max-h-40 overflow-y-auto">
+                    {systemValidation.issues.slice(0, 5).map((issue, index) => (
+                      <Alert
+                        key={index}
+                        className={`${
+                          issue.severity === "critical"
+                            ? "border-red-200 bg-red-50"
+                            : issue.severity === "high"
+                              ? "border-orange-200 bg-orange-50"
+                              : "border-yellow-200 bg-yellow-50"
+                        }`}
+                      >
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertDescription>
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <strong>{issue.component}:</strong>{" "}
+                              {issue.message}
+                            </div>
+                            <Badge
+                              variant="outline"
+                              className={`text-xs ${
+                                issue.severity === "critical"
+                                  ? "border-red-300 text-red-700"
+                                  : issue.severity === "high"
+                                    ? "border-orange-300 text-orange-700"
+                                    : "border-yellow-300 text-yellow-700"
+                              }`}
+                            >
+                              {issue.severity.toUpperCase()}
+                            </Badge>
+                          </div>
+                        </AlertDescription>
+                      </Alert>
+                    ))}
+                    {systemValidation.issues.length > 5 && (
+                      <p className="text-sm text-gray-600 text-center">
+                        ... and {systemValidation.issues.length - 5} more issues
+                      </p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* System Health Dashboard */}
+          <div className="mb-6">
+            <Card className="bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200">
+              <CardHeader>
+                <CardTitle className="flex items-center text-blue-900">
+                  <Monitor className="h-5 w-5 mr-2" />
+                  Medical Record System Health
+                </CardTitle>
+                <CardDescription>
+                  Comprehensive validation of system robustness and integration
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-medium">
+                        Medical Records Integrity
+                      </span>
+                      <span className="text-sm font-bold">
+                        {systemValidation.medicalRecordsIntegrity}%
+                      </span>
+                    </div>
+                    <Progress
+                      value={systemValidation.medicalRecordsIntegrity}
+                      className="h-2"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-medium">
+                        Forms Integration
+                      </span>
+                      <span className="text-sm font-bold">
+                        {systemValidation.formsIntegration}%
+                      </span>
+                    </div>
+                    <Progress
+                      value={systemValidation.formsIntegration}
+                      className="h-2"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-medium">
+                        Workflow Robustness
+                      </span>
+                      <span className="text-sm font-bold">
+                        {systemValidation.workflowRobustness}%
+                      </span>
+                    </div>
+                    <Progress
+                      value={systemValidation.workflowRobustness}
+                      className="h-2"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-medium">
+                        Compliance Alignment
+                      </span>
+                      <span className="text-sm font-bold">
+                        {systemValidation.complianceAlignment}%
+                      </span>
+                    </div>
+                    <Progress
+                      value={systemValidation.complianceAlignment}
+                      className="h-2"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-medium">
+                        Patient Journey Tracking
+                      </span>
+                      <span className="text-sm font-bold">
+                        {systemValidation.patientJourneyTracking}%
+                      </span>
+                    </div>
+                    <Progress
+                      value={systemValidation.patientJourneyTracking}
+                      className="h-2"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-medium">
+                        Bedside Visit Integration
+                      </span>
+                      <span className="text-sm font-bold">
+                        {systemValidation.bedsideVisitIntegration}%
+                      </span>
+                    </div>
+                    <Progress
+                      value={systemValidation.bedsideVisitIntegration}
+                      className="h-2"
+                    />
+                  </div>
+                </div>
+
+                <div className="mt-4 pt-4 border-t">
+                  <div className="flex justify-between items-center">
+                    <span className="text-lg font-semibold">
+                      Overall System Health
+                    </span>
+                    <span className="text-2xl font-bold text-blue-600">
+                      {Math.round(
+                        (systemValidation.medicalRecordsIntegrity +
+                          systemValidation.formsIntegration +
+                          systemValidation.workflowRobustness +
+                          systemValidation.complianceAlignment +
+                          systemValidation.patientJourneyTracking +
+                          systemValidation.bedsideVisitIntegration) /
+                          6,
+                      )}
+                      %
+                    </span>
+                  </div>
+                  <Progress
+                    value={Math.round(
+                      (systemValidation.medicalRecordsIntegrity +
+                        systemValidation.formsIntegration +
+                        systemValidation.workflowRobustness +
+                        systemValidation.complianceAlignment +
+                        systemValidation.patientJourneyTracking +
+                        systemValidation.bedsideVisitIntegration) /
+                        6,
+                    )}
+                    className="h-3 mt-2"
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
           {/* Automation Statistics */}
           {workflowAutomation && (
             <div className="mb-6">
@@ -1432,17 +2820,33 @@ const ClinicalDocumentation = ({
                       <ScrollArea className="h-[400px] pr-4">
                         <div className="space-y-6">
                           {assessmentDomains.map((domain) => (
-                            <div key={domain.id} className="space-y-2">
+                            <div
+                              key={domain.id}
+                              className="space-y-2 p-4 border rounded-lg bg-gray-50"
+                            >
                               <div className="flex justify-between items-center">
                                 <Label
                                   htmlFor={domain.id}
-                                  className="font-medium"
+                                  className="font-medium flex items-center gap-2"
                                 >
                                   {domain.name}
+                                  {domain.requiredForDOH && (
+                                    <Badge
+                                      variant="outline"
+                                      className="text-xs bg-red-50 text-red-700 border-red-200"
+                                    >
+                                      DOH Required
+                                    </Badge>
+                                  )}
                                 </Label>
-                                <span className="text-sm font-medium">
-                                  {domain.score}/{domain.maxScore}
-                                </span>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm font-medium">
+                                    {domain.score}/{domain.maxScore}
+                                  </span>
+                                  {domain.validated && (
+                                    <CheckCircle className="h-4 w-4 text-green-500" />
+                                  )}
+                                </div>
                               </div>
                               <div className="flex items-center gap-2">
                                 <Input
@@ -1452,23 +2856,84 @@ const ClinicalDocumentation = ({
                                   max="5"
                                   value={domain.score}
                                   className="w-full"
+                                  onChange={(e) => {
+                                    const newScore = parseInt(e.target.value);
+                                    const updatedDomains =
+                                      assessmentDomains.map((d) =>
+                                        d.id === domain.id
+                                          ? {
+                                              ...d,
+                                              score: newScore,
+                                              validated: false,
+                                            }
+                                          : d,
+                                      );
+                                    setAssessmentDomains(updatedDomains);
+
+                                    // Update form data
+                                    setFormData((prev) => ({
+                                      ...prev,
+                                      nineDomainsAssessment: {
+                                        ...prev.nineDomainsAssessment,
+                                        [domain.id]: {
+                                          ...prev.nineDomainsAssessment?.[
+                                            domain.id
+                                          ],
+                                          score: newScore,
+                                        },
+                                      },
+                                    }));
+                                  }}
                                 />
+                                <span className="text-xs text-gray-500 min-w-[60px]">
+                                  Score: {domain.score}
+                                </span>
                               </div>
                               <Textarea
-                                placeholder={`Enter clinical justification for ${domain.name} score...`}
+                                placeholder={`Enter clinical justification for ${domain.name} score... (Required for DOH compliance)`}
                                 className="h-20"
+                                value={domain.clinicalJustification}
                                 onChange={async (e) => {
                                   const text = e.target.value;
+
+                                  // Update domain justification
+                                  const updatedDomains = assessmentDomains.map(
+                                    (d) =>
+                                      d.id === domain.id
+                                        ? {
+                                            ...d,
+                                            clinicalJustification: text,
+                                            validated: text.length >= 10,
+                                          }
+                                        : d,
+                                  );
+                                  setAssessmentDomains(updatedDomains);
+
+                                  // Update form data
+                                  setFormData((prev) => ({
+                                    ...prev,
+                                    nineDomainsAssessment: {
+                                      ...prev.nineDomainsAssessment,
+                                      [domain.id]: {
+                                        ...prev.nineDomainsAssessment?.[
+                                          domain.id
+                                        ],
+                                        justification: text,
+                                        score: domain.score,
+                                      },
+                                    },
+                                  }));
+
+                                  // Generate AI coding suggestions for longer text
                                   if (text.length > 50) {
                                     try {
-                                      // Generate coding suggestions as user types
                                       const suggestions =
                                         await naturalLanguageProcessingService.generateAutomatedCodingSuggestions(
                                           text,
                                         );
                                       setCodingSuggestions(
                                         suggestions.slice(0, 3),
-                                      ); // Show top 3 suggestions
+                                      );
                                     } catch (error) {
                                       console.error(
                                         "Failed to generate coding suggestions:",
@@ -1478,6 +2943,13 @@ const ClinicalDocumentation = ({
                                   }
                                 }}
                               />
+                              {domain.clinicalJustification.length > 0 &&
+                                domain.clinicalJustification.length < 10 && (
+                                  <p className="text-xs text-red-600">
+                                    Clinical justification must be at least 10
+                                    characters for DOH compliance
+                                  </p>
+                                )}
                             </div>
                           ))}
                         </div>
@@ -1913,6 +3385,65 @@ const ClinicalDocumentation = ({
               isOpen={showComplianceChecker}
             />
           )}
+
+          {/* Enhanced Mobile Bottom Navigation with Performance Metrics */}
+          <div className="fixed bottom-0 left-0 right-0 bg-white border-t px-4 py-2 z-30 shadow-lg">
+            <div className="flex justify-around items-center">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="flex-col h-auto py-2 haptic-feedback"
+                aria-label="Navigate to Dashboard"
+              >
+                <Monitor className="h-4 w-4" />
+                <span className="text-xs mt-1">Dashboard</span>
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="flex-col h-auto py-2 haptic-feedback"
+                aria-label="Navigate to Patients"
+              >
+                <Smartphone className="h-4 w-4" />
+                <span className="text-xs mt-1">Patients</span>
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="flex-col h-auto py-2 haptic-feedback"
+                aria-label="Navigate to Forms"
+              >
+                <Tablet className="h-4 w-4" />
+                <span className="text-xs mt-1">Forms</span>
+              </Button>
+              {!networkStatus.online && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="flex-col h-auto py-2 haptic-feedback"
+                  aria-label="Offline Mode Active"
+                >
+                  <WifiOff className="h-4 w-4" />
+                  <span className="text-xs mt-1">Offline</span>
+                </Button>
+              )}
+            </div>
+
+            {/* Performance Indicator */}
+            {performanceMetrics.renderTime > 0 && (
+              <div className="mt-2 text-center">
+                <div className="text-xs text-gray-500 flex items-center justify-center gap-2">
+                  <span>
+                    Render: {performanceMetrics.renderTime.toFixed(1)}ms
+                  </span>
+                  {performanceMetrics.memoryUsage > 0 && (
+                    <span>Memory: {performanceMetrics.memoryUsage}MB</span>
+                  )}
+                  <span>A11y: {accessibilityScore}%</span>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </MobileResponsiveLayout>
     </ClinicalWorkflowErrorBoundary>

@@ -1,76 +1,135 @@
 @tailwind base;
-  @tailwind components;
-  @tailwind utilities;
+@tailwind components;
+@tailwind utilities;
 
-  @layer base {
-    :root {
-      --background: 0 0% 100%;
-      --foreground: 222.2 84% 4.9%;
+/* Reyada Brand Fonts */
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Noto+Naskh+Arabic:wght@400;500;600;700&display=swap");
 
-      --card: 0 0% 100%;
-      --card-foreground: 222.2 84% 4.9%;
+@layer base {
+  :root {
+    /* Reyada Brand Colors */
+    --reyada-primary: 210 100% 45%; /* Deep Blue #0066E6 */
+    --reyada-primary-dark: 210 100% 35%; /* Darker Blue #0052B8 */
+    --reyada-secondary: 195 100% 50%; /* Teal #00CCFF */
+    --reyada-accent: 45 100% 50%; /* Gold #FFD700 */
+    --reyada-success: 142 76% 36%; /* Green #16A34A */
+    --reyada-warning: 38 92% 50%; /* Orange #F59E0B */
+    --reyada-error: 0 84% 60%; /* Red #EF4444 */
+    --reyada-neutral-50: 210 20% 98%; /* Light Gray #F8FAFC */
+    --reyada-neutral-100: 210 20% 95%; /* #F1F5F9 */
+    --reyada-neutral-200: 210 16% 93%; /* #E2E8F0 */
+    --reyada-neutral-300: 210 14% 89%; /* #CBD5E1 */
+    --reyada-neutral-400: 210 14% 83%; /* #94A3B8 */
+    --reyada-neutral-500: 210 11% 71%; /* #64748B */
+    --reyada-neutral-600: 210 12% 55%; /* #475569 */
+    --reyada-neutral-700: 210 18% 30%; /* #334155 */
+    --reyada-neutral-800: 210 24% 16%; /* #1E293B */
+    --reyada-neutral-900: 210 24% 10%; /* #0F172A */
 
-      --popover: 0 0% 100%;
-      --popover-foreground: 222.2 84% 4.9%;
+    /* Updated System Colors using Reyada Brand */
+    --background: var(--reyada-neutral-50);
+    --foreground: var(--reyada-neutral-900);
 
-      --primary: 222.2 47.4% 11.2%;
-      --primary-foreground: 210 40% 98%;
+    --card: 0 0% 100%;
+    --card-foreground: var(--reyada-neutral-900);
 
-      --secondary: 210 40% 96.1%;
-      --secondary-foreground: 222.2 47.4% 11.2%;
+    --popover: 0 0% 100%;
+    --popover-foreground: var(--reyada-neutral-900);
 
-      --muted: 210 40% 96.1%;
-      --muted-foreground: 215.4 16.3% 46.9%;
+    --primary: var(--reyada-primary);
+    --primary-foreground: 0 0% 100%;
 
-      --accent: 210 40% 96.1%;
-      --accent-foreground: 222.2 47.4% 11.2%;
+    --secondary: var(--reyada-neutral-100);
+    --secondary-foreground: var(--reyada-neutral-800);
 
-      --destructive: 0 84.2% 60.2%;
-      --destructive-foreground: 210 40% 98%;
+    --muted: var(--reyada-neutral-100);
+    --muted-foreground: var(--reyada-neutral-500);
 
-      --border: 214.3 31.8% 91.4%;
-      --input: 214.3 31.8% 91.4%;
-      --ring: 222.2 84% 4.9%;
+    --accent: var(--reyada-secondary);
+    --accent-foreground: 0 0% 100%;
 
-      --radius: 0.5rem;
-    }
+    --destructive: var(--reyada-error);
+    --destructive-foreground: 0 0% 100%;
 
-    .dark {
-      --background: 222.2 84% 4.9%;
-      --foreground: 210 40% 98%;
+    --border: var(--reyada-neutral-200);
+    --input: var(--reyada-neutral-200);
+    --ring: var(--reyada-primary);
 
-      --card: 222.2 84% 4.9%;
-      --card-foreground: 210 40% 98%;
+    --radius: 0.5rem;
 
-      --popover: 222.2 84% 4.9%;
-      --popover-foreground: 210 40% 98%;
-
-      --primary: 210 40% 98%;
-      --primary-foreground: 222.2 47.4% 11.2%;
-
-      --secondary: 217.2 32.6% 17.5%;
-      --secondary-foreground: 210 40% 98%;
-
-      --muted: 217.2 32.6% 17.5%;
-      --muted-foreground: 215 20.2% 65.1%;
-
-      --accent: 217.2 32.6% 17.5%;
-      --accent-foreground: 210 40% 98%;
-
-      --destructive: 0 62.8% 30.6%;
-      --destructive-foreground: 210 40% 98%;
-
-      --border: 217.2 32.6% 17.5%;
-      --input: 217.2 32.6% 17.5%;
-      --ring: 212.7 26.8% 83.9%;
-    }
+    /* Reyada Brand Font Families */
+    --font-arabic:
+      "Noto Naskh Arabic", "Arabic Typesetting", "Traditional Arabic", serif;
+    --font-english: "Inter", "Segoe UI", system-ui, sans-serif;
   }
 
-  @layer base {
-    * {
-      @apply border-border;
-    }
-    body {
-      @apply bg-background text-foreground;
-    }
+  .dark {
+    --background: var(--reyada-neutral-900);
+    --foreground: var(--reyada-neutral-50);
+
+    --card: var(--reyada-neutral-800);
+    --card-foreground: var(--reyada-neutral-50);
+
+    --popover: var(--reyada-neutral-800);
+    --popover-foreground: var(--reyada-neutral-50);
+
+    --primary: var(--reyada-primary);
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: var(--reyada-neutral-700);
+    --secondary-foreground: var(--reyada-neutral-50);
+
+    --muted: var(--reyada-neutral-700);
+    --muted-foreground: var(--reyada-neutral-300);
+
+    --accent: var(--reyada-secondary);
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: var(--reyada-error);
+    --destructive-foreground: 0 0% 100%;
+
+    --border: var(--reyada-neutral-700);
+    --input: var(--reyada-neutral-700);
+    --ring: var(--reyada-primary);
   }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-english);
+  }
+
+  /* Reyada Brand Typography Classes */
+  .font-arabic {
+    font-family: var(--font-arabic);
+  }
+
+  .font-english {
+    font-family: var(--font-english);
+  }
+
+  .text-reyada-primary {
+    color: hsl(var(--reyada-primary));
+  }
+
+  .text-reyada-secondary {
+    color: hsl(var(--reyada-secondary));
+  }
+
+  .bg-reyada-primary {
+    background-color: hsl(var(--reyada-primary));
+  }
+
+  .bg-reyada-secondary {
+    background-color: hsl(var(--reyada-secondary));
+  }
+
+  .border-reyada-primary {
+    border-color: hsl(var(--reyada-primary));
+  }
+}

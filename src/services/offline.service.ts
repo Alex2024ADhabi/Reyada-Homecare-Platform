@@ -867,6 +867,70 @@ class OfflineService {
   }
 
   /**
+   * Store media files (photos, audio) for offline sync
+   */
+  public async storeMediaFile(mediaData: {
+    id: string;
+    type: "image" | "audio" | "video";
+    data: string;
+    metadata: any;
+  }): Promise<void> {
+    const db = await this.getDB();
+    const id = this.generateId();
+    const now = new Date().toISOString();
+
+    const mediaRecord = {
+      id,
+      mediaId: mediaData.id,
+      type: mediaData.type,
+      data: mediaData.data,
+      metadata: mediaData.metadata,
+      status: "pending_sync" as const,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    // Store in administrative data with media category
+    await this.saveAdministrativeData("media", {
+      ...mediaRecord,
+      priority: "high" as const,
+      syncStrategy: "immediate" as const,
+    });
+  }
+
+  /**
+   * Store media files (photos, audio) for offline sync
+   */
+  public async storeMediaFile(mediaData: {
+    id: string;
+    type: "image" | "audio" | "video";
+    data: string;
+    metadata: any;
+  }): Promise<void> {
+    const db = await this.getDB();
+    const id = this.generateId();
+    const now = new Date().toISOString();
+
+    const mediaRecord = {
+      id,
+      mediaId: mediaData.id,
+      type: mediaData.type,
+      data: mediaData.data,
+      metadata: mediaData.metadata,
+      status: "pending_sync" as const,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    // Store in administrative data with media category
+    await this.saveAdministrativeData("media", {
+      ...mediaRecord,
+      priority: "high" as const,
+      syncStrategy: "immediate" as const,
+    });
+  }
+
+  /**
    * Enhanced mobile offline capabilities with intelligent conflict resolution
    */
   public async resolveDataConflicts(

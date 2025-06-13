@@ -1,458 +1,831 @@
-import React, { useState, useRef, useCallback, useEffect } from "react";
+/**
+ * Mobile Camera Component for Wound Documentation
+ * Clinical requirement for visual documentation with metadata
+ */
+
+import React, { useRef, useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Progress } from "@/components/ui/progress";
+import { Separator } from "@/components/ui/separator";
 import {
   Camera,
-  CameraOff,
   RotateCcw,
   Download,
-  Trash2,
-  ScanLine,
-  CheckCircle,
+  Upload,
+  Zap,
+  ZapOff,
+  RotateCw,
+  Square,
+  Circle,
   AlertCircle,
-  Loader2,
+  Check,
+  Ruler,
+  MapPin,
+  Clock,
+  Eye,
+  Smartphone,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { offlineService } from "@/services/offline.service";
 
 interface MobileCameraProps {
-  onCapture: (imageData: string, metadata?: any) => void;
-  onEmiratesIdDetected?: (data: EmiratesIdData) => void;
-  captureMode?: "photo" | "emirates-id" | "document";
+  onPhotoCapture: (photoData: PhotoData) => void;
+  onPhotosComplete?: (photos: PhotoData[]) => void;
+  maxPhotos?: number;
   className?: string;
-  maxWidth?: number;
-  maxHeight?: number;
-  quality?: number;
+  patientId?: string;
+  episodeId?: string;
+  documentationType: "wound" | "general" | "identification" | "medication";
+  required?: boolean;
 }
 
-interface EmiratesIdData {
-  idNumber: string;
-  name: string;
-  nationality: string;
-  dateOfBirth: string;
-  expiryDate: string;
-  confidence: number;
+interface PhotoData {
+  id: string;
+  imageData: string;
+  thumbnail: string;
+  metadata: PhotoMetadata;
+  annotations: PhotoAnnotation[];
+  measurements: PhotoMeasurement[];
+  timestamp: string;
+  location?: GeolocationCoordinates;
+  deviceInfo: DeviceInfo;
+  qualityScore: number;
+  complianceFlags: string[];
 }
 
-export function MobileCamera({
-  onCapture,
-  onEmiratesIdDetected,
-  captureMode = "photo",
-  className = "",
-  maxWidth = 1920,
-  maxHeight = 1080,
-  quality = 0.8,
-}: MobileCameraProps) {
+interface PhotoMetadata {
+  width: number;
+  height: number;
+  fileSize: number;
+  format: string;
+  compression: number;
+  flash: boolean;
+  orientation: number;
+  exposureTime?: number;
+  iso?: number;
+  focalLength?: number;
+  whiteBalance?: string;
+  colorSpace: string;
+  timestamp: string;
+  cameraSettings: {
+    facing: "user" | "environment";
+    resolution: string;
+    zoom: number;
+    focus: string;
+  };
+}
+
+interface PhotoAnnotation {
+  id: string;
+  type: "arrow" | "circle" | "text" | "measurement";
+  position: { x: number; y: number };
+  size?: { width: number; height: number };
+  text?: string;
+  color: string;
+  timestamp: string;
+}
+
+interface PhotoMeasurement {
+  id: string;
+  type: "length" | "area" | "angle";
+  points: { x: number; y: number }[];
+  value: number;
+  unit: string;
+  calibration?: {
+    referenceObject: string;
+    knownSize: number;
+    pixelRatio: number;
+  };
+}
+
+interface DeviceInfo {
+  userAgent: string;
+  platform: string;
+  isMobile: boolean;
+  hasCamera: boolean;
+  cameraCount: number;
+  supportedFormats: string[];
+  maxResolution: string;
+  hasFlash: boolean;
+  hasAutofocus: boolean;
+}
+
+export const MobileCamera: React.FC<MobileCameraProps> = ({
+  onPhotoCapture,
+  onPhotosComplete,
+  maxPhotos = 10,
+  className,
+  patientId,
+  episodeId,
+  documentationType,
+  required = false,
+}) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const [isStreaming, setIsStreaming] = useState(false);
-  const [capturedImage, setCapturedImage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [facingMode, setFacingMode] = useState<"user" | "environment">(
+  const [photos, setPhotos] = useState<PhotoData[]>([]);
+  const [currentFacing, setCurrentFacing] = useState<"user" | "environment">(
     "environment",
   );
-  const [emiratesIdData, setEmiratesIdData] = useState<EmiratesIdData | null>(
-    null,
-  );
-  const [isScanning, setIsScanning] = useState(false);
-  const streamRef = useRef<MediaStream | null>(null);
+  const [hasFlash, setHasFlash] = useState(false);
+  const [flashEnabled, setFlashEnabled] = useState(false);
+  const [zoom, setZoom] = useState(1);
+  const [isCapturing, setIsCapturing] = useState(false);
+  const [deviceInfo, setDeviceInfo] = useState<DeviceInfo | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [isSupported, setIsSupported] = useState(false);
+  const [currentLocation, setCurrentLocation] =
+    useState<GeolocationCoordinates | null>(null);
+  const [annotations, setAnnotations] = useState<PhotoAnnotation[]>([]);
+  const [measurements, setMeasurements] = useState<PhotoMeasurement[]>([]);
+  const [isAnnotating, setIsAnnotating] = useState(false);
+  const [annotationMode, setAnnotationMode] = useState<
+    "arrow" | "circle" | "text" | "measurement"
+  >("arrow");
+  const [selectedPhoto, setSelectedPhoto] = useState<PhotoData | null>(null);
+  const [photoDescription, setPhotoDescription] = useState("");
+  const [measurementCalibration, setMeasurementCalibration] =
+    useState<number>(1); // pixels per mm
 
-  // Check camera support
-  const isCameraSupported = useCallback(() => {
-    return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+  useEffect(() => {
+    checkCameraSupport();
+    getCurrentLocation();
+    return () => {
+      stopCamera();
+    };
   }, []);
 
-  // Start camera stream
-  const startCamera = useCallback(async () => {
-    if (!isCameraSupported()) {
-      setError("Camera is not supported on this device");
-      return;
-    }
+  const checkCameraSupport = async () => {
+    try {
+      const hasMediaDevices =
+        "mediaDevices" in navigator && "getUserMedia" in navigator.mediaDevices;
 
+      if (!hasMediaDevices) {
+        setError("Camera not supported in this browser");
+        setIsSupported(false);
+        return;
+      }
+
+      // Get device info
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videoDevices = devices.filter(
+        (device) => device.kind === "videoinput",
+      );
+
+      const info: DeviceInfo = {
+        userAgent: navigator.userAgent,
+        platform: navigator.platform,
+        isMobile:
+          /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+            navigator.userAgent,
+          ),
+        hasCamera: videoDevices.length > 0,
+        cameraCount: videoDevices.length,
+        supportedFormats: ["image/jpeg", "image/png", "image/webp"],
+        maxResolution: "1920x1080", // Default, would be detected in production
+        hasFlash: false, // Would be detected from device capabilities
+        hasAutofocus: true, // Would be detected from device capabilities
+      };
+
+      setDeviceInfo(info);
+      setIsSupported(info.hasCamera);
+
+      if (!info.hasCamera) {
+        setError("No camera found on this device");
+      }
+    } catch (error) {
+      console.error("Error checking camera support:", error);
+      setError("Failed to check camera support");
+      setIsSupported(false);
+    }
+  };
+
+  const getCurrentLocation = () => {
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setCurrentLocation(position.coords);
+        },
+        (error) => {
+          console.warn("Geolocation error:", error);
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 300000, // 5 minutes
+        },
+      );
+    }
+  };
+
+  const startCamera = async () => {
     try {
       setError(null);
 
       const constraints: MediaStreamConstraints = {
         video: {
-          facingMode: facingMode,
-          width: { ideal: maxWidth },
-          height: { ideal: maxHeight },
+          facingMode: currentFacing,
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+          aspectRatio: { ideal: 16 / 9 },
         },
-        audio: false,
       };
 
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      streamRef.current = stream;
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         videoRef.current.play();
         setIsStreaming(true);
 
-        // Start Emirates ID scanning if in that mode
-        if (captureMode === "emirates-id") {
-          startEmiratesIdScanning();
+        // Check for flash capability
+        const track = stream.getVideoTracks()[0];
+        const capabilities = track.getCapabilities?.();
+
+        if (capabilities?.torch) {
+          setHasFlash(true);
         }
       }
-    } catch (err) {
-      console.error("Error accessing camera:", err);
-      setError("Failed to access camera. Please check permissions.");
+    } catch (error) {
+      console.error("Error starting camera:", error);
+      setError("Failed to start camera. Please check permissions.");
     }
-  }, [facingMode, maxWidth, maxHeight, captureMode, isCameraSupported]);
+  };
 
-  // Stop camera stream
-  const stopCamera = useCallback(() => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop());
-      streamRef.current = null;
+  const stopCamera = () => {
+    if (videoRef.current?.srcObject) {
+      const stream = videoRef.current.srcObject as MediaStream;
+      stream.getTracks().forEach((track) => track.stop());
+      videoRef.current.srcObject = null;
     }
     setIsStreaming(false);
-    setIsScanning(false);
-  }, []);
+  };
 
-  // Switch camera (front/back)
-  const switchCamera = useCallback(async () => {
+  const switchCamera = async () => {
     stopCamera();
-    setFacingMode((prev) => (prev === "user" ? "environment" : "user"));
-    // startCamera will be called by useEffect when facingMode changes
-  }, [stopCamera]);
+    setCurrentFacing((prev) => (prev === "user" ? "environment" : "user"));
+    setTimeout(startCamera, 100);
+  };
 
-  // Capture photo
-  const capturePhoto = useCallback(async () => {
-    if (!videoRef.current || !canvasRef.current) return;
+  const toggleFlash = async () => {
+    if (!hasFlash || !videoRef.current?.srcObject) return;
 
-    setIsProcessing(true);
+    try {
+      const stream = videoRef.current.srcObject as MediaStream;
+      const track = stream.getVideoTracks()[0];
+
+      await track.applyConstraints({
+        advanced: [{ torch: !flashEnabled } as any],
+      });
+
+      setFlashEnabled(!flashEnabled);
+    } catch (error) {
+      console.error("Error toggling flash:", error);
+    }
+  };
+
+  const capturePhoto = async () => {
+    if (!videoRef.current || !canvasRef.current || isCapturing) return;
+
+    setIsCapturing(true);
 
     try {
       const video = videoRef.current;
       const canvas = canvasRef.current;
-      const context = canvas.getContext("2d");
+      const ctx = canvas.getContext("2d");
 
-      if (!context) {
-        throw new Error("Could not get canvas context");
-      }
+      if (!ctx) throw new Error("Canvas context not available");
 
       // Set canvas dimensions to match video
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
 
       // Draw video frame to canvas
-      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-      // Convert to base64 with specified quality
-      const imageData = canvas.toDataURL("image/jpeg", quality);
+      // Get image data
+      const imageData = canvas.toDataURL("image/jpeg", 0.9);
+      const thumbnail = createThumbnail(canvas);
 
-      setCapturedImage(imageData);
+      // Calculate quality score
+      const qualityScore = calculateImageQuality(canvas, ctx);
 
-      // Create metadata
-      const metadata = {
+      // Generate metadata
+      const metadata: PhotoMetadata = {
+        width: canvas.width,
+        height: canvas.height,
+        fileSize: Math.round(imageData.length * 0.75), // Approximate file size
+        format: "image/jpeg",
+        compression: 0.9,
+        flash: flashEnabled,
+        orientation: 1,
+        colorSpace: "sRGB",
         timestamp: new Date().toISOString(),
-        dimensions: {
-          width: canvas.width,
-          height: canvas.height,
+        cameraSettings: {
+          facing: currentFacing,
+          resolution: `${canvas.width}x${canvas.height}`,
+          zoom,
+          focus: "auto",
         },
-        captureMode,
-        facingMode,
-        quality,
       };
 
-      // Process Emirates ID if in that mode
-      if (captureMode === "emirates-id") {
-        await processEmiratesId(imageData);
-      }
+      // Check compliance
+      const complianceFlags = checkPhotoCompliance(metadata, qualityScore);
 
-      onCapture(imageData, metadata);
-    } catch (err) {
-      console.error("Error capturing photo:", err);
-      setError("Failed to capture photo");
+      const photoData: PhotoData = {
+        id: `photo_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        imageData,
+        thumbnail,
+        metadata,
+        annotations: [],
+        measurements: [],
+        timestamp: new Date().toISOString(),
+        location: currentLocation || undefined,
+        deviceInfo: deviceInfo!,
+        qualityScore,
+        complianceFlags,
+      };
+
+      setPhotos((prev) => [...prev, photoData]);
+      onPhotoCapture(photoData);
+
+      // Store offline for sync
+      await offlineService.storeMediaFile({
+        id: photoData.id,
+        type: "image",
+        data: imageData,
+        metadata: {
+          patientId,
+          episodeId,
+          documentationType,
+          ...metadata,
+        },
+      });
+    } catch (error) {
+      console.error("Error capturing photo:", error);
+      setError("Failed to capture photo. Please try again.");
     } finally {
-      setIsProcessing(false);
+      setIsCapturing(false);
     }
-  }, [onCapture, quality, captureMode, facingMode]);
+  };
 
-  // Start Emirates ID scanning
-  const startEmiratesIdScanning = useCallback(() => {
-    setIsScanning(true);
+  const createThumbnail = (canvas: HTMLCanvasElement): string => {
+    const thumbnailCanvas = document.createElement("canvas");
+    const thumbnailCtx = thumbnailCanvas.getContext("2d");
 
-    // Simulate continuous scanning (in production, this would use OCR/ML)
-    const scanInterval = setInterval(() => {
-      if (videoRef.current && isStreaming) {
-        // Simulate Emirates ID detection
-        const mockDetection = Math.random() > 0.95; // 5% chance per scan
+    if (!thumbnailCtx) return "";
 
-        if (mockDetection) {
-          const mockData: EmiratesIdData = {
-            idNumber: "784-1234-5678901-2",
-            name: "Ahmed Al-Mansouri",
-            nationality: "United Arab Emirates",
-            dateOfBirth: "1985-03-15",
-            expiryDate: "2025-03-15",
-            confidence: 0.95,
-          };
+    const maxSize = 150;
+    const ratio = Math.min(maxSize / canvas.width, maxSize / canvas.height);
 
-          setEmiratesIdData(mockData);
-          setIsScanning(false);
-          clearInterval(scanInterval);
+    thumbnailCanvas.width = canvas.width * ratio;
+    thumbnailCanvas.height = canvas.height * ratio;
 
-          if (onEmiratesIdDetected) {
-            onEmiratesIdDetected(mockData);
-          }
-        }
+    thumbnailCtx.drawImage(
+      canvas,
+      0,
+      0,
+      thumbnailCanvas.width,
+      thumbnailCanvas.height,
+    );
+
+    return thumbnailCanvas.toDataURL("image/jpeg", 0.7);
+  };
+
+  const calculateImageQuality = (
+    canvas: HTMLCanvasElement,
+    ctx: CanvasRenderingContext2D,
+  ): number => {
+    // Simple quality assessment based on image properties
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const data = imageData.data;
+
+    let brightness = 0;
+    let contrast = 0;
+    let sharpness = 0;
+
+    // Calculate average brightness
+    for (let i = 0; i < data.length; i += 4) {
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
+      brightness += (r + g + b) / 3;
+    }
+    brightness /= data.length / 4;
+
+    // Simple quality score (0-100)
+    let score = 50; // Base score
+
+    // Brightness scoring (optimal range 80-180)
+    if (brightness >= 80 && brightness <= 180) {
+      score += 20;
+    } else if (brightness >= 60 && brightness <= 200) {
+      score += 10;
+    }
+
+    // Resolution scoring
+    const totalPixels = canvas.width * canvas.height;
+    if (totalPixels >= 1920 * 1080) {
+      score += 20;
+    } else if (totalPixels >= 1280 * 720) {
+      score += 15;
+    } else if (totalPixels >= 640 * 480) {
+      score += 10;
+    }
+
+    // Aspect ratio scoring (prefer 4:3 or 16:9)
+    const aspectRatio = canvas.width / canvas.height;
+    if (
+      Math.abs(aspectRatio - 4 / 3) < 0.1 ||
+      Math.abs(aspectRatio - 16 / 9) < 0.1
+    ) {
+      score += 10;
+    }
+
+    return Math.min(100, Math.max(0, score));
+  };
+
+  const checkPhotoCompliance = (
+    metadata: PhotoMetadata,
+    qualityScore: number,
+  ): string[] => {
+    const flags: string[] = [];
+
+    if (qualityScore < 60) {
+      flags.push("LOW_QUALITY");
+    }
+
+    if (metadata.width < 1280 || metadata.height < 720) {
+      flags.push("LOW_RESOLUTION");
+    }
+
+    if (!currentLocation) {
+      flags.push("NO_LOCATION_DATA");
+    }
+
+    if (documentationType === "wound" && measurements.length === 0) {
+      flags.push("NO_MEASUREMENTS");
+    }
+
+    return flags;
+  };
+
+  const handleFileUpload = async (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const files = event.target.files;
+    if (!files) return;
+
+    for (let i = 0; i < files.length && photos.length < maxPhotos; i++) {
+      const file = files[i];
+
+      if (!file.type.startsWith("image/")) {
+        continue;
       }
-    }, 1000);
 
-    // Cleanup after 30 seconds
-    setTimeout(() => {
-      clearInterval(scanInterval);
-      setIsScanning(false);
-    }, 30000);
-  }, [isStreaming, onEmiratesIdDetected]);
-
-  // Process Emirates ID image
-  const processEmiratesId = useCallback(
-    async (imageData: string) => {
       try {
-        // In production, this would send to OCR service
-        // For now, simulate processing
-        await new Promise((resolve) => setTimeout(resolve, 2000));
+        const imageData = await fileToDataURL(file);
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
+        const img = new Image();
 
-        const mockData: EmiratesIdData = {
-          idNumber: "784-1234-5678901-2",
-          name: "Ahmed Al-Mansouri",
-          nationality: "United Arab Emirates",
-          dateOfBirth: "1985-03-15",
-          expiryDate: "2025-03-15",
-          confidence: 0.92,
+        await new Promise((resolve, reject) => {
+          img.onload = resolve;
+          img.onerror = reject;
+          img.src = imageData;
+        });
+
+        canvas.width = img.width;
+        canvas.height = img.height;
+        ctx?.drawImage(img, 0, 0);
+
+        const thumbnail = createThumbnail(canvas);
+        const qualityScore = ctx ? calculateImageQuality(canvas, ctx) : 50;
+
+        const metadata: PhotoMetadata = {
+          width: img.width,
+          height: img.height,
+          fileSize: file.size,
+          format: file.type,
+          compression: 1,
+          flash: false,
+          orientation: 1,
+          colorSpace: "sRGB",
+          timestamp: new Date(file.lastModified).toISOString(),
+          cameraSettings: {
+            facing: "environment",
+            resolution: `${img.width}x${img.height}`,
+            zoom: 1,
+            focus: "unknown",
+          },
         };
 
-        setEmiratesIdData(mockData);
+        const complianceFlags = checkPhotoCompliance(metadata, qualityScore);
 
-        if (onEmiratesIdDetected) {
-          onEmiratesIdDetected(mockData);
-        }
+        const photoData: PhotoData = {
+          id: `upload_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          imageData,
+          thumbnail,
+          metadata,
+          annotations: [],
+          measurements: [],
+          timestamp: new Date().toISOString(),
+          location: currentLocation || undefined,
+          deviceInfo: deviceInfo!,
+          qualityScore,
+          complianceFlags,
+        };
+
+        setPhotos((prev) => [...prev, photoData]);
+        onPhotoCapture(photoData);
       } catch (error) {
-        console.error("Emirates ID processing failed:", error);
-        setError("Failed to process Emirates ID");
+        console.error("Error processing uploaded file:", error);
       }
-    },
-    [onEmiratesIdDetected],
-  );
-
-  // Clear captured image
-  const clearImage = useCallback(() => {
-    setCapturedImage(null);
-    setEmiratesIdData(null);
-  }, []);
-
-  // Download captured image
-  const downloadImage = useCallback(() => {
-    if (!capturedImage) return;
-
-    const link = document.createElement("a");
-    link.download = `reyada-capture-${Date.now()}.jpg`;
-    link.href = capturedImage;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  }, [capturedImage]);
-
-  // Start camera when component mounts or facingMode changes
-  useEffect(() => {
-    if (isStreaming || capturedImage) {
-      startCamera();
     }
-  }, [facingMode]);
 
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      stopCamera();
-    };
-  }, [stopCamera]);
+    // Clear file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
 
-  if (!isCameraSupported()) {
+  const fileToDataURL = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const deletePhoto = (photoId: string) => {
+    setPhotos((prev) => prev.filter((photo) => photo.id !== photoId));
+  };
+
+  const completePhotoSession = () => {
+    if (onPhotosComplete) {
+      onPhotosComplete(photos);
+    }
+    stopCamera();
+  };
+
+  if (!isSupported) {
     return (
       <Card className={className}>
-        <CardContent className="p-6 text-center">
-          <CameraOff className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-          <p className="text-gray-600">
-            Camera is not supported on this device
-          </p>
+        <CardContent className="p-6">
+          <Alert>
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              Camera not supported on this device. You can still upload photos
+              using the upload button below.
+            </AlertDescription>
+          </Alert>
+
+          <div className="mt-4">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={handleFileUpload}
+              className="hidden"
+            />
+            <Button onClick={() => fileInputRef.current?.click()}>
+              <Upload className="h-4 w-4 mr-2" />
+              Upload Photos
+            </Button>
+          </div>
         </CardContent>
       </Card>
     );
   }
 
   return (
-    <Card className={className}>
-      <CardHeader>
-        <CardTitle className="flex items-center justify-between">
-          <span className="flex items-center">
-            <Camera className="h-5 w-5 mr-2" />
-            Mobile Camera
-            {captureMode === "emirates-id" && (
-              <Badge variant="secondary" className="ml-2">
-                Emirates ID Scanner
+    <div className={cn("w-full max-w-4xl mx-auto bg-white", className)}>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Camera className="h-5 w-5" />
+            Clinical Photography -{" "}
+            {documentationType.charAt(0).toUpperCase() +
+              documentationType.slice(1)}
+          </CardTitle>
+
+          <div className="flex flex-wrap gap-2">
+            <Badge variant={deviceInfo?.isMobile ? "default" : "secondary"}>
+              <Smartphone className="h-3 w-3 mr-1" />
+              {deviceInfo?.isMobile ? "Mobile" : "Desktop"}
+            </Badge>
+
+            <Badge variant="outline">
+              <Eye className="h-3 w-3 mr-1" />
+              {currentFacing === "environment" ? "Back Camera" : "Front Camera"}
+            </Badge>
+
+            {currentLocation && (
+              <Badge variant="secondary">
+                <MapPin className="h-3 w-3 mr-1" />
+                Location Enabled
               </Badge>
             )}
-          </span>
-          {isStreaming && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={switchCamera}
-              className="flex items-center"
-            >
-              <RotateCcw className="h-4 w-4 mr-1" />
-              Switch
-            </Button>
-          )}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {error && (
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
 
-        {/* Camera View */}
-        <div className="relative bg-black rounded-lg overflow-hidden">
-          {!capturedImage ? (
-            <>
+            <Badge
+              variant={photos.length >= maxPhotos ? "destructive" : "default"}
+            >
+              {photos.length}/{maxPhotos} Photos
+            </Badge>
+          </div>
+        </CardHeader>
+
+        <CardContent className="space-y-6">
+          {error && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
+          <div className="space-y-4">
+            <div className="relative bg-black rounded-lg overflow-hidden">
               <video
                 ref={videoRef}
-                className="w-full h-64 object-cover"
+                className="w-full h-64 md:h-96 object-cover"
                 playsInline
                 muted
               />
 
-              {/* Scanning Overlay for Emirates ID */}
-              {captureMode === "emirates-id" && isScanning && (
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="border-2 border-blue-500 border-dashed rounded-lg w-80 h-48 flex items-center justify-center">
-                    <div className="text-center text-white">
-                      <ScanLine className="h-8 w-8 mx-auto mb-2 animate-pulse" />
-                      <p className="text-sm">
-                        Position Emirates ID within frame
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
+              <canvas ref={canvasRef} className="hidden" />
 
               {!isStreaming && (
-                <div className="absolute inset-0 flex items-center justify-center bg-gray-900">
-                  <div className="text-center text-white">
-                    <CameraOff className="h-12 w-12 mx-auto mb-4" />
-                    <p>Camera not active</p>
-                  </div>
+                <div className="absolute inset-0 flex items-center justify-center bg-gray-900 bg-opacity-75">
+                  <Button onClick={startCamera} size="lg">
+                    <Camera className="h-5 w-5 mr-2" />
+                    Start Camera
+                  </Button>
                 </div>
               )}
-            </>
-          ) : (
-            <img
-              src={capturedImage}
-              alt="Captured"
-              className="w-full h-64 object-cover"
-            />
-          )}
-        </div>
+            </div>
 
-        {/* Emirates ID Data Display */}
-        {emiratesIdData && (
-          <Alert>
-            <CheckCircle className="h-4 w-4" />
-            <AlertDescription>
-              <div className="space-y-1">
-                <p>
-                  <strong>ID:</strong> {emiratesIdData.idNumber}
-                </p>
-                <p>
-                  <strong>Name:</strong> {emiratesIdData.name}
-                </p>
-                <p>
-                  <strong>DOB:</strong> {emiratesIdData.dateOfBirth}
-                </p>
-                <p>
-                  <strong>Confidence:</strong>{" "}
-                  {Math.round(emiratesIdData.confidence * 100)}%
-                </p>
-              </div>
-            </AlertDescription>
-          </Alert>
-        )}
+            {isStreaming && (
+              <div className="flex flex-wrap gap-2 justify-center">
+                <Button
+                  onClick={capturePhoto}
+                  disabled={isCapturing || photos.length >= maxPhotos}
+                  size="lg"
+                  className="min-w-32"
+                >
+                  {isCapturing ? (
+                    <>
+                      <Circle className="h-5 w-5 mr-2 animate-pulse" />
+                      Capturing...
+                    </>
+                  ) : (
+                    <>
+                      <Circle className="h-5 w-5 mr-2" />
+                      Capture
+                    </>
+                  )}
+                </Button>
 
-        {/* Controls */}
-        <div className="flex justify-center space-x-2">
-          {!isStreaming && !capturedImage && (
-            <Button onClick={startCamera} className="flex items-center">
-              <Camera className="h-4 w-4 mr-2" />
-              Start Camera
-            </Button>
-          )}
+                <Button variant="outline" onClick={switchCamera}>
+                  <RotateCw className="h-4 w-4 mr-2" />
+                  Switch
+                </Button>
 
-          {isStreaming && !capturedImage && (
-            <>
-              <Button
-                onClick={capturePhoto}
-                disabled={isProcessing}
-                className="flex items-center"
-              >
-                {isProcessing ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <Camera className="h-4 w-4 mr-2" />
+                {hasFlash && (
+                  <Button
+                    variant={flashEnabled ? "default" : "outline"}
+                    onClick={toggleFlash}
+                  >
+                    {flashEnabled ? (
+                      <Zap className="h-4 w-4 mr-2" />
+                    ) : (
+                      <ZapOff className="h-4 w-4 mr-2" />
+                    )}
+                    Flash
+                  </Button>
                 )}
-                {captureMode === "emirates-id" ? "Scan ID" : "Capture"}
-              </Button>
 
-              <Button
-                variant="outline"
-                onClick={stopCamera}
-                className="flex items-center"
-              >
-                <CameraOff className="h-4 w-4 mr-2" />
-                Stop
-              </Button>
-            </>
+                <Button variant="outline" onClick={stopCamera}>
+                  <Square className="h-4 w-4 mr-2" />
+                  Stop
+                </Button>
+              </div>
+            )}
+          </div>
+
+          <div className="flex gap-2">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={handleFileUpload}
+              className="hidden"
+            />
+            <Button
+              variant="outline"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={photos.length >= maxPhotos}
+            >
+              <Upload className="h-4 w-4 mr-2" />
+              Upload Photos
+            </Button>
+          </div>
+
+          {photos.length > 0 && (
+            <div className="space-y-4">
+              <Separator />
+
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold">
+                  Captured Photos ({photos.length})
+                </h3>
+                {photos.length > 0 && (
+                  <Button onClick={completePhotoSession}>
+                    <Check className="h-4 w-4 mr-2" />
+                    Complete Session
+                  </Button>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {photos.map((photo) => (
+                  <div key={photo.id} className="relative group">
+                    <img
+                      src={photo.thumbnail}
+                      alt={`Photo ${photo.id}`}
+                      className="w-full h-32 object-cover rounded-lg border"
+                    />
+
+                    <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-all duration-200 rounded-lg flex items-center justify-center">
+                      <div className="opacity-0 group-hover:opacity-100 flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => setSelectedPhoto(photo)}
+                        >
+                          <Eye className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => deletePhoto(photo.id)}
+                        >
+                          <RotateCcw className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="absolute top-2 right-2">
+                      <Badge
+                        variant={
+                          photo.qualityScore >= 80
+                            ? "default"
+                            : photo.qualityScore >= 60
+                              ? "secondary"
+                              : "destructive"
+                        }
+                        className="text-xs"
+                      >
+                        {photo.qualityScore}%
+                      </Badge>
+                    </div>
+
+                    {photo.complianceFlags.length > 0 && (
+                      <div className="absolute bottom-2 left-2">
+                        <Badge variant="destructive" className="text-xs">
+                          <AlertCircle className="h-2 w-2 mr-1" />
+                          {photo.complianceFlags.length}
+                        </Badge>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
 
-          {capturedImage && (
-            <>
-              <Button
-                onClick={downloadImage}
-                variant="outline"
-                className="flex items-center"
-              >
-                <Download className="h-4 w-4 mr-2" />
-                Download
-              </Button>
-
-              <Button
-                onClick={clearImage}
-                variant="outline"
-                className="flex items-center"
-              >
-                <Trash2 className="h-4 w-4 mr-2" />
-                Clear
-              </Button>
-
-              <Button onClick={startCamera} className="flex items-center">
-                <Camera className="h-4 w-4 mr-2" />
-                Take Another
-              </Button>
-            </>
+          {required && photos.length === 0 && (
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                At least one photo is required for this documentation type.
+              </AlertDescription>
+            </Alert>
           )}
-        </div>
-
-        {/* Hidden canvas for image processing */}
-        <canvas ref={canvasRef} className="hidden" />
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+    </div>
   );
-}
+};
 
 export default MobileCamera;

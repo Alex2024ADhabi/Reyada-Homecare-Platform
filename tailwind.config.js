@@ -52,6 +52,35 @@ module.exports = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        // Reyada Brand Colors
+        reyada: {
+          primary: {
+            DEFAULT: "hsl(var(--reyada-primary))",
+            dark: "hsl(var(--reyada-primary-dark))",
+          },
+          secondary: "hsl(var(--reyada-secondary))",
+          accent: "hsl(var(--reyada-accent))",
+          success: "hsl(var(--reyada-success))",
+          warning: "hsl(var(--reyada-warning))",
+          error: "hsl(var(--reyada-error))",
+          neutral: {
+            50: "hsl(var(--reyada-neutral-50))",
+            100: "hsl(var(--reyada-neutral-100))",
+            200: "hsl(var(--reyada-neutral-200))",
+            300: "hsl(var(--reyada-neutral-300))",
+            400: "hsl(var(--reyada-neutral-400))",
+            500: "hsl(var(--reyada-neutral-500))",
+            600: "hsl(var(--reyada-neutral-600))",
+            700: "hsl(var(--reyada-neutral-700))",
+            800: "hsl(var(--reyada-neutral-800))",
+            900: "hsl(var(--reyada-neutral-900))",
+          },
+        },
+      },
+      fontFamily: {
+        arabic: "var(--font-arabic)",
+        english: "var(--font-english)",
+        sans: "var(--font-english)",
       },
       borderRadius: {
         lg: "var(--radius)",

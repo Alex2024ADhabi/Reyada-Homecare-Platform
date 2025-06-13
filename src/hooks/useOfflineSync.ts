@@ -72,10 +72,24 @@ export function useOfflineSync() {
 
       // Intelligent sync prioritization based on data criticality
       const syncPriorities = {
-        critical: ["incidentReports", "clinicalForms"],
-        high: ["patientAssessments", "serviceInitiations", "attendanceRecords"],
-        medium: ["paymentReconciliations", "denialManagements", "dailyPlans"],
-        low: ["revenueReports", "qualityInitiatives"],
+        critical: [
+          "incidentReports",
+          "clinicalForms",
+          "emiratesIdVerifications",
+        ],
+        high: [
+          "patientAssessments",
+          "serviceInitiations",
+          "attendanceRecords",
+          "authenticationData",
+        ],
+        medium: [
+          "paymentReconciliations",
+          "denialManagements",
+          "dailyPlans",
+          "electronicSignatures",
+        ],
+        low: ["revenueReports", "qualityInitiatives", "performanceMetrics"],
       };
 
       // Sync critical items first

@@ -17,6 +17,17 @@ import {
   Clock,
   Volume2,
   VolumeX,
+  Camera,
+  Video,
+  VideoOff,
+  Phone,
+  PhoneOff,
+  Image,
+  FileText,
+  Download,
+  X,
+  Maximize2,
+  Minimize2,
 } from "lucide-react";
 import {
   communicationService,
@@ -48,8 +59,18 @@ const RealtimeChat: React.FC<RealtimeChatProps> = ({
   const [voiceTranscript, setVoiceTranscript] = useState("");
   const [isVoiceEnabled, setIsVoiceEnabled] = useState(false);
   const [nlpProcessing, setNlpProcessing] = useState(false);
+  const [isVideoCallActive, setIsVideoCallActive] = useState(false);
+  const [isVideoCallMinimized, setIsVideoCallMinimized] = useState(false);
+  const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+  const [videoCallPosition, setVideoCallPosition] = useState({ x: 20, y: 20 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const localVideoRef = useRef<HTMLVideoElement>(null);
+  const remoteVideoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
     initializeChat();
@@ -222,9 +243,220 @@ const RealtimeChat: React.FC<RealtimeChatProps> = ({
     }
   };
 
+  const handleFileUpload = async (files: FileList) => {
+    if (!files.length) return;
+
+    setIsUploading(true);
+    const fileArray = Array.from(files);
+
+    try {
+      for (const file of fileArray) {
+        // Validate file type and size
+        const maxSize = 10 * 1024 * 1024; // 10MB
+        if (file.size > maxSize) {
+          alert(`File ${file.name} is too large. Maximum size is 10MB.`);
+          continue;
+        }
+
+        // Create file message
+        const fileMessage: Message = {
+          id: `file_${Date.now()}_${Math.random()}`,
+          senderId: userId,
+          recipientIds: participants,
+          content: `Shared ${file.type.startsWith("image/") ? "image" : "document"}: ${file.name}`,
+          type: file.type.startsWith("image/") ? "image" : "file",
+          priority: "medium",
+          timestamp: new Date().toISOString(),
+          status: "sent",
+          encrypted: channel?.settings.encryption || false,
+          channelId,
+          metadata: {
+            fileName: file.name,
+            fileSize: file.size,
+            fileType: file.type,
+            fileUrl: URL.createObjectURL(file), // In real app, upload to server first
+          },
+        };
+
+        setMessages((prev) => [...prev, fileMessage]);
+      }
+    } catch (error) {
+      console.error("File upload failed:", error);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const startVideoCall = async () => {
+    try {
+      setIsVideoCallActive(true);
+
+      // Get user media
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: true,
+      });
+
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = stream;
+      }
+
+      // Send video call message
+      const callMessage: Message = {
+        id: `call_${Date.now()}`,
+        senderId: userId,
+        recipientIds: participants,
+        content: "📹 Started video call",
+        type: "system",
+        priority: "high",
+        timestamp: new Date().toISOString(),
+        status: "sent",
+        encrypted: channel?.settings.encryption || false,
+        channelId,
+        metadata: {
+          callType: "video",
+          callStatus: "started",
+        },
+      };
+
+      setMessages((prev) => [...prev, callMessage]);
+    } catch (error) {
+      console.error("Failed to start video call:", error);
+      alert("Unable to access camera/microphone. Please check permissions.");
+    }
+  };
+
+  const endVideoCall = () => {
+    if (localVideoRef.current?.srcObject) {
+      const stream = localVideoRef.current.srcObject as MediaStream;
+      stream.getTracks().forEach((track) => track.stop());
+    }
+
+    setIsVideoCallActive(false);
+    setIsVideoCallMinimized(false);
+    setVideoCallPosition({ x: 20, y: 20 });
+    setIsDragging(false);
+
+    // Send call ended message
+    const endCallMessage: Message = {
+      id: `call_end_${Date.now()}`,
+      senderId: userId,
+      recipientIds: participants,
+      content: "📹 Video call ended",
+      type: "system",
+      priority: "medium",
+      timestamp: new Date().toISOString(),
+      status: "sent",
+      encrypted: channel?.settings.encryption || false,
+      channelId,
+      metadata: {
+        callType: "video",
+        callStatus: "ended",
+      },
+    };
+
+    setMessages((prev) => [...prev, endCallMessage]);
+  };
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (isVideoCallMinimized) {
+      setIsDragging(true);
+      const rect = e.currentTarget.getBoundingClientRect();
+      setDragOffset({
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top,
+      });
+    }
+  };
+
+  const handleMouseMove = (e: MouseEvent) => {
+    if (isDragging && isVideoCallMinimized) {
+      const newX = e.clientX - dragOffset.x;
+      const newY = e.clientY - dragOffset.y;
+
+      // Keep within bounds
+      const maxX = window.innerWidth - 256; // 256px is the width of minimized call
+      const maxY = window.innerHeight - 192; // 192px is the height of minimized call
+
+      setVideoCallPosition({
+        x: Math.max(0, Math.min(newX, maxX)),
+        y: Math.max(0, Math.min(newY, maxY)),
+      });
+    }
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  React.useEffect(() => {
+    if (isDragging) {
+      document.addEventListener("mousemove", handleMouseMove);
+      document.addEventListener("mouseup", handleMouseUp);
+      return () => {
+        document.removeEventListener("mousemove", handleMouseMove);
+        document.removeEventListener("mouseup", handleMouseUp);
+      };
+    }
+  }, [isDragging, dragOffset]);
+
+  const renderFileMessage = (message: Message) => {
+    if (!message.metadata?.fileName) return null;
+
+    const isImage = message.type === "image";
+    const fileUrl = message.metadata.fileUrl;
+    const fileName = message.metadata.fileName;
+    const fileSize = message.metadata.fileSize;
+
+    return (
+      <div className="mt-2">
+        {isImage ? (
+          <div className="relative">
+            <img
+              src={fileUrl}
+              alt={fileName}
+              className="max-w-xs rounded-lg cursor-pointer hover:opacity-90"
+              onClick={() => window.open(fileUrl, "_blank")}
+            />
+            <div className="absolute bottom-2 right-2 bg-black bg-opacity-50 text-white text-xs px-2 py-1 rounded">
+              {fileName}
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg border max-w-xs">
+            <FileText className="h-8 w-8 text-blue-500" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-gray-900 truncate">
+                {fileName}
+              </p>
+              <p className="text-xs text-gray-500">
+                {(fileSize / 1024 / 1024).toFixed(2)} MB
+              </p>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                const link = document.createElement("a");
+                link.href = fileUrl;
+                link.download = fileName;
+                link.click();
+              }}
+            >
+              <Download className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const cleanup = () => {
     if (isRecording) {
       stopVoiceRecording();
+    }
+    if (isVideoCallActive) {
+      endVideoCall();
     }
   };
 
@@ -324,6 +556,16 @@ const RealtimeChat: React.FC<RealtimeChatProps> = ({
                     </div>
                   )}
 
+                  {(message.type === "image" || message.type === "file") &&
+                    renderFileMessage(message)}
+
+                  {message.metadata?.callType && (
+                    <div className="text-xs mt-1 opacity-70">
+                      {message.metadata.callType === "video" ? "📹" : "📞"}{" "}
+                      {message.metadata.callStatus}
+                    </div>
+                  )}
+
                   <div className="flex items-center justify-between mt-1">
                     <span className="text-xs opacity-70">
                       {format(new Date(message.timestamp), "HH:mm")}
@@ -360,6 +602,100 @@ const RealtimeChat: React.FC<RealtimeChatProps> = ({
         </ScrollArea>
       </div>
 
+      {/* Video Call Interface */}
+      {isVideoCallActive && (
+        <div
+          className={`fixed ${isVideoCallMinimized ? "w-64 h-48" : "inset-4"} bg-black rounded-lg z-50 flex flex-col ${isDragging ? "cursor-grabbing" : isVideoCallMinimized ? "cursor-grab" : ""}`}
+          style={
+            isVideoCallMinimized
+              ? {
+                  left: `${videoCallPosition.x}px`,
+                  top: `${videoCallPosition.y}px`,
+                }
+              : {}
+          }
+          onMouseDown={handleMouseDown}
+        >
+          <div className="flex items-center justify-between p-3 bg-gray-900 rounded-t-lg select-none">
+            <div className="flex items-center space-x-2">
+              <Video className="h-4 w-4 text-white" />
+              <span className="text-white text-sm font-medium">Video Call</span>
+              {isVideoCallMinimized && (
+                <span className="text-xs text-gray-400 ml-2">
+                  (Drag to move)
+                </span>
+              )}
+            </div>
+            <div className="flex items-center space-x-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsVideoCallMinimized(!isVideoCallMinimized)}
+                className="text-white hover:bg-gray-700"
+              >
+                {isVideoCallMinimized ? (
+                  <Maximize2 className="h-4 w-4" />
+                ) : (
+                  <Minimize2 className="h-4 w-4" />
+                )}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={endVideoCall}
+                className="text-red-400 hover:bg-red-900"
+              >
+                <PhoneOff className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+
+          <div className="flex-1 relative">
+            {/* Remote video (main) */}
+            <video
+              ref={remoteVideoRef}
+              className="w-full h-full object-cover"
+              autoPlay
+              playsInline
+            />
+
+            {/* Local video (picture-in-picture) */}
+            <div className="absolute bottom-4 right-4 w-32 h-24 bg-gray-800 rounded-lg overflow-hidden">
+              <video
+                ref={localVideoRef}
+                className="w-full h-full object-cover"
+                autoPlay
+                playsInline
+                muted
+              />
+            </div>
+
+            {/* Call controls */}
+            {!isVideoCallMinimized && (
+              <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex items-center space-x-4">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="bg-gray-800 border-gray-600 text-white hover:bg-gray-700"
+                >
+                  <Mic className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="bg-gray-800 border-gray-600 text-white hover:bg-gray-700"
+                >
+                  <Video className="h-4 w-4" />
+                </Button>
+                <Button variant="destructive" size="sm" onClick={endVideoCall}>
+                  <PhoneOff className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Message Input */}
       <Card className="rounded-t-none border-t">
         <CardContent className="p-4">
@@ -373,15 +709,69 @@ const RealtimeChat: React.FC<RealtimeChatProps> = ({
                 placeholder="Type a message..."
                 className="pr-12"
               />
-              <Button
-                variant="ghost"
-                size="sm"
-                className="absolute right-1 top-1/2 transform -translate-y-1/2"
-                onClick={() => {}}
-              >
-                <Paperclip className="h-4 w-4" />
-              </Button>
+              <div className="absolute right-1 top-1/2 transform -translate-y-1/2 flex items-center space-x-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploading}
+                >
+                  <Paperclip className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
+
+            {/* File Upload Controls */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const input = document.createElement("input");
+                input.type = "file";
+                input.accept = "image/*";
+                input.multiple = true;
+                input.onchange = (e) => {
+                  const files = (e.target as HTMLInputElement).files;
+                  if (files) handleFileUpload(files);
+                };
+                input.click();
+              }}
+              disabled={isUploading}
+            >
+              <Image className="h-4 w-4" />
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const input = document.createElement("input");
+                input.type = "file";
+                input.accept = ".pdf,.doc,.docx,.txt,.xlsx,.ppt,.pptx";
+                input.multiple = true;
+                input.onchange = (e) => {
+                  const files = (e.target as HTMLInputElement).files;
+                  if (files) handleFileUpload(files);
+                };
+                input.click();
+              }}
+              disabled={isUploading}
+            >
+              <FileText className="h-4 w-4" />
+            </Button>
+
+            {/* Video Call Button */}
+            <Button
+              variant={isVideoCallActive ? "destructive" : "outline"}
+              size="sm"
+              onClick={isVideoCallActive ? endVideoCall : startVideoCall}
+            >
+              {isVideoCallActive ? (
+                <VideoOff className="h-4 w-4" />
+              ) : (
+                <Video className="h-4 w-4" />
+              )}
+            </Button>
 
             {isVoiceEnabled && (
               <Button
@@ -401,10 +791,21 @@ const RealtimeChat: React.FC<RealtimeChatProps> = ({
               </Button>
             )}
 
-            <Button onClick={sendMessage} disabled={!newMessage.trim()}>
+            <Button
+              onClick={sendMessage}
+              disabled={!newMessage.trim() || isUploading}
+            >
               <Send className="h-4 w-4" />
             </Button>
           </div>
+
+          {/* Upload Progress */}
+          {isUploading && (
+            <div className="mt-2 text-xs text-blue-600 flex items-center">
+              <Clock className="h-3 w-3 mr-1 animate-spin" />
+              Uploading files...
+            </div>
+          )}
 
           {!isConnected && (
             <div className="mt-2 text-xs text-amber-600 flex items-center">
@@ -412,6 +813,20 @@ const RealtimeChat: React.FC<RealtimeChatProps> = ({
               Offline - messages will be sent when connection is restored
             </div>
           )}
+
+          {/* Hidden file input */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept="image/*,.pdf,.doc,.docx,.txt,.xlsx,.ppt,.pptx"
+            className="hidden"
+            onChange={(e) => {
+              if (e.target.files) {
+                handleFileUpload(e.target.files);
+              }
+            }}
+          />
         </CardContent>
       </Card>
     </div>

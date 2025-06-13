@@ -29,6 +29,8 @@ import RealtimeChat from "./RealtimeChat";
 import EmergencyPanel from "./EmergencyPanel";
 import { communicationService } from "@/services/communication.service";
 import { mobileCommunicationService } from "@/services/mobile-communication.service";
+import { realTimeSyncService } from "@/services/real-time-sync.service";
+import { workflowAutomationService } from "@/services/workflow-automation.service";
 import { format } from "date-fns";
 
 interface CommunicationHubProps {
@@ -73,6 +75,9 @@ const CommunicationHub: React.FC<CommunicationHubProps> = ({
     activeEmergencies: 0,
     messagesProcessed: 0,
     systemHealth: "healthy" as "healthy" | "warning" | "critical",
+    workflowsActive: 0,
+    syncOperations: 0,
+    integrationStatus: "operational" as "operational" | "degraded" | "offline",
   });
   const [isNotificationPanelOpen, setIsNotificationPanelOpen] = useState(false);
 
@@ -179,16 +184,24 @@ const CommunicationHub: React.FC<CommunicationHubProps> = ({
     const queueInfo = mobileCommunicationService.getOfflineQueueStatus();
     setOfflineQueueStatus(queueInfo);
 
-    // Update system stats
+    // Update system stats with integration metrics
     const activeEmergencies = communicationService.getActiveEmergencyAlerts();
+    const workflowStats = workflowAutomationService.getExecutionStatistics();
+    const syncConnected = realTimeSyncService.getConnectionStatus();
+    const pendingSync = realTimeSyncService.getPendingEventsCount();
+
     setSystemStats({
       activeUsers: 12, // Mock data
       activeEmergencies: activeEmergencies.length,
       messagesProcessed: 156, // Mock data
+      workflowsActive: workflowStats.totalExecutions,
+      syncOperations: pendingSync,
+      integrationStatus:
+        syncConnected && networkInfo.online ? "operational" : "degraded",
       systemHealth:
         activeEmergencies.length > 0
           ? "warning"
-          : networkInfo.online
+          : networkInfo.online && syncConnected
             ? "healthy"
             : "critical",
     });
@@ -358,6 +371,14 @@ const CommunicationHub: React.FC<CommunicationHubProps> = ({
               <div className="flex items-center space-x-1">
                 <MessageSquare className="h-4 w-4" />
                 <span>{systemStats.messagesProcessed} Messages Today</span>
+              </div>
+              <div className="flex items-center space-x-1">
+                <Activity className="h-4 w-4" />
+                <span>{systemStats.workflowsActive} Workflows</span>
+              </div>
+              <div className="flex items-center space-x-1">
+                <Wifi className="h-4 w-4" />
+                <span>{systemStats.syncOperations} Sync Ops</span>
               </div>
             </div>
 

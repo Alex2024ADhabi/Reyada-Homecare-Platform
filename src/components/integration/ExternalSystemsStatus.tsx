@@ -20,7 +20,14 @@ import {
   MessageSquare,
   FileText,
   Shield,
+  Zap,
+  Globe,
+  Wifi,
+  Settings,
 } from "lucide-react";
+import { communicationService } from "@/services/communication.service";
+import { realTimeSyncService } from "@/services/real-time-sync.service";
+import { workflowAutomationService } from "@/services/workflow-automation.service";
 
 interface SystemStatus {
   id: string;
@@ -44,6 +51,19 @@ const ExternalSystemsStatus: React.FC<ExternalSystemsStatusProps> = ({
   const [systems, setSystems] = useState<SystemStatus[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<string>("");
+  const [realTimeMetrics, setRealTimeMetrics] = useState({
+    activeConnections: 0,
+    messagesSent: 0,
+    workflowsExecuted: 0,
+    apiCallsProcessed: 0,
+  });
+  const [integrationHealth, setIntegrationHealth] = useState({
+    overall: "healthy",
+    communicationService: "online",
+    realTimeSync: "connected",
+    workflowAutomation: "active",
+    externalApis: "operational",
+  });
 
   const mockSystems: SystemStatus[] = [
     {
@@ -112,6 +132,50 @@ const ExternalSystemsStatus: React.FC<ExternalSystemsStatusProps> = ({
       description: "Government Reporting System",
       icon: <FileText className="h-5 w-5" />,
     },
+    {
+      id: "real-time-sync",
+      name: "Real-time Sync Service",
+      status: "online",
+      lastChecked: new Date().toISOString(),
+      responseTime: 95,
+      uptime: 99.9,
+      errorCount: 0,
+      description: "Bidirectional data synchronization",
+      icon: <Wifi className="h-5 w-5" />,
+    },
+    {
+      id: "workflow-automation",
+      name: "Workflow Automation Engine",
+      status: "online",
+      lastChecked: new Date().toISOString(),
+      responseTime: 150,
+      uptime: 99.7,
+      errorCount: 1,
+      description: "AI-powered workflow orchestration",
+      icon: <Zap className="h-5 w-5" />,
+    },
+    {
+      id: "external-api-hub",
+      name: "External API Integration Hub",
+      status: "online",
+      lastChecked: new Date().toISOString(),
+      responseTime: 280,
+      uptime: 99.4,
+      errorCount: 3,
+      description: "Centralized external API management",
+      icon: <Globe className="h-5 w-5" />,
+    },
+    {
+      id: "communication-service",
+      name: "Real-time Communication",
+      status: "online",
+      lastChecked: new Date().toISOString(),
+      responseTime: 120,
+      uptime: 99.8,
+      errorCount: 0,
+      description: "Multi-channel communication system",
+      icon: <MessageSquare className="h-5 w-5" />,
+    },
   ];
 
   useEffect(() => {
@@ -124,6 +188,35 @@ const ExternalSystemsStatus: React.FC<ExternalSystemsStatusProps> = ({
     setIsLoading(true);
     try {
       await new Promise((resolve) => setTimeout(resolve, 1000));
+
+      // Update real-time metrics
+      const communicationStats =
+        await communicationService.getNotificationAnalytics({
+          start: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+          end: new Date().toISOString(),
+        });
+
+      const workflowStats = workflowAutomationService.getExecutionStatistics();
+      const syncStatus = realTimeSyncService.getConnectionStatus();
+
+      setRealTimeMetrics({
+        activeConnections: syncStatus ? 5 : 0,
+        messagesSent: communicationStats.totalNotifications,
+        workflowsExecuted: workflowStats.totalExecutions,
+        apiCallsProcessed: 1247, // Mock data
+      });
+
+      setIntegrationHealth({
+        overall:
+          syncStatus && workflowStats.successRate > 95 ? "healthy" : "degraded",
+        communicationService:
+          communicationStats.deliveryRate > 95 ? "online" : "degraded",
+        realTimeSync: syncStatus ? "connected" : "disconnected",
+        workflowAutomation:
+          workflowStats.successRate > 90 ? "active" : "degraded",
+        externalApis: "operational",
+      });
+
       setSystems(mockSystems);
       setLastUpdated(new Date().toLocaleString());
     } catch (error) {
@@ -219,6 +312,105 @@ const ExternalSystemsStatus: React.FC<ExternalSystemsStatusProps> = ({
           </Button>
         </div>
       </div>
+
+      {/* Real-time Integration Metrics */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2">
+            <Activity className="h-5 w-5 text-blue-500" />
+            <span>Real-time Integration Metrics</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="text-center">
+              <div className="text-2xl font-bold text-blue-600">
+                {realTimeMetrics.activeConnections}
+              </div>
+              <div className="text-sm text-gray-600">Active Connections</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-green-600">
+                {realTimeMetrics.messagesSent}
+              </div>
+              <div className="text-sm text-gray-600">Messages Sent (24h)</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-purple-600">
+                {realTimeMetrics.workflowsExecuted}
+              </div>
+              <div className="text-sm text-gray-600">Workflows Executed</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-orange-600">
+                {realTimeMetrics.apiCallsProcessed}
+              </div>
+              <div className="text-sm text-gray-600">API Calls Processed</div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Integration Health Dashboard */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2">
+            <Settings className="h-5 w-5 text-purple-500" />
+            <span>Integration Health Dashboard</span>
+            <Badge className={getStatusColor(integrationHealth.overall)}>
+              {integrationHealth.overall.toUpperCase()}
+            </Badge>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="flex items-center justify-between p-3 border rounded-lg">
+              <div className="flex items-center space-x-2">
+                <MessageSquare className="h-4 w-4 text-blue-500" />
+                <span className="text-sm font-medium">
+                  Communication Service
+                </span>
+              </div>
+              <Badge
+                className={getStatusColor(
+                  integrationHealth.communicationService,
+                )}
+              >
+                {integrationHealth.communicationService.toUpperCase()}
+              </Badge>
+            </div>
+            <div className="flex items-center justify-between p-3 border rounded-lg">
+              <div className="flex items-center space-x-2">
+                <Wifi className="h-4 w-4 text-green-500" />
+                <span className="text-sm font-medium">Real-time Sync</span>
+              </div>
+              <Badge className={getStatusColor(integrationHealth.realTimeSync)}>
+                {integrationHealth.realTimeSync.toUpperCase()}
+              </Badge>
+            </div>
+            <div className="flex items-center justify-between p-3 border rounded-lg">
+              <div className="flex items-center space-x-2">
+                <Zap className="h-4 w-4 text-purple-500" />
+                <span className="text-sm font-medium">Workflow Automation</span>
+              </div>
+              <Badge
+                className={getStatusColor(integrationHealth.workflowAutomation)}
+              >
+                {integrationHealth.workflowAutomation.toUpperCase()}
+              </Badge>
+            </div>
+            <div className="flex items-center justify-between p-3 border rounded-lg">
+              <div className="flex items-center space-x-2">
+                <Globe className="h-4 w-4 text-orange-500" />
+                <span className="text-sm font-medium">External APIs</span>
+              </div>
+              <Badge className={getStatusColor(integrationHealth.externalApis)}>
+                {integrationHealth.externalApis.toUpperCase()}
+              </Badge>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {systems.map((system) => (

@@ -22,9 +22,15 @@ import {
   X,
   Calendar as CalendarIcon,
   ChevronDown,
+  Save,
+  History,
+  Star,
+  Download,
+  Upload,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
+import { useLanguage, T } from "@/components/ui/multi-language-support";
 
 export interface SearchFilter {
   id: string;
@@ -63,12 +69,16 @@ export const AdvancedSearch: React.FC<AdvancedSearchProps> = ({
   onSaveSearch,
   onLoadSearch,
 }) => {
+  const { t, isRTL } = useLanguage();
   const [query, setQuery] = React.useState("");
   const [activeFilters, setActiveFilters] = React.useState<Record<string, any>>(
     {},
   );
   const [showFilters, setShowFilters] = React.useState(false);
   const [saveSearchName, setSaveSearchName] = React.useState("");
+  const [searchHistory, setSearchHistory] = React.useState<string[]>([]);
+  const [favoriteSearches, setFavoriteSearches] = React.useState<string[]>([]);
+  const [isAdvancedMode, setIsAdvancedMode] = React.useState(false);
 
   const handleSearch = React.useCallback(() => {
     onSearch({ query, filters: activeFilters });
@@ -258,37 +268,153 @@ export const AdvancedSearch: React.FC<AdvancedSearchProps> = ({
     }
   };
 
+  // Enhanced search with voice input and mobile optimization
+  const handleVoiceSearch = () => {
+    if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
+      const SpeechRecognition =
+        (window as any).webkitSpeechRecognition ||
+        (window as any).SpeechRecognition;
+      const recognition = new SpeechRecognition();
+      recognition.lang = isRTL ? "ar-AE" : "en-US";
+      recognition.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript;
+        setQuery(transcript);
+        handleSearch();
+      };
+      recognition.start();
+    }
+  };
+
+  const handleExportSearch = () => {
+    const searchData = {
+      query,
+      filters: activeFilters,
+      timestamp: new Date().toISOString(),
+    };
+    const blob = new Blob([JSON.stringify(searchData, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `search-${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportSearch = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const searchData = JSON.parse(e.target?.result as string);
+          setQuery(searchData.query || "");
+          setActiveFilters(searchData.filters || {});
+        } catch (error) {
+          console.error("Failed to import search:", error);
+        }
+      };
+      reader.readAsText(file);
+    }
+  };
+
   return (
-    <div className={cn("w-full space-y-4", className)}>
+    <div className={cn("w-full space-y-4", isRTL && "rtl", className)}>
+      {/* Enhanced Search Header */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <Search className="h-5 w-5 text-blue-600" />
+          <h3 className="text-lg font-semibold">
+            <T k="common.search" />
+          </h3>
+          {isAdvancedMode && (
+            <Badge variant="secondary">
+              <T k="common.advanced" fallback="Advanced" />
+            </Badge>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsAdvancedMode(!isAdvancedMode)}
+          >
+            {isAdvancedMode ? (
+              <T k="common.simple" fallback="Simple" />
+            ) : (
+              <T k="common.advanced" fallback="Advanced" />
+            )}
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleExportSearch}>
+            <Download className="h-4 w-4" />
+          </Button>
+          <label>
+            <Button variant="outline" size="sm" asChild>
+              <span>
+                <Upload className="h-4 w-4" />
+              </span>
+            </Button>
+            <input
+              type="file"
+              accept=".json"
+              onChange={handleImportSearch}
+              className="hidden"
+            />
+          </label>
+        </div>
+      </div>
+
       {/* Main Search Bar */}
-      <div className="flex items-center space-x-2">
+      <div
+        className={cn("flex items-center gap-2", isRTL && "flex-row-reverse")}
+      >
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+          <Search
+            className={cn(
+              "absolute top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4",
+              isRTL ? "right-3" : "left-3",
+            )}
+          />
           <Input
-            placeholder={placeholder}
+            placeholder={t("common.search") || placeholder}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            className="pl-10 pr-4"
+            className={cn(isRTL ? "pr-10 pl-4" : "pl-10 pr-4", "text-base")}
+            dir={isRTL ? "rtl" : "ltr"}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
                 handleSearch();
               }
             }}
           />
+          {/* Voice Search Button */}
+          {("webkitSpeechRecognition" in window ||
+            "SpeechRecognition" in window) && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className={cn(
+                "absolute top-1/2 transform -translate-y-1/2",
+                isRTL ? "left-2" : "right-2",
+              )}
+              onClick={handleVoiceSearch}
+            >
+              🎤
+            </Button>
+          )}
         </div>
 
         {filters.length > 0 && (
           <Button
             variant="outline"
             onClick={() => setShowFilters(!showFilters)}
-            className="flex items-center space-x-2"
+            className="flex items-center gap-2"
           >
             <Filter className="h-4 w-4" />
-            <span>Filters</span>
+            <T k="common.filter" />
             {showFilterCount && activeFilterCount > 0 && (
-              <Badge variant="secondary" className="ml-1">
-                {activeFilterCount}
-              </Badge>
+              <Badge variant="secondary">{activeFilterCount}</Badge>
             )}
             <ChevronDown
               className={cn(
@@ -299,13 +425,73 @@ export const AdvancedSearch: React.FC<AdvancedSearchProps> = ({
           </Button>
         )}
 
-        <Button onClick={handleSearch}>Search</Button>
+        <Button onClick={handleSearch} className="px-6">
+          <Search className="h-4 w-4 mr-2" />
+          <T k="common.search" />
+        </Button>
       </div>
+
+      {/* Search Suggestions and History */}
+      {isAdvancedMode && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
+          {/* Search History */}
+          {searchHistory.length > 0 && (
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <History className="h-4 w-4" />
+                <span className="text-sm font-medium">
+                  <T k="search.history" fallback="Search History" />
+                </span>
+              </div>
+              <div className="space-y-1">
+                {searchHistory.slice(0, 5).map((search, index) => (
+                  <Button
+                    key={index}
+                    variant="ghost"
+                    size="sm"
+                    className="w-full justify-start text-left"
+                    onClick={() => setQuery(search)}
+                  >
+                    {search}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Favorite Searches */}
+          {favoriteSearches.length > 0 && (
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <Star className="h-4 w-4" />
+                <span className="text-sm font-medium">
+                  <T k="search.favorites" fallback="Favorite Searches" />
+                </span>
+              </div>
+              <div className="space-y-1">
+                {favoriteSearches.slice(0, 5).map((search, index) => (
+                  <Button
+                    key={index}
+                    variant="ghost"
+                    size="sm"
+                    className="w-full justify-start text-left"
+                    onClick={() => setQuery(search)}
+                  >
+                    {search}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Active Filters */}
       {activeFilterCount > 0 && (
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm text-gray-500">Active filters:</span>
+          <span className="text-sm text-gray-500">
+            <T k="search.activeFilters" fallback="Active filters:" />
+          </span>
           {Object.entries(activeFilters).map(([filterId, value]) => {
             const filter = filters.find((f) => f.id === filterId);
             if (!filter) return null;
@@ -342,52 +528,87 @@ export const AdvancedSearch: React.FC<AdvancedSearchProps> = ({
             onClick={clearAllFilters}
             className="text-xs"
           >
-            Clear all
+            <T k="common.clear" />
           </Button>
         </div>
       )}
 
-      {/* Filter Panel */}
+      {/* Enhanced Filter Panel */}
       {showFilters && filters.length > 0 && (
-        <div className="border rounded-lg p-4 space-y-4 bg-gray-50">
+        <div className="border rounded-lg p-4 space-y-4 bg-gradient-to-r from-blue-50 to-purple-50">
+          <div className="flex items-center justify-between mb-4">
+            <h4 className="font-medium flex items-center gap-2">
+              <Filter className="h-4 w-4" />
+              <T k="search.filters" fallback="Search Filters" />
+            </h4>
+            <Badge variant="outline">
+              {activeFilterCount} / {filters.length}
+            </Badge>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filters.map((filter) => (
-              <div key={filter.id} className="space-y-2">
-                <label className="text-sm font-medium">{filter.label}</label>
+              <div
+                key={filter.id}
+                className="space-y-2 p-3 bg-white rounded-lg border"
+              >
+                <label className="text-sm font-medium flex items-center gap-2">
+                  {filter.label}
+                  {filter.type === "date" && (
+                    <CalendarIcon className="h-3 w-3" />
+                  )}
+                  {filter.type === "select" && (
+                    <ChevronDown className="h-3 w-3" />
+                  )}
+                </label>
                 {renderFilterInput(filter)}
               </div>
             ))}
           </div>
 
           {enableSavedSearches && (
-            <div className="border-t pt-4 space-y-2">
-              <div className="flex items-center space-x-2">
+            <div className="border-t pt-4 space-y-4">
+              <div className="flex items-center gap-2">
+                <Save className="h-4 w-4" />
+                <span className="text-sm font-medium">
+                  <T k="search.saveSearch" fallback="Save Search" />
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
                 <Input
-                  placeholder="Save search as..."
+                  placeholder={
+                    t("search.saveAsPlaceholder") || "Save search as..."
+                  }
                   value={saveSearchName}
                   onChange={(e) => setSaveSearchName(e.target.value)}
                   className="flex-1"
+                  dir={isRTL ? "rtl" : "ltr"}
                 />
                 <Button
                   onClick={handleSaveSearch}
                   disabled={!saveSearchName}
                   size="sm"
+                  className="gap-2"
                 >
-                  Save
+                  <Save className="h-4 w-4" />
+                  <T k="common.save" />
                 </Button>
               </div>
 
               {savedSearches.length > 0 && (
-                <div className="space-y-1">
-                  <span className="text-sm text-gray-500">Saved searches:</span>
-                  <div className="flex flex-wrap gap-2">
+                <div className="space-y-2">
+                  <span className="text-sm text-gray-500">
+                    <T k="search.savedSearches" fallback="Saved searches:" />
+                  </span>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                     {savedSearches.map((saved) => (
                       <Button
                         key={saved.id}
                         variant="outline"
                         size="sm"
                         onClick={() => handleLoadSearch(saved.query)}
+                        className="justify-start text-left truncate"
                       >
+                        <Star className="h-3 w-3 mr-1 flex-shrink-0" />
                         {saved.name}
                       </Button>
                     ))}

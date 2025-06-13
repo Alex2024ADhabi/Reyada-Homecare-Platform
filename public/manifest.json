@@ -1,15 +1,15 @@
 {
   "name": "Reyada Homecare Platform",
   "short_name": "Reyada",
-  "description": "Comprehensive homecare management platform with offline capabilities",
+  "description": "DOH-compliant homecare management platform by Reyada Home Health Care Services L.L.C.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#3b82f6",
+  "theme_color": "#0066E6",
   "orientation": "portrait-primary",
   "scope": "/",
   "lang": "en",
-  "categories": ["health", "medical", "productivity"],
+  "categories": ["healthcare", "medical", "productivity"],
   "icons": [
     {
       "src": "/icons/icon-72x72.png",
@@ -96,6 +96,18 @@
           "sizes": "96x96"
         }
       ]
+    },
+    {
+      "name": "Daman Claims",
+      "short_name": "Claims",
+      "description": "Submit insurance claims",
+      "url": "/claims/daman",
+      "icons": [
+        {
+          "src": "/icons/shortcut-claims.png",
+          "sizes": "96x96"
+        }
+      ]
     }
   ],
   "related_applications": [],
@@ -116,6 +128,22 @@
         "application/pdf": [".pdf"],
         "image/*": [".jpg", ".jpeg", ".png", ".gif"]
       }
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshots/desktop-dashboard.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Dashboard view on desktop"
+    },
+    {
+      "src": "/screenshots/mobile-patient-form.png",
+      "sizes": "390x844",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Patient form on mobile"
     }
   ]
 }

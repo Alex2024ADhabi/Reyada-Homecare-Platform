@@ -142,8 +142,34 @@ const Dashboard = () => {
     <div className="flex h-screen bg-background">
       {/* Sidebar Navigation */}
       <div className="hidden md:flex w-64 flex-col bg-card border-r p-4">
-        <div className="flex items-center mb-8">
-          <h1 className="text-2xl font-bold text-primary">Reyada Homecare</h1>
+        <div className="flex flex-col items-center mb-8 p-4 bg-gradient-to-r from-reyada-neutral-50 to-reyada-primary/5 rounded-lg border border-reyada-neutral-200">
+          <div className="flex items-center gap-3 mb-2">
+            <div
+              className="text-2xl font-bold text-reyada-primary font-arabic"
+              style={{
+                fontWeight: 700,
+              }}
+            >
+              ريادة
+            </div>
+            <div className="w-px h-6 bg-reyada-neutral-300" />
+            <div
+              className="text-2xl font-bold text-reyada-primary font-english"
+              style={{
+                fontWeight: 600,
+              }}
+            >
+              Reyada
+            </div>
+          </div>
+          <div className="text-sm font-medium text-reyada-neutral-600 font-english">
+            Homecare Platform
+          </div>
+          <div className="flex items-center gap-1 mt-2">
+            <div className="w-2 h-2 rounded-full bg-reyada-primary opacity-60" />
+            <div className="w-1 h-1 rounded-full bg-reyada-secondary opacity-40" />
+            <div className="w-1 h-1 rounded-full bg-reyada-accent opacity-30" />
+          </div>
         </div>
 
         <nav className="space-y-2">
@@ -202,7 +228,14 @@ const Dashboard = () => {
               <Button variant="ghost" size="icon">
                 <Home className="h-5 w-5" />
               </Button>
-              <h1 className="text-xl font-bold text-primary ml-2">Reyada</h1>
+              <div className="flex items-center gap-2 ml-2">
+                <div className="text-lg font-bold text-reyada-primary font-arabic">
+                  ريادة
+                </div>
+                <div className="text-lg font-bold text-reyada-primary font-english">
+                  Reyada
+                </div>
+              </div>
             </div>
 
             <div className="flex items-center w-full max-w-sm mx-4">

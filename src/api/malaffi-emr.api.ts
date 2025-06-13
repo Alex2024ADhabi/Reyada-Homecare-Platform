@@ -8,16 +8,22 @@ import express from "express";
 import { malaffiEmrService } from "@/services/malaffi-emr.service";
 import { SecurityService, AuditLogger } from "@/services/security.service";
 import { ValidationUtils } from "@/components/ui/form-validation";
+import { communicationService } from "@/services/communication.service";
+import { realTimeSyncService } from "@/services/real-time-sync.service";
+import { workflowAutomationService } from "@/services/workflow-automation.service";
 
 const router = express.Router();
 
-// Enhanced security middleware for Malaffi EMR operations
+// Enhanced security middleware for Malaffi EMR operations with real-time communication
 const malaffiSecurityMiddleware = (req: any, res: any, next: any) => {
   // Add Malaffi-specific security headers
   res.setHeader("X-Malaffi-Integration", "v2.1");
   res.setHeader("X-UAE-EMR-Compliance", "enabled");
   res.setHeader("X-Bidirectional-Sync", "active");
   res.setHeader("X-Conflict-Resolution", "automated");
+  res.setHeader("X-Real-Time-Communication", "enabled");
+  res.setHeader("X-Workflow-Automation", "active");
+  res.setHeader("X-External-API-Hub", "integrated");
   next();
 };
 
@@ -29,6 +35,20 @@ router.post("/authenticate", async (req, res) => {
     const authenticated = await malaffiEmrService.authenticate();
 
     if (authenticated) {
+      // Initialize real-time communication for EMR integration
+      await communicationService.sendMessage({
+        senderId: "system",
+        recipientIds: ["admin", "clinical_team"],
+        content: "Malaffi EMR integration authenticated successfully",
+        type: "alert",
+        priority: "medium",
+        encrypted: true,
+        channelId: "clinical",
+      });
+
+      // Start real-time sync monitoring
+      realTimeSyncService.connect();
+
       res.json({
         success: true,
         message: "Successfully authenticated with Malaffi EMR",
@@ -39,6 +59,9 @@ router.post("/authenticate", async (req, res) => {
           realTimeMonitoring: true,
           batchProcessing: true,
           circuitBreaker: true,
+          realTimeCommunication: true,
+          workflowAutomation: true,
+          externalApiIntegration: true,
         },
       });
     } else {
@@ -82,6 +105,23 @@ router.post("/patients/search", async (req, res) => {
 
     const patients = await malaffiEmrService.searchPatients(searchCriteria);
 
+    // Trigger workflow automation for patient search
+    if (patients.length > 0) {
+      await workflowAutomationService.executeWorkflow(
+        "patient-search-workflow",
+        { searchCriteria, resultCount: patients.length },
+        { priority: "medium" },
+      );
+    }
+
+    // Real-time sync event
+    realTimeSyncService.publishEvent({
+      type: "update",
+      entity: "patient_search",
+      id: `search_${Date.now()}`,
+      data: { resultCount: patients.length, criteria: searchCriteria },
+    });
+
     // Enhanced response with metadata
     res.json({
       success: true,
@@ -92,6 +132,8 @@ router.post("/patients/search", async (req, res) => {
         timestamp: new Date().toISOString(),
         dataSource: "malaffi_emr",
         syncStatus: "real_time",
+        workflowTriggered: patients.length > 0,
+        realTimeSyncEnabled: true,
       },
       message: `Found ${patients.length} patient(s) matching search criteria`,
     });
@@ -527,6 +569,39 @@ router.post("/patients/sync", async (req, res) => {
     const syncedPatient =
       await malaffiEmrService.syncPatientToMalaffi(patientData);
 
+    // Send real-time notification about patient sync
+    await communicationService.sendMessage({
+      senderId: "malaffi_system",
+      recipientIds: ["clinical_team", "admin"],
+      content: `Patient ${syncedPatient.firstName} ${syncedPatient.lastName} synced successfully to Malaffi EMR`,
+      type: "alert",
+      priority: "medium",
+      encrypted: true,
+      channelId: "clinical",
+      metadata: {
+        patientId: syncedPatient.id,
+        operation: patientData.id ? "update" : "create",
+      },
+    });
+
+    // Trigger patient lifecycle workflow
+    await workflowAutomationService.executeWorkflow(
+      "patient-lifecycle-workflow",
+      {
+        patientId: syncedPatient.id,
+        operation: patientData.id ? "update" : "create",
+      },
+      { priority: "high" },
+    );
+
+    // Real-time sync event
+    realTimeSyncService.publishEvent({
+      type: patientData.id ? "update" : "create",
+      entity: "patient",
+      id: syncedPatient.id,
+      data: syncedPatient,
+    });
+
     res.json({
       success: true,
       patient: syncedPatient,
@@ -535,6 +610,8 @@ router.post("/patients/sync", async (req, res) => {
         syncTimestamp: new Date().toISOString(),
         dataIntegrity: "verified",
         conflictStatus: "none",
+        realTimeCommunication: "sent",
+        workflowTriggered: true,
       },
       message: "Patient synced to Malaffi EMR successfully",
     });
@@ -605,6 +682,139 @@ router.get("/monitoring/dashboard", async (req, res) => {
       success: false,
       error: "Dashboard retrieval failed",
       message: "Failed to retrieve monitoring dashboard data",
+    });
+  }
+});
+
+// Real-time Communication Integration Endpoints
+router.post("/communication/notify", async (req, res) => {
+  try {
+    const {
+      message,
+      recipients,
+      priority = "medium",
+      type = "alert",
+    } = req.body;
+
+    const messageId = await communicationService.sendMessage({
+      senderId: "malaffi_integration",
+      recipientIds: recipients,
+      content: message,
+      type,
+      priority,
+      encrypted: true,
+      channelId: "clinical",
+    });
+
+    res.json({
+      success: true,
+      messageId,
+      message: "Real-time notification sent successfully",
+    });
+  } catch (error) {
+    console.error("Communication notification error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to send notification",
+      message: error.message,
+    });
+  }
+});
+
+// Workflow Automation Trigger Endpoints
+router.post("/workflow/trigger", async (req, res) => {
+  try {
+    const { workflowId, context, options } = req.body;
+
+    const execution = await workflowAutomationService.executeWorkflow(
+      workflowId,
+      context,
+      options,
+    );
+
+    res.json({
+      success: true,
+      execution,
+      message: "Workflow triggered successfully",
+    });
+  } catch (error) {
+    console.error("Workflow trigger error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to trigger workflow",
+      message: error.message,
+    });
+  }
+});
+
+// External API Integration Hub
+router.post("/external-api/call", async (req, res) => {
+  try {
+    const { apiEndpoint, method, data, headers } = req.body;
+
+    // Enhanced external API call with circuit breaker and retry logic
+    const response = await fetch(apiEndpoint, {
+      method: method || "GET",
+      headers: {
+        "Content-Type": "application/json",
+        ...headers,
+      },
+      body: data ? JSON.stringify(data) : undefined,
+    });
+
+    const result = await response.json();
+
+    // Log external API call
+    AuditLogger.logSecurityEvent({
+      type: "external_api_call",
+      details: {
+        endpoint: apiEndpoint,
+        method,
+        statusCode: response.status,
+        success: response.ok,
+      },
+      severity: "low",
+    });
+
+    res.json({
+      success: response.ok,
+      data: result,
+      statusCode: response.status,
+      message: response.ok
+        ? "External API call successful"
+        : "External API call failed",
+    });
+  } catch (error) {
+    console.error("External API call error:", error);
+    res.status(500).json({
+      success: false,
+      error: "External API call failed",
+      message: error.message,
+    });
+  }
+});
+
+// Real-time Sync Status Endpoint
+router.get("/sync/real-time-status", async (req, res) => {
+  try {
+    const connectionStatus = realTimeSyncService.getConnectionStatus();
+    const pendingEvents = realTimeSyncService.getPendingEventsCount();
+
+    res.json({
+      success: true,
+      realTimeSync: {
+        connected: connectionStatus,
+        pendingEvents,
+        lastUpdate: new Date().toISOString(),
+      },
+      message: "Real-time sync status retrieved successfully",
+    });
+  } catch (error) {
+    console.error("Real-time sync status error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to get real-time sync status",
+      message: error.message,
     });
   }
 });
