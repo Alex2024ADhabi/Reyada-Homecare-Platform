@@ -1,0 +1,206 @@
+version: '3.8'
+
+services:
+  # Frontend Application
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    ports:
+      - "3000:80"
+    environment:
+      - NODE_ENV=production
+      - VITE_API_URL=https://api.reyada-homecare.ae
+    depends_on:
+      - api-gateway
+    networks:
+      - reyada-network
+
+  # API Gateway
+  api-gateway:
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - NODE_ENV=production
+      - PORT=8000
+      - AUTH_SERVICE_URL=http://auth-service:8001
+      - PATIENT_SERVICE_URL=http://patient-service:8002
+      - CLINICAL_SERVICE_URL=http://clinical-service:8003
+      - COMPLIANCE_SERVICE_URL=http://compliance-service:8004
+    networks:
+      - reyada-network
+
+  # Authentication Service
+  auth-service:
+    build:
+      context: ./services/auth
+      dockerfile: Dockerfile
+    ports:
+      - "8001:8001"
+    environment:
+      - NODE_ENV=production
+      - PORT=8001
+      - DB_CONNECTION=postgresql://postgres:password@postgres:5432/reyada_auth
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_EXPIRES_IN=1d
+      - REFRESH_TOKEN_EXPIRES_IN=7d
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - reyada-network
+
+  # Patient Management Service
+  patient-service:
+    build:
+      context: ./services/patient
+      dockerfile: Dockerfile
+    ports:
+      - "8002:8002"
+    environment:
+      - NODE_ENV=production
+      - PORT=8002
+      - DB_CONNECTION=postgresql://postgres:password@postgres:5432/reyada_patient
+      - MONGODB_URI=mongodb://mongodb:27017/reyada_patient
+    depends_on:
+      - postgres
+      - mongodb
+    networks:
+      - reyada-network
+
+  # Clinical Documentation Service
+  clinical-service:
+    build:
+      context: ./services/clinical
+      dockerfile: Dockerfile
+    ports:
+      - "8003:8003"
+    environment:
+      - NODE_ENV=production
+      - PORT=8003
+      - DB_CONNECTION=postgresql://postgres:password@postgres:5432/reyada_clinical
+      - MONGODB_URI=mongodb://mongodb:27017/reyada_clinical
+      - ELASTICSEARCH_URL=http://elasticsearch:9200
+    depends_on:
+      - postgres
+      - mongodb
+      - elasticsearch
+    networks:
+      - reyada-network
+
+  # Compliance Service
+  compliance-service:
+    build:
+      context: ./services/compliance
+      dockerfile: Dockerfile
+    ports:
+      - "8004:8004"
+    environment:
+      - NODE_ENV=production
+      - PORT=8004
+      - DB_CONNECTION=postgresql://postgres:password@postgres:5432/reyada_compliance
+      - ELASTICSEARCH_URL=http://elasticsearch:9200
+    depends_on:
+      - postgres
+      - elasticsearch
+    networks:
+      - reyada-network
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:14-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_MULTIPLE_DATABASES=reyada_auth,reyada_patient,reyada_clinical,reyada_compliance
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./scripts/init-multiple-postgres-dbs.sh:/docker-entrypoint-initdb.d/init-multiple-dbs.sh
+    networks:
+      - reyada-network
+
+  # MongoDB Database
+  mongodb:
+    image: mongo:5
+    ports:
+      - "27017:27017"
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=admin
+      - MONGO_INITDB_ROOT_PASSWORD=password
+    volumes:
+      - mongodb-data:/data/db
+    networks:
+      - reyada-network
+
+  # Redis for Caching and Session Management
+  redis:
+    image: redis:6-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - reyada-network
+
+  # Elasticsearch for Search
+  elasticsearch:
+    image: elasticsearch:7.17.0
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    environment:
+      - discovery.type=single-node
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    networks:
+      - reyada-network
+
+  # RabbitMQ for Message Queue
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      - RABBITMQ_DEFAULT_USER=admin
+      - RABBITMQ_DEFAULT_PASS=password
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    networks:
+      - reyada-network
+
+  # WebSocket Server
+  websocket-server:
+    build:
+      context: ./services/websocket
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - NODE_ENV=production
+      - PORT=8080
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=${JWT_SECRET}
+    depends_on:
+      - redis
+      - rabbitmq
+    networks:
+      - reyada-network
+
+volumes:
+  postgres-data:
+  mongodb-data:
+  redis-data:
+  elasticsearch-data:
+  rabbitmq-data:
+
+networks:
+  reyada-network:
+    driver: bridge
