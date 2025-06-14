@@ -64,6 +64,10 @@ import {
   Users,
   Calendar as CalendarIcon,
   Clock as ClockIcon,
+  Pill,
+  Stethoscope,
+  AlertTriangle,
+  RefreshCw,
 } from "lucide-react";
 import {
   EpisodeService,
@@ -2153,12 +2157,16 @@ const PatientEpisode: React.FC<PatientEpisodeProps> = ({
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid grid-cols-6 mb-6">
+        <TabsList className="grid grid-cols-10 mb-6">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="timeline">Timeline</TabsTrigger>
           <TabsTrigger value="documents">Documents</TabsTrigger>
           <TabsTrigger value="care-team">Care Team</TabsTrigger>
           <TabsTrigger value="goals">Goals</TabsTrigger>
+          <TabsTrigger value="care-plan">Care Plan</TabsTrigger>
+          <TabsTrigger value="daman-auth">Daman Auth</TabsTrigger>
+          <TabsTrigger value="medications">Medications</TabsTrigger>
+          <TabsTrigger value="equipment">Equipment</TabsTrigger>
           <TabsTrigger value="analytics">Analytics</TabsTrigger>
         </TabsList>
 
@@ -2712,6 +2720,797 @@ const PatientEpisode: React.FC<PatientEpisodeProps> = ({
                 ))}
               </div>
             </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="care-plan" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="h-5 w-5" />
+                Plan of Care Integration
+              </CardTitle>
+              <CardDescription>
+                Comprehensive care planning with DOH compliance and multidisciplinary coordination
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="font-semibold text-blue-900">Current Plan Status</h4>
+                      <Badge className="bg-green-100 text-green-800">Active</Badge>
+                    </div>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span>Plan Version:</span>
+                        <span className="font-medium">2.1</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Effective Date:</span>
+                        <span className="font-medium">2023-06-15</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Review Date:</span>
+                        <span className="font-medium">2023-07-15</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Completion:</span>
+                        <span className="font-medium text-green-600">85%</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
+                    <h4 className="font-semibold text-purple-900 mb-3">Multidisciplinary Input Status</h4>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <CheckCircle className="h-4 w-4 text-green-500" />
+                          <span className="text-sm">Nursing Assessment</span>
+                        </div>
+                        <Badge variant="outline" className="text-xs bg-green-50 text-green-700">Completed</Badge>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <CheckCircle className="h-4 w-4 text-green-500" />
+                          <span className="text-sm">Physician Review</span>
+                        </div>
+                        <Badge variant="outline" className="text-xs bg-green-50 text-green-700">Approved</Badge>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Clock className="h-4 w-4 text-orange-500" />
+                          <span className="text-sm">Physical Therapy</span>
+                        </div>
+                        <Badge variant="outline" className="text-xs bg-orange-50 text-orange-700">In Progress</Badge>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <AlertCircle className="h-4 w-4 text-blue-500" />
+                          <span className="text-sm">Family Education</span>
+                        </div>
+                        <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700">Scheduled</Badge>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="p-4 bg-green-50 rounded-lg border border-green-200">
+                    <h4 className="font-semibold text-green-900 mb-3">Care Goals Progress</h4>
+                    <div className="space-y-3">
+                      <div>
+                        <div className="flex justify-between items-center mb-1">
+                          <span className="text-sm font-medium">Mobility Improvement</span>
+                          <span className="text-sm font-bold">75%</span>
+                        </div>
+                        <Progress value={75} className="h-2" />
+                        <p className="text-xs text-muted-foreground mt-1">Target: Walk 100m independently</p>
+                      </div>
+                      <div>
+                        <div className="flex justify-between items-center mb-1">
+                          <span className="text-sm font-medium">Medication Adherence</span>
+                          <span className="text-sm font-bold">92%</span>
+                        </div>
+                        <Progress value={92} className="h-2" />
+                        <p className="text-xs text-muted-foreground mt-1">Target: >95% compliance</p>
+                      </div>
+                      <div>
+                        <div className="flex justify-between items-center mb-1">
+                          <span className="text-sm font-medium">Vital Signs Stability</span>
+                          <span className="text-sm font-bold">88%</span>
+                        </div>
+                        <Progress value={88} className="h-2" />
+                        <p className="text-xs text-muted-foreground mt-1">Target: BP <140/90 consistently</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-4 bg-amber-50 rounded-lg border border-amber-200">
+                    <h4 className="font-semibold text-amber-900 mb-3">Implementation Status</h4>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                        <span className="text-sm">Plan Development Complete</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                        <span className="text-sm">Physician Approval Obtained</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                        <span className="text-sm">Family Consent Documented</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Clock className="h-4 w-4 text-orange-500" />
+                        <span className="text-sm">Staff Training in Progress</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                        <span className="text-sm">Implementation Started</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-6 pt-4 border-t">
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="font-semibold">Recent Plan Activities</h4>
+                  <Button variant="outline" size="sm">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Activity
+                  </Button>
+                </div>
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-md">
+                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">Plan of Care Updated</p>
+                      <p className="text-xs text-muted-foreground">Physical therapy goals revised based on progress assessment</p>
+                    </div>
+                    <span className="text-xs text-muted-foreground">2 hours ago</span>
+                  </div>
+                  <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-md">
+                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">Family Education Completed</p>
+                      <p className="text-xs text-muted-foreground">Medication management training provided to primary caregiver</p>
+                    </div>
+                    <span className="text-xs text-muted-foreground">1 day ago</span>
+                  </div>
+                  <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-md">
+                    <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">Multidisciplinary Review</p>
+                      <p className="text-xs text-muted-foreground">Care team meeting conducted to review progress and adjust interventions</p>
+                    </div>
+                    <span className="text-xs text-muted-foreground">3 days ago</span>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+            <CardFooter className="flex gap-2">
+              <Button variant="outline">
+                <Eye className="h-4 w-4 mr-2" />
+                View Full Plan
+              </Button>
+              <Button>
+                <Edit className="h-4 w-4 mr-2" />
+                Edit Plan
+              </Button>
+            </CardFooter>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="daman-auth" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Shield className="h-5 w-5" />
+                Daman Authorization Status
+              </CardTitle>
+              <CardDescription>
+                Insurance authorization tracking and claims management for Daman - Thiqa coverage
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="font-semibold text-blue-900">Current Authorization</h4>
+                      <Badge className="bg-green-100 text-green-800">Active</Badge>
+                    </div>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span>Authorization Number:</span>
+                        <span className="font-medium">AUTH-456789</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Policy Number:</span>
+                        <span className="font-medium">THQ-2023-001234</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Valid Until:</span>
+                        <span className="font-medium">2024-12-31</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Approved Services:</span>
+                        <span className="font-medium text-green-600">12 visits</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Used Services:</span>
+                        <span className="font-medium text-blue-600">4 visits</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Remaining:</span>
+                        <span className="font-medium text-orange-600">8 visits</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-4 bg-green-50 rounded-lg border border-green-200">
+                    <h4 className="font-semibold text-green-900 mb-3">Coverage Details</h4>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span>Coverage Type:</span>
+                        <span className="font-medium">Daman - Thiqa</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Copay Amount:</span>
+                        <span className="font-medium">AED 50</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Deductible:</span>
+                        <span className="font-medium">AED 500</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Coverage Percentage:</span>
+                        <span className="font-medium text-green-600">80%</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
+                    <h4 className="font-semibold text-purple-900 mb-3">Authorization Timeline</h4>
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                        <div className="flex-1">
+                          <p className="text-sm font-medium">Initial Authorization</p>
+                          <p className="text-xs text-muted-foreground">Approved for 12 home healthcare visits</p>
+                          <p className="text-xs text-green-600">June 10, 2023 - Approved</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                        <div className="flex-1">
+                          <p className="text-sm font-medium">Pre-Authorization Review</p>
+                          <p className="text-xs text-muted-foreground">Medical necessity documentation submitted</p>
+                          <p className="text-xs text-blue-600">June 8, 2023 - Submitted</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
+                        <div className="flex-1">
+                          <p className="text-sm font-medium">Extension Request</p>
+                          <p className="text-xs text-muted-foreground">Additional 6 visits requested</p>
+                          <p className="text-xs text-orange-600">Pending Review</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-4 bg-amber-50 rounded-lg border border-amber-200">
+                    <h4 className="font-semibold text-amber-900 mb-3">Claims Status</h4>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm">Submitted Claims</span>
+                        <Badge variant="outline" className="bg-blue-50 text-blue-700">4</Badge>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm">Approved Claims</span>
+                        <Badge variant="outline" className="bg-green-50 text-green-700">3</Badge>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm">Pending Claims</span>
+                        <Badge variant="outline" className="bg-orange-50 text-orange-700">1</Badge>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm">Total Claimed</span>
+                        <span className="font-medium text-green-600">AED 2,400</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm">Total Approved</span>
+                        <span className="font-medium text-blue-600">AED 1,920</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-6 pt-4 border-t">
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="font-semibold">Recent Authorization Activities</h4>
+                  <Button variant="outline" size="sm">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Submit Claim
+                  </Button>
+                </div>
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-md">
+                    <CheckCircle className="h-4 w-4 text-green-500" />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">Claim Approved - Visit #4</p>
+                      <p className="text-xs text-muted-foreground">Nursing visit claim processed and approved - AED 480</p>
+                    </div>
+                    <span className="text-xs text-muted-foreground">1 day ago</span>
+                  </div>
+                  <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-md">
+                    <Clock className="h-4 w-4 text-orange-500" />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">Extension Request Submitted</p>
+                      <p className="text-xs text-muted-foreground">Requested additional 6 visits for continued physiotherapy</p>
+                    </div>
+                    <span className="text-xs text-muted-foreground">2 days ago</span>
+                  </div>
+                  <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-md">
+                    <Upload className="h-4 w-4 text-blue-500" />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">Claim Submitted - Visit #3</p>
+                      <p className="text-xs text-muted-foreground">Physiotherapy session claim submitted to Daman</p>
+                    </div>
+                    <span className="text-xs text-muted-foreground">3 days ago</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-6 pt-4 border-t">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="text-center p-3 bg-green-50 rounded-lg border border-green-200">
+                    <div className="text-2xl font-bold text-green-600">92%</div>
+                    <div className="text-sm text-green-700">Approval Rate</div>
+                  </div>
+                  <div className="text-center p-3 bg-blue-50 rounded-lg border border-blue-200">
+                    <div className="text-2xl font-bold text-blue-600">2.1</div>
+                    <div className="text-sm text-blue-700">Avg Days to Approval</div>
+                  </div>
+                  <div className="text-center p-3 bg-purple-50 rounded-lg border border-purple-200">
+                    <div className="text-2xl font-bold text-purple-600">AED 1,920</div>
+                    <div className="text-sm text-purple-700">Total Reimbursed</div>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+            <CardFooter className="flex gap-2">
+              <Button variant="outline">
+                <Eye className="h-4 w-4 mr-2" />
+                View All Claims
+              </Button>
+              <Button variant="outline">
+                <Download className="h-4 w-4 mr-2" />
+                Export Report
+              </Button>
+              <Button>
+                <Upload className="h-4 w-4 mr-2" />
+                Submit New Claim
+              </Button>
+            </CardFooter>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="medications" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Pill className="h-5 w-5" />
+                Medication Management
+              </CardTitle>
+              <CardDescription>
+                Current medications, administration records, and adherence tracking
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="font-semibold text-blue-900">Current Medications</h4>
+                      <Badge className="bg-green-100 text-green-800">5 Active</Badge>
+                    </div>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between p-3 bg-white rounded border">
+                        <div>
+                          <p className="font-medium">Lisinopril 10mg</p>
+                          <p className="text-sm text-muted-foreground">Once daily, Oral</p>
+                          <p className="text-xs text-green-600">Last taken: Today 8:00 AM</p>
+                        </div>
+                        <div className="text-right">
+                          <Badge className="bg-green-100 text-green-800 mb-1">Taken</Badge>
+                          <p className="text-xs text-muted-foreground">Next: Tomorrow 8:00 AM</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between p-3 bg-white rounded border">
+                        <div>
+                          <p className="font-medium">Metformin 500mg</p>
+                          <p className="text-sm text-muted-foreground">Twice daily, Oral</p>
+                          <p className="text-xs text-orange-600">Due: Today 6:00 PM</p>
+                        </div>
+                        <div className="text-right">
+                          <Badge className="bg-orange-100 text-orange-800 mb-1">Due</Badge>
+                          <p className="text-xs text-muted-foreground">Morning dose taken</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between p-3 bg-white rounded border">
+                        <div>
+                          <p className="font-medium">Furosemide 40mg</p>
+                          <p className="text-sm text-muted-foreground">Once daily, Oral</p>
+                          <p className="text-xs text-green-600">Last taken: Today 9:00 AM</p>
+                        </div>
+                        <div className="text-right">
+                          <Badge className="bg-green-100 text-green-800 mb-1">Taken</Badge>
+                          <p className="text-xs text-muted-foreground">Next: Tomorrow 9:00 AM</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
+                    <h4 className="font-semibold text-purple-900 mb-3">Medication Alerts</h4>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 p-2 bg-red-50 rounded border border-red-200">
+                        <AlertTriangle className="h-4 w-4 text-red-500" />
+                        <div>
+                          <p className="text-sm font-medium text-red-800">Allergy Alert</p>
+                          <p className="text-xs text-red-600">Patient allergic to Penicillin - severe reaction</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 p-2 bg-yellow-50 rounded border border-yellow-200">
+                        <AlertCircle className="h-4 w-4 text-yellow-500" />
+                        <div>
+                          <p className="text-sm font-medium text-yellow-800">Drug Interaction</p>
+                          <p className="text-xs text-yellow-600">Monitor for Warfarin interactions with new medications</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="p-4 bg-green-50 rounded-lg border border-green-200">
+                    <h4 className="font-semibold text-green-900 mb-3">Adherence Tracking</h4>
+                    <div className="space-y-3">
+                      <div>
+                        <div className="flex justify-between items-center mb-1">
+                          <span className="text-sm font-medium">Overall Adherence</span>
+                          <span className="text-sm font-bold text-green-600">92%</span>
+                        </div>
+                        <Progress value={92} className="h-2" />
+                        <p className="text-xs text-muted-foreground mt-1">Last 30 days</p>
+                      </div>
+                      <div>
+                        <div className="flex justify-between items-center mb-1">
+                          <span className="text-sm font-medium">Lisinopril</span>
+                          <span className="text-sm font-bold">95%</span>
+                        </div>
+                        <Progress value={95} className="h-2" />
+                      </div>
+                      <div>
+                        <div className="flex justify-between items-center mb-1">
+                          <span className="text-sm font-medium">Metformin</span>
+                          <span className="text-sm font-bold">88%</span>
+                        </div>
+                        <Progress value={88} className="h-2" />
+                      </div>
+                      <div>
+                        <div className="flex justify-between items-center mb-1">
+                          <span className="text-sm font-medium">Furosemide</span>
+                          <span className="text-sm font-bold">94%</span>
+                        </div>
+                        <Progress value={94} className="h-2" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-4 bg-amber-50 rounded-lg border border-amber-200">
+                    <h4 className="font-semibold text-amber-900 mb-3">Administration Records</h4>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-sm">
+                        <span>Today's Doses</span>
+                        <Badge variant="outline" className="bg-green-50 text-green-700">3/5 Taken</Badge>
+                      </div>
+                      <div className="flex items-center justify-between text-sm">
+                        <span>Missed Doses (7 days)</span>
+                        <Badge variant="outline" className="bg-orange-50 text-orange-700">2</Badge>
+                      </div>
+                      <div className="flex items-center justify-between text-sm">
+                        <span>Side Effects Reported</span>
+                        <Badge variant="outline" className="bg-blue-50 text-blue-700">0</Badge>
+                      </div>
+                      <div className="flex items-center justify-between text-sm">
+                        <span>Last Medication Review</span>
+                        <span className="text-muted-foreground">June 18, 2023</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-6 pt-4 border-t">
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="font-semibold">Recent Medication Activities</h4>
+                  <Button variant="outline" size="sm">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Record Administration
+                  </Button>
+                </div>
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-md">
+                    <CheckCircle className="h-4 w-4 text-green-500" />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">Lisinopril 10mg Administered</p>
+                      <p className="text-xs text-muted-foreground">Administered by Nurse Fatima Al-Zahra at 8:00 AM</p>
+                    </div>
+                    <span className="text-xs text-muted-foreground">2 hours ago</span>
+                  </div>
+                  <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-md">
+                    <Clock className="h-4 w-4 text-orange-500" />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">Medication Reminder Set</p>
+                      <p className="text-xs text-muted-foreground">Evening Metformin dose reminder scheduled for 6:00 PM</p>
+                    </div>
+                    <span className="text-xs text-muted-foreground">1 hour ago</span>
+                  </div>
+                  <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-md">
+                    <FileText className="h-4 w-4 text-blue-500" />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">Medication List Updated</p>
+                      <p className="text-xs text-muted-foreground">Dosage adjustment for Furosemide documented by Dr. Sarah Ahmed</p>
+                    </div>
+                    <span className="text-xs text-muted-foreground">1 day ago</span>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+            <CardFooter className="flex gap-2">
+              <Button variant="outline">
+                <Eye className="h-4 w-4 mr-2" />
+                View Full History
+              </Button>
+              <Button variant="outline">
+                <Download className="h-4 w-4 mr-2" />
+                Export MAR
+              </Button>
+              <Button>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Medication
+              </Button>
+            </CardFooter>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="equipment" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Stethoscope className="h-5 w-5" />
+                Equipment Management
+              </CardTitle>
+              <CardDescription>
+                Medical equipment tracking, maintenance, and patient assignments
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="font-semibold text-blue-900">Assigned Equipment</h4>
+                      <Badge className="bg-green-100 text-green-800">4 Items</Badge>
+                    </div>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between p-3 bg-white rounded border">
+                        <div>
+                          <p className="font-medium">Blood Pressure Monitor</p>
+                          <p className="text-sm text-muted-foreground">Model: Omron HEM-7120 | Serial: BP001234</p>
+                          <p className="text-xs text-green-600">Last calibrated: June 20, 2023</p>
+                        </div>
+                        <div className="text-right">
+                          <Badge className="bg-green-100 text-green-800 mb-1">Active</Badge>
+                          <p className="text-xs text-muted-foreground">Next service: Dec 2023</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between p-3 bg-white rounded border">
+                        <div>
+                          <p className="font-medium">Pulse Oximeter</p>
+                          <p className="text-sm text-muted-foreground">Model: Nonin 9560 | Serial: PO005678</p>
+                          <p className="text-xs text-green-600">Last calibrated: June 15, 2023</p>
+                        </div>
+                        <div className="text-right">
+                          <Badge className="bg-green-100 text-green-800 mb-1">Active</Badge>
+                          <p className="text-xs text-muted-foreground">Next service: Nov 2023</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between p-3 bg-white rounded border">
+                        <div>
+                          <p className="font-medium">Digital Thermometer</p>
+                          <p className="text-sm text-muted-foreground">Model: Braun ThermoScan | Serial: TH009876</p>
+                          <p className="text-xs text-orange-600">Calibration due: July 1, 2023</p>
+                        </div>
+                        <div className="text-right">
+                          <Badge className="bg-orange-100 text-orange-800 mb-1">Service Due</Badge>
+                          <p className="text-xs text-muted-foreground">Overdue by 3 days</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between p-3 bg-white rounded border">
+                        <div>
+                          <p className="font-medium">Weighing Scale</p>
+                          <p className="text-sm text-muted-foreground">Model: Seca 803 | Serial: WS012345</p>
+                          <p className="text-xs text-green-600">Last calibrated: June 10, 2023</p>
+                        </div>
+                        <div className="text-right">
+                          <Badge className="bg-green-100 text-green-800 mb-1">Active</Badge>
+                          <p className="text-xs text-muted-foreground">Next service: Dec 2023</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-4 bg-red-50 rounded-lg border border-red-200">
+                    <h4 className="font-semibold text-red-900 mb-3">Equipment Alerts</h4>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 p-2 bg-white rounded border border-red-300">
+                        <AlertTriangle className="h-4 w-4 text-red-500" />
+                        <div>
+                          <p className="text-sm font-medium text-red-800">Calibration Overdue</p>
+                          <p className="text-xs text-red-600">Digital Thermometer requires immediate calibration</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 p-2 bg-white rounded border border-orange-300">
+                        <Clock className="h-4 w-4 text-orange-500" />
+                        <div>
+                          <p className="text-sm font-medium text-orange-800">Maintenance Due</p>
+                          <p className="text-xs text-orange-600">Blood Pressure Monitor service due in 2 weeks</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="p-4 bg-green-50 rounded-lg border border-green-200">
+                    <h4 className="font-semibold text-green-900 mb-3">Usage Statistics</h4>
+                    <div className="space-y-3">
+                      <div>
+                        <div className="flex justify-between items-center mb-1">
+                          <span className="text-sm font-medium">Equipment Utilization</span>
+                          <span className="text-sm font-bold text-green-600">87%</span>
+                        </div>
+                        <Progress value={87} className="h-2" />
+                        <p className="text-xs text-muted-foreground mt-1">Last 30 days</p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3 text-sm">
+                        <div className="text-center p-2 bg-white rounded border">
+                          <div className="font-bold text-blue-600">24</div>
+                          <div className="text-muted-foreground">BP Readings</div>
+                        </div>
+                        <div className="text-center p-2 bg-white rounded border">
+                          <div className="font-bold text-green-600">18</div>
+                          <div className="text-muted-foreground">O2 Sat Checks</div>
+                        </div>
+                        <div className="text-center p-2 bg-white rounded border">
+                          <div className="font-bold text-purple-600">12</div>
+                          <div className="text-muted-foreground">Weight Checks</div>
+                        </div>
+                        <div className="text-center p-2 bg-white rounded border">
+                          <div className="font-bold text-orange-600">15</div>
+                          <div className="text-muted-foreground">Temp Readings</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
+                    <h4 className="font-semibold text-purple-900 mb-3">Maintenance Schedule</h4>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-sm">
+                        <span>Upcoming Services</span>
+                        <Badge variant="outline" className="bg-blue-50 text-blue-700">3</Badge>
+                      </div>
+                      <div className="flex items-center justify-between text-sm">
+                        <span>Overdue Services</span>
+                        <Badge variant="outline" className="bg-red-50 text-red-700">1</Badge>
+                      </div>
+                      <div className="flex items-center justify-between text-sm">
+                        <span>Equipment in Service</span>
+                        <Badge variant="outline" className="bg-green-50 text-green-700">4/4</Badge>
+                      </div>
+                      <div className="flex items-center justify-between text-sm">
+                        <span>Last Inventory Check</span>
+                        <span className="text-muted-foreground">June 20, 2023</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-4 bg-amber-50 rounded-lg border border-amber-200">
+                    <h4 className="font-semibold text-amber-900 mb-3">Quality Assurance</h4>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                        <span className="text-sm">All equipment DOH certified</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                        <span className="text-sm">Biomedical engineering approved</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <AlertTriangle className="h-4 w-4 text-orange-500" />
+                        <span className="text-sm">1 item requires calibration</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                        <span className="text-sm">Insurance coverage verified</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-6 pt-4 border-t">
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="font-semibold">Recent Equipment Activities</h4>
+                  <Button variant="outline" size="sm">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Log Usage
+                  </Button>
+                </div>
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-md">
+                    <Activity className="h-4 w-4 text-blue-500" />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">Blood Pressure Reading Recorded</p>
+                      <p className="text-xs text-muted-foreground">130/85 mmHg recorded using BP Monitor BP001234</p>
+                    </div>
+                    <span className="text-xs text-muted-foreground">2 hours ago</span>
+                  </div>
+                  <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-md">
+                    <CheckCircle className="h-4 w-4 text-green-500" />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">Equipment Calibration Completed</p>
+                      <p className="text-xs text-muted-foreground">Pulse Oximeter PO005678 calibrated and certified</p>
+                    </div>
+                    <span className="text-xs text-muted-foreground">1 day ago</span>
+                  </div>
+                  <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-md">
+                    <AlertTriangle className="h-4 w-4 text-orange-500" />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">Maintenance Alert Generated</p>
+                      <p className="text-xs text-muted-foreground">Digital Thermometer TH009876 requires calibration</p>
+                    </div>
+                    <span className="text-xs text-muted-foreground">2 days ago</span>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+            <CardFooter className="flex gap-2">
+              <Button variant="outline">
+                <Eye className="h-4 w-4 mr-2" />
+                View Inventory
+              </Button>
+              <Button variant="outline">
+                <Download className="h-4 w-4 mr-2" />
+                Export Report
+              </Button>
+              <Button>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Equipment
+              </Button>
+            </CardFooter>
           </Card>
         </TabsContent>
 

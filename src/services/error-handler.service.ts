@@ -1,5 +1,17 @@
 import React from "react";
-import { useToastContext } from "@/components/ui/toast-provider";
+// Enhanced error handling with graceful fallbacks
+let useToastContext: any;
+try {
+  const toastModule = require("@/components/ui/toast-provider");
+  useToastContext = toastModule.useToastContext;
+} catch (error) {
+  console.warn("Toast provider not available, using fallback error handling");
+  useToastContext = () => ({
+    toast: (options: any) => {
+      console.log("Toast fallback:", options.title, options.description);
+    },
+  });
+}
 
 export interface ApiError {
   message: string;
@@ -34,9 +46,25 @@ export class ErrorHandlerService {
   public handleApiError(error: any, context?: string): ApiError {
     const errorId = `error_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
+    // Enhanced error logging with structured data
+    const errorInfo = {
+      id: errorId,
+      context,
+      timestamp: new Date().toISOString(),
+      url: typeof window !== "undefined" ? window.location.href : "unknown",
+      userAgent:
+        typeof navigator !== "undefined" ? navigator.userAgent : "unknown",
+      error: {
+        message: error?.message,
+        status: error?.response?.status,
+        statusText: error?.response?.statusText,
+        data: error?.response?.data,
+      },
+    };
+
     console.error(
-      `API Error${context ? ` in ${context}` : ""} [${errorId}]:`,
-      error,
+      `🚨 API Error${context ? ` in ${context}` : ""} [${errorId}]:`,
+      errorInfo,
     );
 
     let apiError: ApiError;

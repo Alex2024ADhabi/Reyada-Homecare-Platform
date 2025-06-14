@@ -59,13 +59,25 @@ interface ClaimRecord {
   serviceDate: string;
   serviceCode: string;
   chargeAmount: number;
-  status: "submitted" | "processing" | "approved" | "denied" | "pending";
+  status:
+    | "submitted"
+    | "processing"
+    | "approved"
+    | "denied"
+    | "pending"
+    | "auto-processing";
   processingTime: number;
   estimatedPayment: number;
   submissionDate: string;
   lastUpdated: string;
   automatedProcessing: boolean;
   eligibilityVerified: boolean;
+  authorizationNumber?: string;
+  diagnosisCode?: string;
+  trackingId?: string;
+  expectedDecision?: string;
+  revenueOptimization?: any;
+  processingNotes?: string;
 }
 
 interface ClaimsProcessingDashboardProps {
@@ -340,6 +352,7 @@ const ClaimsProcessingDashboard = ({
       approved: "default",
       denied: "destructive",
       pending: "outline",
+      "auto-processing": "secondary",
     } as const;
 
     const icons = {
@@ -348,6 +361,7 @@ const ClaimsProcessingDashboard = ({
       approved: <CheckCircle className="w-3 h-3" />,
       denied: <AlertCircle className="w-3 h-3" />,
       pending: <Clock className="w-3 h-3" />,
+      "auto-processing": <Zap className="w-3 h-3" />,
     };
 
     return (
@@ -499,7 +513,7 @@ const ClaimsProcessingDashboard = ({
                     Revenue Analytics
                   </Button>
                   <Button variant="outline" size="sm">
-                    <Shield className="w-4 w-4 mr-2" />
+                    <Shield className="w-4 h-4 mr-2" />
                     Compliance Check
                   </Button>
                 </div>
@@ -524,6 +538,9 @@ const ClaimsProcessingDashboard = ({
                     <SelectItem value="all">All Statuses</SelectItem>
                     <SelectItem value="submitted">Submitted</SelectItem>
                     <SelectItem value="processing">Processing</SelectItem>
+                    <SelectItem value="auto-processing">
+                      Auto Processing
+                    </SelectItem>
                     <SelectItem value="approved">Approved</SelectItem>
                     <SelectItem value="denied">Denied</SelectItem>
                     <SelectItem value="pending">Pending</SelectItem>
@@ -707,7 +724,8 @@ const ClaimsProcessingDashboard = ({
                           <span>
                             {claim.status === "approved"
                               ? "100%"
-                              : claim.status === "processing"
+                              : claim.status === "processing" ||
+                                  claim.status === "auto-processing"
                                 ? "60%"
                                 : claim.status === "submitted"
                                   ? "30%"
@@ -718,7 +736,8 @@ const ClaimsProcessingDashboard = ({
                           value={
                             claim.status === "approved"
                               ? 100
-                              : claim.status === "processing"
+                              : claim.status === "processing" ||
+                                  claim.status === "auto-processing"
                                 ? 60
                                 : claim.status === "submitted"
                                   ? 30

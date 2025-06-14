@@ -37,6 +37,8 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Progress } from "@/components/ui/progress";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Plus,
   Eye,
@@ -59,6 +61,37 @@ import {
   FileImage,
   Mail,
   Zap,
+  TrendingUp,
+  TrendingDown,
+  Target,
+  Brain,
+  Activity,
+  Users,
+  DollarSign,
+  RefreshCw,
+  LineChart,
+  PieChart,
+  Filter,
+  Search,
+  Share,
+  Copy,
+  Star,
+  Bookmark,
+  Database,
+  Globe,
+  Layers,
+  Monitor,
+  Cpu,
+  HardDrive,
+  Network,
+  Gauge,
+  Timer,
+  Award,
+  Lightbulb,
+  Workflow,
+  GitBranch,
+  Maximize2,
+  Minimize2,
 } from "lucide-react";
 import {
   getReportTemplates,
@@ -79,6 +112,54 @@ import {
   ReportFilters,
 } from "@/api/reporting.api";
 import { useOfflineSync } from "@/hooks/useOfflineSync";
+
+interface AnalyticsMetric {
+  id: string;
+  name: string;
+  value: number;
+  previousValue: number;
+  change: number;
+  changeType: "increase" | "decrease" | "stable";
+  trend: number[];
+  target?: number;
+  unit: string;
+  category: "performance" | "quality" | "financial" | "operational";
+  description: string;
+  lastUpdated: string;
+}
+
+interface PredictiveInsight {
+  id: string;
+  title: string;
+  description: string;
+  confidence: number;
+  impact: "high" | "medium" | "low";
+  timeframe: string;
+  category: "risk" | "opportunity" | "trend";
+  recommendations: string[];
+  dataPoints: {
+    current: number;
+    predicted: number;
+    factors: string[];
+  };
+}
+
+interface CustomDashboard {
+  id: string;
+  name: string;
+  description: string;
+  widgets: {
+    id: string;
+    type: "metric" | "chart" | "table" | "alert";
+    title: string;
+    config: any;
+    position: { x: number; y: number; width: number; height: number };
+  }[];
+  isPublic: boolean;
+  createdBy: string;
+  createdAt: string;
+  tags: string[];
+}
 
 interface ReportingDashboardProps {
   userId?: string;
@@ -101,6 +182,24 @@ export default function ReportingDashboard({
   const [showTemplateDialog, setShowTemplateDialog] = useState(false);
   const [showScheduleDialog, setShowScheduleDialog] = useState(false);
   const [showGenerateDialog, setShowGenerateDialog] = useState(false);
+  const [analyticsMetrics, setAnalyticsMetrics] = useState<AnalyticsMetric[]>(
+    [],
+  );
+  const [predictiveInsights, setPredictiveInsights] = useState<
+    PredictiveInsight[]
+  >([]);
+  const [customDashboards, setCustomDashboards] = useState<CustomDashboard[]>(
+    [],
+  );
+  const [selectedDashboard, setSelectedDashboard] =
+    useState<CustomDashboard | null>(null);
+  const [showDashboardBuilder, setShowDashboardBuilder] = useState(false);
+  const [showInsightsDialog, setShowInsightsDialog] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [refreshInterval, setRefreshInterval] = useState(30000); // 30 seconds
   const [selectedTemplate, setSelectedTemplate] =
     useState<ReportTemplate | null>(null);
   const [filters, setFilters] = useState<ReportFilters>({
@@ -135,7 +234,227 @@ export default function ReportingDashboard({
   useEffect(() => {
     loadDashboardData();
     loadComplianceData();
+    loadAnalyticsData();
+    loadPredictiveInsights();
+    loadCustomDashboards();
   }, [filters]);
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (autoRefresh) {
+      interval = setInterval(() => {
+        loadAnalyticsData();
+        loadPredictiveInsights();
+      }, refreshInterval);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [autoRefresh, refreshInterval]);
+
+  const loadAnalyticsData = async () => {
+    try {
+      // Mock analytics metrics data
+      const mockMetrics: AnalyticsMetric[] = [
+        {
+          id: "patient-satisfaction",
+          name: "Patient Satisfaction",
+          value: 94.2,
+          previousValue: 91.8,
+          change: 2.6,
+          changeType: "increase",
+          trend: [89.2, 90.1, 91.8, 92.5, 93.1, 94.2],
+          target: 95.0,
+          unit: "%",
+          category: "quality",
+          description: "Overall patient satisfaction score based on surveys",
+          lastUpdated: new Date().toISOString(),
+        },
+        {
+          id: "revenue-growth",
+          name: "Revenue Growth",
+          value: 12.8,
+          previousValue: 8.4,
+          change: 52.4,
+          changeType: "increase",
+          trend: [5.2, 6.8, 8.4, 9.7, 11.2, 12.8],
+          target: 15.0,
+          unit: "%",
+          category: "financial",
+          description: "Monthly revenue growth rate",
+          lastUpdated: new Date().toISOString(),
+        },
+        {
+          id: "operational-efficiency",
+          name: "Operational Efficiency",
+          value: 87.3,
+          previousValue: 84.1,
+          change: 3.8,
+          changeType: "increase",
+          trend: [82.1, 83.2, 84.1, 85.5, 86.4, 87.3],
+          target: 90.0,
+          unit: "%",
+          category: "operational",
+          description: "Overall operational efficiency score",
+          lastUpdated: new Date().toISOString(),
+        },
+        {
+          id: "clinical-outcomes",
+          name: "Clinical Outcomes",
+          value: 91.7,
+          previousValue: 89.2,
+          change: 2.8,
+          changeType: "increase",
+          trend: [87.5, 88.3, 89.2, 90.1, 90.9, 91.7],
+          target: 93.0,
+          unit: "%",
+          category: "performance",
+          description: "Clinical outcome success rate",
+          lastUpdated: new Date().toISOString(),
+        },
+      ];
+      setAnalyticsMetrics(mockMetrics);
+    } catch (error) {
+      console.error("Error loading analytics data:", error);
+    }
+  };
+
+  const loadPredictiveInsights = async () => {
+    try {
+      // Mock predictive insights data
+      const mockInsights: PredictiveInsight[] = [
+        {
+          id: "capacity-forecast",
+          title: "Capacity Utilization Forecast",
+          description:
+            "Patient volume is expected to increase by 15% in the next quarter",
+          confidence: 87,
+          impact: "high",
+          timeframe: "Next 3 months",
+          category: "trend",
+          recommendations: [
+            "Consider hiring additional staff",
+            "Optimize scheduling algorithms",
+            "Expand service hours",
+          ],
+          dataPoints: {
+            current: 78.5,
+            predicted: 90.3,
+            factors: [
+              "Seasonal trends",
+              "Referral growth",
+              "Service expansion",
+            ],
+          },
+        },
+        {
+          id: "readmission-risk",
+          title: "Readmission Risk Alert",
+          description:
+            "High-risk patients identified for potential readmission",
+          confidence: 92,
+          impact: "high",
+          timeframe: "Next 30 days",
+          category: "risk",
+          recommendations: [
+            "Implement enhanced discharge planning",
+            "Increase follow-up frequency",
+            "Provide medication management support",
+          ],
+          dataPoints: {
+            current: 8.5,
+            predicted: 12.3,
+            factors: [
+              "Recent discharges",
+              "Medication adherence",
+              "Social factors",
+            ],
+          },
+        },
+        {
+          id: "cost-optimization",
+          title: "Cost Optimization Opportunity",
+          description:
+            "Potential savings identified in supply chain management",
+          confidence: 78,
+          impact: "medium",
+          timeframe: "Next 6 months",
+          category: "opportunity",
+          recommendations: [
+            "Negotiate better supplier contracts",
+            "Implement inventory optimization",
+            "Reduce waste in medical supplies",
+          ],
+          dataPoints: {
+            current: 100,
+            predicted: 85,
+            factors: [
+              "Bulk purchasing",
+              "Waste reduction",
+              "Supplier optimization",
+            ],
+          },
+        },
+      ];
+      setPredictiveInsights(mockInsights);
+    } catch (error) {
+      console.error("Error loading predictive insights:", error);
+    }
+  };
+
+  const loadCustomDashboards = async () => {
+    try {
+      // Mock custom dashboards data
+      const mockDashboards: CustomDashboard[] = [
+        {
+          id: "executive-summary",
+          name: "Executive Summary",
+          description: "High-level KPIs and metrics for executive team",
+          widgets: [
+            {
+              id: "revenue-widget",
+              type: "metric",
+              title: "Monthly Revenue",
+              config: { metric: "revenue-growth" },
+              position: { x: 0, y: 0, width: 6, height: 4 },
+            },
+            {
+              id: "satisfaction-widget",
+              type: "metric",
+              title: "Patient Satisfaction",
+              config: { metric: "patient-satisfaction" },
+              position: { x: 6, y: 0, width: 6, height: 4 },
+            },
+          ],
+          isPublic: true,
+          createdBy: userId,
+          createdAt: new Date().toISOString(),
+          tags: ["executive", "kpi", "summary"],
+        },
+        {
+          id: "clinical-dashboard",
+          name: "Clinical Performance",
+          description: "Clinical outcomes and quality metrics",
+          widgets: [
+            {
+              id: "outcomes-widget",
+              type: "chart",
+              title: "Clinical Outcomes Trend",
+              config: { type: "line", metric: "clinical-outcomes" },
+              position: { x: 0, y: 0, width: 12, height: 6 },
+            },
+          ],
+          isPublic: false,
+          createdBy: userId,
+          createdAt: new Date().toISOString(),
+          tags: ["clinical", "quality", "outcomes"],
+        },
+      ];
+      setCustomDashboards(mockDashboards);
+    } catch (error) {
+      console.error("Error loading custom dashboards:", error);
+    }
+  };
 
   const loadComplianceData = async () => {
     try {
@@ -695,15 +1014,528 @@ export default function ReportingDashboard({
           </AlertDescription>
         </Alert>
 
-        <Tabs defaultValue="compliance" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-6">
+        <Tabs defaultValue="analytics-overview" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-8">
+            <TabsTrigger value="analytics-overview">
+              Analytics Overview
+            </TabsTrigger>
+            <TabsTrigger value="predictive-insights">
+              Predictive Insights
+            </TabsTrigger>
+            <TabsTrigger value="custom-dashboards">
+              Custom Dashboards
+            </TabsTrigger>
             <TabsTrigger value="compliance">Compliance Monitor</TabsTrigger>
             <TabsTrigger value="audits">Audit Schedule</TabsTrigger>
             <TabsTrigger value="templates">Templates</TabsTrigger>
             <TabsTrigger value="reports">Generated Reports</TabsTrigger>
             <TabsTrigger value="schedules">Schedules</TabsTrigger>
-            <TabsTrigger value="analytics">Analytics</TabsTrigger>
           </TabsList>
+
+          {/* Analytics Overview Tab */}
+          <TabsContent value="analytics-overview" className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900">
+                  Analytics Overview
+                </h2>
+                <p className="text-gray-600 mt-1">
+                  Real-time performance metrics and key indicators
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    checked={autoRefresh}
+                    onCheckedChange={setAutoRefresh}
+                  />
+                  <Label className="text-sm">Auto-refresh</Label>
+                </div>
+                <Select
+                  value={refreshInterval.toString()}
+                  onValueChange={(value) => setRefreshInterval(parseInt(value))}
+                >
+                  <SelectTrigger className="w-32">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="10000">10s</SelectItem>
+                    <SelectItem value="30000">30s</SelectItem>
+                    <SelectItem value="60000">1m</SelectItem>
+                    <SelectItem value="300000">5m</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    loadAnalyticsData();
+                    loadPredictiveInsights();
+                  }}
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                  )}
+                  Refresh
+                </Button>
+              </div>
+            </div>
+
+            {/* Key Metrics Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {analyticsMetrics.map((metric) => (
+                <Card key={metric.id} className="relative overflow-hidden">
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-sm font-medium text-gray-600">
+                        {metric.name}
+                      </CardTitle>
+                      <div className="flex items-center gap-1">
+                        {metric.changeType === "increase" ? (
+                          <TrendingUp className="w-4 h-4 text-green-500" />
+                        ) : metric.changeType === "decrease" ? (
+                          <TrendingDown className="w-4 h-4 text-red-500" />
+                        ) : (
+                          <Activity className="w-4 h-4 text-gray-500" />
+                        )}
+                        <Badge
+                          variant={
+                            metric.changeType === "increase"
+                              ? "default"
+                              : metric.changeType === "decrease"
+                                ? "destructive"
+                                : "secondary"
+                          }
+                          className="text-xs"
+                        >
+                          {metric.change > 0 ? "+" : ""}
+                          {metric.change.toFixed(1)}%
+                        </Badge>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      <div className="flex items-baseline gap-2">
+                        <div className="text-3xl font-bold">
+                          {metric.value.toFixed(1)}
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          {metric.unit}
+                        </div>
+                      </div>
+
+                      {metric.target && (
+                        <div className="space-y-1">
+                          <div className="flex justify-between text-xs text-gray-500">
+                            <span>Progress to Target</span>
+                            <span>
+                              {metric.target}
+                              {metric.unit}
+                            </span>
+                          </div>
+                          <Progress
+                            value={(metric.value / metric.target) * 100}
+                            className="h-2"
+                          />
+                        </div>
+                      )}
+
+                      <div className="text-xs text-gray-500">
+                        {metric.description}
+                      </div>
+                    </div>
+                  </CardContent>
+                  <div className="absolute top-0 right-0 w-16 h-16 opacity-10">
+                    {metric.category === "financial" && (
+                      <DollarSign className="w-full h-full" />
+                    )}
+                    {metric.category === "quality" && (
+                      <Award className="w-full h-full" />
+                    )}
+                    {metric.category === "operational" && (
+                      <Gauge className="w-full h-full" />
+                    )}
+                    {metric.category === "performance" && (
+                      <Target className="w-full h-full" />
+                    )}
+                  </div>
+                </Card>
+              ))}
+            </div>
+
+            {/* Performance Trends */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <LineChart className="w-5 h-5" />
+                  Performance Trends
+                </CardTitle>
+                <CardDescription>
+                  Historical performance data and trend analysis
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {analyticsMetrics.slice(0, 2).map((metric) => (
+                    <div key={metric.id} className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-medium">{metric.name}</h4>
+                        <Badge variant="outline">{metric.category}</Badge>
+                      </div>
+                      <div className="h-32 bg-gray-50 rounded-lg flex items-center justify-center">
+                        <div className="text-sm text-gray-500">
+                          Trend visualization for {metric.name}
+                        </div>
+                      </div>
+                      <div className="flex justify-between text-sm text-gray-600">
+                        <span>
+                          6 months ago: {metric.trend[0]}
+                          {metric.unit}
+                        </span>
+                        <span>
+                          Current: {metric.value}
+                          {metric.unit}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* System Health */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                    <Database className="w-4 h-4" />
+                    Data Quality
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span>Completeness</span>
+                      <span className="font-medium">98.5%</span>
+                    </div>
+                    <Progress value={98.5} className="h-2" />
+                    <div className="flex justify-between text-sm">
+                      <span>Accuracy</span>
+                      <span className="font-medium">96.2%</span>
+                    </div>
+                    <Progress value={96.2} className="h-2" />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                    <Monitor className="w-4 h-4" />
+                    System Performance
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span>Response Time</span>
+                      <span className="font-medium">245ms</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span>Uptime</span>
+                      <span className="font-medium text-green-600">99.9%</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span>Error Rate</span>
+                      <span className="font-medium">0.1%</span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                    <Network className="w-4 h-4" />
+                    Integration Status
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm">DOH Systems</span>
+                      <CheckCircle className="w-4 h-4 text-green-500" />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm">DAMAN API</span>
+                      <CheckCircle className="w-4 h-4 text-green-500" />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm">Malaffi EMR</span>
+                      <AlertCircle className="w-4 h-4 text-yellow-500" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
+          {/* Predictive Insights Tab */}
+          <TabsContent value="predictive-insights" className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900">
+                  Predictive Insights
+                </h2>
+                <p className="text-gray-600 mt-1">
+                  AI-powered predictions and recommendations
+                </p>
+              </div>
+              <Button
+                onClick={() => setShowInsightsDialog(true)}
+                className="flex items-center gap-2"
+              >
+                <Brain className="w-4 h-4" />
+                Generate New Insights
+              </Button>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+              {predictiveInsights.map((insight) => (
+                <Card key={insight.id} className="relative">
+                  <CardHeader>
+                    <div className="flex items-start justify-between">
+                      <div className="space-y-1">
+                        <CardTitle className="text-lg">
+                          {insight.title}
+                        </CardTitle>
+                        <div className="flex items-center gap-2">
+                          <Badge
+                            variant={
+                              insight.category === "risk"
+                                ? "destructive"
+                                : insight.category === "opportunity"
+                                  ? "default"
+                                  : "secondary"
+                            }
+                          >
+                            {insight.category}
+                          </Badge>
+                          <Badge
+                            variant={
+                              insight.impact === "high"
+                                ? "destructive"
+                                : insight.impact === "medium"
+                                  ? "secondary"
+                                  : "outline"
+                            }
+                          >
+                            {insight.impact} impact
+                          </Badge>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-2xl font-bold text-blue-600">
+                          {insight.confidence}%
+                        </div>
+                        <div className="text-xs text-gray-500">confidence</div>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <p className="text-sm text-gray-600">
+                      {insight.description}
+                    </p>
+
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span>Current</span>
+                        <span className="font-medium">
+                          {insight.dataPoints.current}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span>Predicted</span>
+                        <span className="font-medium text-blue-600">
+                          {insight.dataPoints.predicted}
+                        </span>
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        Timeframe: {insight.timeframe}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <h5 className="text-sm font-medium">Key Factors:</h5>
+                      <div className="flex flex-wrap gap-1">
+                        {insight.dataPoints.factors.map((factor, index) => (
+                          <Badge
+                            key={index}
+                            variant="outline"
+                            className="text-xs"
+                          >
+                            {factor}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <h5 className="text-sm font-medium">Recommendations:</h5>
+                      <ul className="space-y-1">
+                        {insight.recommendations
+                          .slice(0, 2)
+                          .map((rec, index) => (
+                            <li
+                              key={index}
+                              className="text-xs text-gray-600 flex items-start gap-2"
+                            >
+                              <Lightbulb className="w-3 h-3 mt-0.5 text-yellow-500 flex-shrink-0" />
+                              {rec}
+                            </li>
+                          ))}
+                      </ul>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </TabsContent>
+
+          {/* Custom Dashboards Tab */}
+          <TabsContent value="custom-dashboards" className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900">
+                  Custom Dashboards
+                </h2>
+                <p className="text-gray-600 mt-1">
+                  Create and manage personalized analytics dashboards
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <Search className="w-4 h-4 text-gray-400" />
+                  <Input
+                    placeholder="Search dashboards..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-64"
+                  />
+                </div>
+                <Button
+                  variant="outline"
+                  onClick={() =>
+                    setViewMode(viewMode === "grid" ? "list" : "grid")
+                  }
+                >
+                  {viewMode === "grid" ? (
+                    <Layers className="w-4 h-4" />
+                  ) : (
+                    <BarChart3 className="w-4 h-4" />
+                  )}
+                </Button>
+                <Button onClick={() => setShowDashboardBuilder(true)}>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Create Dashboard
+                </Button>
+              </div>
+            </div>
+
+            <div
+              className={
+                viewMode === "grid"
+                  ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+                  : "space-y-4"
+              }
+            >
+              {customDashboards
+                .filter(
+                  (dashboard) =>
+                    dashboard.name
+                      .toLowerCase()
+                      .includes(searchQuery.toLowerCase()) ||
+                    dashboard.description
+                      .toLowerCase()
+                      .includes(searchQuery.toLowerCase()),
+                )
+                .map((dashboard) => (
+                  <Card
+                    key={dashboard.id}
+                    className="cursor-pointer hover:shadow-md transition-shadow"
+                  >
+                    <CardHeader>
+                      <div className="flex items-start justify-between">
+                        <div className="space-y-1">
+                          <CardTitle className="text-lg">
+                            {dashboard.name}
+                          </CardTitle>
+                          <CardDescription>
+                            {dashboard.description}
+                          </CardDescription>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          {dashboard.isPublic && (
+                            <Globe
+                              className="w-4 h-4 text-blue-500"
+                              title="Public"
+                            />
+                          )}
+                          <Button variant="ghost" size="sm">
+                            <Star className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="flex items-center justify-between text-sm text-gray-600">
+                        <span>{dashboard.widgets.length} widgets</span>
+                        <span>
+                          Created{" "}
+                          {new Date(dashboard.createdAt).toLocaleDateString()}
+                        </span>
+                      </div>
+
+                      <div className="flex flex-wrap gap-1">
+                        {dashboard.tags.map((tag) => (
+                          <Badge
+                            key={tag}
+                            variant="outline"
+                            className="text-xs"
+                          >
+                            {tag}
+                          </Badge>
+                        ))}
+                      </div>
+
+                      <div className="flex items-center justify-between pt-2">
+                        <div className="flex items-center gap-2">
+                          <Button variant="outline" size="sm">
+                            <Eye className="w-3 h-3 mr-1" />
+                            View
+                          </Button>
+                          <Button variant="outline" size="sm">
+                            <Edit className="w-3 h-3 mr-1" />
+                            Edit
+                          </Button>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Button variant="ghost" size="sm">
+                            <Copy className="w-3 h-3" />
+                          </Button>
+                          <Button variant="ghost" size="sm">
+                            <Share className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+            </div>
+          </TabsContent>
 
           {/* Compliance Monitoring Tab */}
           <TabsContent value="compliance" className="space-y-6">

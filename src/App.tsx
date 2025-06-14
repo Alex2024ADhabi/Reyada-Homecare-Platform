@@ -3,10 +3,31 @@ import { Routes, Route, Navigate, useRoutes } from "react-router-dom";
 import { Toaster } from "@/components/ui/toaster";
 import { realTimeSyncService } from "@/services/real-time-sync.service";
 import { offlineService } from "@/services/offline.service";
-import { emiratesIdVerificationService } from "@/services/emirates-id-verification.service";
 import { communicationService } from "@/services/communication.service";
-import websocketService from "@/services/websocket.service";
 import { SecurityService } from "@/services/security.service";
+import { environmentValidator } from "@/utils/environment-validator";
+import PlatformHealthMonitor from "@/components/ui/platform-health-monitor";
+import ComprehensivePlatformValidator from "@/components/ui/comprehensive-platform-validator";
+
+// Enhanced service imports with error handling
+let emiratesIdVerificationService: any;
+let websocketService: any;
+
+try {
+  emiratesIdVerificationService =
+    require("@/services/emirates-id-verification.service").emiratesIdVerificationService;
+} catch (error) {
+  console.warn(
+    "Emirates ID verification service not available:",
+    error.message,
+  );
+}
+
+try {
+  websocketService = require("@/services/websocket.service").default;
+} catch (error) {
+  console.warn("WebSocket service not available:", error.message);
+}
 import NotificationCenter from "@/components/ui/notification-center";
 
 // Network Error Component
@@ -109,6 +130,10 @@ try {
 // Lazy load components
 const Home = lazy(() => import("./components/home"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
+const HealthMonitor = lazy(() => PlatformHealthMonitor);
+const PlatformCompletionDashboard = lazy(
+  () => import("./components/ui/platform-completion-dashboard"),
+);
 
 // Brand Loading Component
 const BrandedLoadingFallback = () => (
@@ -149,59 +174,124 @@ const BrandedLoadingFallback = () => (
 
 function App() {
   useEffect(() => {
-    // Initialize all core services
+    // Enhanced service initialization with environment validation
     const initializeServices = async () => {
       try {
+        // Validate environment configuration first
+        const envStatus = environmentValidator.getStatusReport();
+        console.log(
+          `🔧 Environment Status: ${envStatus.status} - ${envStatus.message}`,
+        );
+
+        if (envStatus.status === "error") {
+          console.error(
+            "❌ Critical environment configuration errors detected:",
+            envStatus.details.errors,
+          );
+          // Continue with limited functionality
+        }
+
         // Initialize security service first
         const securityService = SecurityService.getInstance();
         await securityService.initialize();
+        console.log("✅ Security service initialized");
 
         // Initialize offline service
         await offlineService.init();
+        console.log("✅ Offline service initialized");
 
         // Initialize real-time sync service
         await realTimeSyncService.connect();
+        console.log("✅ Real-time sync service initialized");
 
-        // Initialize WebSocket service for real-time notifications
-        websocketService.connect();
+        // Initialize WebSocket service for real-time notifications (if available)
+        if (
+          websocketService &&
+          typeof websocketService.connect === "function"
+        ) {
+          try {
+            websocketService.connect();
+            console.log("✅ WebSocket service initialized");
+          } catch (wsError) {
+            console.warn("⚠️ WebSocket service failed to initialize:", wsError);
+          }
+        }
 
         // Initialize communication service
-        communicationService.setupUserNotificationChannels("current-user", [
-          {
-            type: "push",
-            enabled: true,
-            priority: "high",
-            settings: {
-              push: {
-                deviceTokens: [],
-                sound: true,
-                vibration: true,
+        try {
+          communicationService.setupUserNotificationChannels("current-user", [
+            {
+              type: "push",
+              enabled: true,
+              priority: "high",
+              settings: {
+                push: {
+                  deviceTokens: [],
+                  sound: true,
+                  vibration: true,
+                },
               },
             },
-          },
-          {
-            type: "email",
-            enabled: true,
-            priority: "medium",
-            settings: {
-              email: {
-                address: "user@example.com",
+            {
+              type: "email",
+              enabled: true,
+              priority: "medium",
+              settings: {
+                email: {
+                  address: "user@example.com",
+                },
               },
             },
-          },
-        ]);
+          ]);
+          console.log("✅ Communication service initialized");
+        } catch (commError) {
+          console.warn(
+            "⚠️ Communication service failed to initialize:",
+            commError,
+          );
+        }
 
-        console.log("All core services initialized successfully");
+        // Initialize Emirates ID verification service (if available)
+        if (
+          emiratesIdVerificationService &&
+          typeof emiratesIdVerificationService.initialize === "function"
+        ) {
+          try {
+            await emiratesIdVerificationService.initialize();
+            console.log("✅ Emirates ID verification service initialized");
+          } catch (eidError) {
+            console.warn(
+              "⚠️ Emirates ID verification service failed to initialize:",
+              eidError,
+            );
+          }
+        }
+
+        console.log("🎉 Core services initialization completed");
       } catch (error) {
-        console.error("Failed to initialize services:", error);
+        console.error(
+          "❌ Critical failure during service initialization:",
+          error,
+        );
+        // Continue with basic functionality
       }
     };
 
     initializeServices();
 
     return () => {
-      realTimeSyncService.disconnect();
-      websocketService.disconnect();
+      try {
+        realTimeSyncService.disconnect();
+        if (
+          websocketService &&
+          typeof websocketService.disconnect === "function"
+        ) {
+          websocketService.disconnect();
+        }
+        console.log("🧹 Services cleanup completed");
+      } catch (error) {
+        console.warn("⚠️ Error during service cleanup:", error);
+      }
     };
   }, []);
 
@@ -218,6 +308,15 @@ function App() {
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/health" element={<PlatformHealthMonitor />} />
+            <Route
+              path="/validation"
+              element={<ComprehensivePlatformValidator />}
+            />
+            <Route
+              path="/completion"
+              element={<PlatformCompletionDashboard />}
+            />
 
             {/* Tempo route placeholder */}
             {(process.env.TEMPO === "true" ||

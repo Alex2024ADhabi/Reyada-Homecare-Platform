@@ -260,6 +260,18 @@ module.exports = {
         process.env.NODE_ENV || "development",
       ),
       "process.env.TEMPO": JSON.stringify(process.env.TEMPO || "true"),
+      "process.env.VITE_SUPABASE_URL": JSON.stringify(
+        process.env.VITE_SUPABASE_URL || "",
+      ),
+      "process.env.VITE_SUPABASE_ANON_KEY": JSON.stringify(
+        process.env.VITE_SUPABASE_ANON_KEY || "",
+      ),
+      "process.env.VITE_API_BASE_URL": JSON.stringify(
+        process.env.VITE_API_BASE_URL || "",
+      ),
+      "process.env.VITE_BUILD_VERSION": JSON.stringify(
+        process.env.VITE_BUILD_VERSION || "1.0.0",
+      ),
       global: "globalThis",
     }),
 

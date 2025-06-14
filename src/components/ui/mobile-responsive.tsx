@@ -67,13 +67,31 @@ export const MobileAppAccess: React.FC<{
 
       setPwaCapabilities(capabilities);
 
-      // Register service worker for PWA functionality
-      if ("serviceWorker" in navigator) {
+      // Register service worker for PWA functionality with enhanced error handling
+      if (
+        "serviceWorker" in navigator &&
+        typeof navigator.serviceWorker.register === "function"
+      ) {
         try {
-          await navigator.serviceWorker.register("/sw.js");
-          console.log("Service Worker registered for PWA functionality");
+          const registration = await navigator.serviceWorker.register("/sw.js");
+          console.log(
+            "✅ Service Worker registered for PWA functionality",
+            registration,
+          );
+
+          // Listen for service worker updates
+          registration.addEventListener("updatefound", () => {
+            console.log("🔄 Service Worker update found");
+          });
         } catch (error) {
-          console.error("Service Worker registration failed:", error);
+          console.error("❌ Service Worker registration failed:", error);
+          // Gracefully degrade PWA features if service worker fails
+          setPwaCapabilities((prev) => ({
+            ...prev,
+            pushNotifications: false,
+            backgroundSync: false,
+            offlineStorage: false,
+          }));
         }
       }
     };

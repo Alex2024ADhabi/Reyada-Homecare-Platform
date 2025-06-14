@@ -3,12 +3,38 @@
  * Centralized configuration for all API endpoints and settings
  */
 
-// Base API Gateway Configuration
+// Enhanced API Gateway Configuration with environment detection
+const getApiBaseUrl = (): string => {
+  // Check multiple environment variable sources
+  const envUrl = 
+    (typeof process !== 'undefined' && process.env?.VITE_API_BASE_URL) ||
+    (typeof import !== 'undefined' && import.meta?.env?.VITE_API_BASE_URL) ||
+    (typeof window !== 'undefined' && (window as any).env?.VITE_API_BASE_URL);
+  
+  if (envUrl) {
+    return envUrl;
+  }
+  
+  // Environment-specific defaults
+  const isDevelopment = 
+    (typeof process !== 'undefined' && process.env?.NODE_ENV === 'development') ||
+    (typeof import !== 'undefined' && import.meta?.env?.DEV);
+  
+  if (isDevelopment) {
+    console.warn('⚠️ Using development API URL. Set VITE_API_BASE_URL for production.');
+    return "http://localhost:3001/api/v1";
+  }
+  
+  return "https://api.reyadahomecare.ae/v1";
+};
+
 export const API_GATEWAY_CONFIG = {
-  baseUrl: process.env.VITE_API_BASE_URL || "https://api.reyadahomecare.ae/v1",
+  baseUrl: getApiBaseUrl(),
   timeout: 30000,
   retryAttempts: 3,
   retryDelay: 1000,
+  healthCheckInterval: 60000, // 1 minute
+  circuitBreakerThreshold: 5,
 };
 
 // DOH API Configuration
@@ -117,13 +143,40 @@ export const UPLOAD_CONFIG = {
   uploadEndpoint: `${API_GATEWAY_CONFIG.baseUrl}/upload`,
 };
 
-// Environment-specific configurations
+// Enhanced environment-specific configurations with robust detection
+const getEnvironmentInfo = () => {
+  const nodeEnv = 
+    (typeof process !== 'undefined' && process.env?.NODE_ENV) ||
+    (typeof import !== 'undefined' && import.meta?.env?.NODE_ENV) ||
+    'development';
+  
+  const buildVersion = 
+    (typeof process !== 'undefined' && process.env?.VITE_BUILD_VERSION) ||
+    (typeof import !== 'undefined' && import.meta?.env?.VITE_BUILD_VERSION) ||
+    (typeof window !== 'undefined' && (window as any).env?.VITE_BUILD_VERSION) ||
+    '1.0.0';
+  
+  return {
+    nodeEnv,
+    buildVersion,
+    isDevelopment: nodeEnv === 'development',
+    isProduction: nodeEnv === 'production',
+    isTest: nodeEnv === 'test',
+    timestamp: new Date().toISOString()
+  };
+};
+
+const envInfo = getEnvironmentInfo();
+
 export const ENV_CONFIG = {
-  isDevelopment: process.env.NODE_ENV === "development",
-  isProduction: process.env.NODE_ENV === "production",
-  isTest: process.env.NODE_ENV === "test",
+  isDevelopment: envInfo.isDevelopment,
+  isProduction: envInfo.isProduction,
+  isTest: envInfo.isTest,
+  nodeEnv: envInfo.nodeEnv,
   apiVersion: "v1",
-  buildVersion: process.env.VITE_BUILD_VERSION || "1.0.0",
+  buildVersion: envInfo.buildVersion,
+  buildTimestamp: envInfo.timestamp,
+  platform: typeof window !== 'undefined' ? 'browser' : 'server',
 };
 
 // Security Configuration

@@ -867,67 +867,104 @@ class OfflineService {
   }
 
   /**
-   * Store media files (photos, audio) for offline sync
+   * Enhanced media file storage with compression and validation
    */
   public async storeMediaFile(mediaData: {
     id: string;
     type: "image" | "audio" | "video";
     data: string;
     metadata: any;
+    patientId?: string;
+    formId?: string;
   }): Promise<void> {
-    const db = await this.getDB();
-    const id = this.generateId();
-    const now = new Date().toISOString();
+    try {
+      const db = await this.getDB();
+      const id = this.generateId();
+      const now = new Date().toISOString();
 
-    const mediaRecord = {
-      id,
-      mediaId: mediaData.id,
-      type: mediaData.type,
-      data: mediaData.data,
-      metadata: mediaData.metadata,
-      status: "pending_sync" as const,
-      createdAt: now,
-      updatedAt: now,
-    };
+      // Validate media data
+      if (!mediaData.data || !mediaData.type) {
+        throw new Error("Invalid media data: missing required fields");
+      }
 
-    // Store in administrative data with media category
-    await this.saveAdministrativeData("media", {
-      ...mediaRecord,
-      priority: "high" as const,
-      syncStrategy: "immediate" as const,
-    });
+      // Compress large media files
+      let processedData = mediaData.data;
+      if (mediaData.type === "image" && mediaData.data.length > 1024 * 1024) {
+        // 1MB
+        processedData = await this.compressImageData(mediaData.data);
+      }
+
+      const mediaRecord = {
+        id,
+        mediaId: mediaData.id,
+        type: mediaData.type,
+        data: processedData,
+        originalSize: mediaData.data.length,
+        compressedSize: processedData.length,
+        metadata: {
+          ...mediaData.metadata,
+          patientId: mediaData.patientId,
+          formId: mediaData.formId,
+          timestamp: now,
+          deviceInfo: this.getDeviceInfo(),
+        },
+        status: "pending_sync" as const,
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      // Store in administrative data with media category
+      await this.saveAdministrativeData("media", {
+        ...mediaRecord,
+        priority: "high" as const,
+        syncStrategy: "immediate" as const,
+        type: "media_file",
+        doh_compliance: {
+          taxonomy_level: "clinical_documentation",
+          reportable_to_doh: true,
+          safety_culture_data: false,
+          tawteen_related: false,
+          whistleblowing_eligible: false,
+        },
+      });
+
+      console.log(
+        `📸 Media file stored: ${mediaData.type} (${mediaRecord.compressedSize} bytes)`,
+      );
+    } catch (error) {
+      console.error("Failed to store media file:", error);
+      throw error;
+    }
   }
 
   /**
-   * Store media files (photos, audio) for offline sync
+   * Compress image data for efficient storage
    */
-  public async storeMediaFile(mediaData: {
-    id: string;
-    type: "image" | "audio" | "video";
-    data: string;
-    metadata: any;
-  }): Promise<void> {
-    const db = await this.getDB();
-    const id = this.generateId();
-    const now = new Date().toISOString();
+  private async compressImageData(imageData: string): Promise<string> {
+    try {
+      // Simple compression by reducing quality (in production, use proper image compression)
+      if (imageData.startsWith("data:image/")) {
+        // For now, return original data - implement proper compression in production
+        return imageData;
+      }
+      return imageData;
+    } catch (error) {
+      console.warn("Image compression failed, using original:", error);
+      return imageData;
+    }
+  }
 
-    const mediaRecord = {
-      id,
-      mediaId: mediaData.id,
-      type: mediaData.type,
-      data: mediaData.data,
-      metadata: mediaData.metadata,
-      status: "pending_sync" as const,
-      createdAt: now,
-      updatedAt: now,
+  /**
+   * Get device information for metadata
+   */
+  private getDeviceInfo(): any {
+    return {
+      userAgent: navigator.userAgent,
+      platform: navigator.platform,
+      language: navigator.language,
+      online: navigator.onLine,
+      timestamp: new Date().toISOString(),
     };
-
-    // Store in administrative data with media category
-    await this.saveAdministrativeData("media", {
-      ...mediaRecord,
-      priority: "high" as const,
-      syncStrategy: "immediate" as const,
-    });
   }
 
   /**

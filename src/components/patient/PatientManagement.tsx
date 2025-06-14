@@ -1,22 +1,34 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
-  Search,
-  Plus,
-  Filter,
-  MoreVertical,
-  Edit,
-  Trash2,
-  FileText,
-  UserPlus,
-  AlertCircle,
-  Users,
-  Shield,
-} from "lucide-react";
-import { PatientService, RealtimeService, supabase } from "@/api/supabase.api";
-import { useErrorHandler } from "@/services/error-handler.service";
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import {
   Table,
   TableBody,
@@ -25,1016 +37,2009 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import PatientReferral from "./PatientReferral";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+  Search,
+  Plus,
+  Edit,
+  Trash2,
+  Eye,
+  FileText,
+  Calendar,
+  Phone,
+  Mail,
+  MapPin,
+  User,
+  Heart,
+  Activity,
+  AlertCircle,
+  CheckCircle,
+  Clock,
+  Filter,
+  Download,
+  Upload,
+  RefreshCw,
+  Users,
+  Shield,
+  Star,
+  TrendingUp,
+  BarChart3,
+  PieChart,
+  Settings,
+  UserPlus,
+  Database,
+  FileSpreadsheet,
+  Lock,
+  Unlock,
+  Bell,
+  MessageSquare,
+  Camera,
+  Mic,
+  Globe,
+  Smartphone,
+  Wifi,
+  WifiOff,
+  CloudSync,
+  HardDrive,
+  Zap,
+  Target,
+  Award,
+  BookOpen,
+  Clipboard,
+  Stethoscope,
+  Pill,
+  Thermometer,
+  Droplets,
+  Wind,
+  Gauge,
+  LineChart,
+  MoreHorizontal,
+} from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Progress } from "@/components/ui/progress";
+import { Separator } from "@/components/ui/separator";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  PatientService,
+  EpisodeService,
+  RealtimeService,
+} from "@/api/supabase.api";
+import {
+  getAllManpowerCapacity,
+  generateAdvancedAnalytics,
+  trackPatientOutcome,
+  getPatientOutcomes,
+  generateWorkforceIntelligence,
+  performSystemHealthCheck,
+  generateComprehensiveReport,
+  getPatientManagementMetrics,
+  generatePatientSearchAnalytics,
+} from "@/api/manpower.api";
+import { useErrorHandler } from "@/services/error-handler.service";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Separator } from "@/components/ui/separator";
-import PatientEpisode from "./PatientEpisode";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { Switch } from "@/components/ui/switch";
 
-interface HomecareEligibilityAssessment {
-  assessmentDate: string;
-  assessorName: string;
-  homeboundStatus: boolean;
-  skilledCareNeeded: boolean;
-  physicianOrders: boolean;
-  overallEligibility: "eligible" | "not_eligible" | "pending";
-}
-
-interface PatientData {
+interface Patient {
   id: string;
-  name: string;
   emiratesId: string;
-  dob: string;
-  gender: string;
-  phone: string;
-  insurance: string;
-  insuranceStatus: "active" | "expired" | "pending";
-  lastVisit: string;
-  episodes: number;
-  // Patient Lifecycle Management
-  lifecycleStatus:
-    | "referral"
-    | "assessment"
-    | "admission"
-    | "active_care"
-    | "discharge_planning"
-    | "discharged"
-    | "readmission";
-  admissionDate?: string;
-  dischargeDate?: string;
-  // Homebound Status
-  homeboundStatus:
-    | "qualified"
-    | "not_qualified"
-    | "pending_assessment"
-    | "reassessment_required";
-  // Complexity and Risk
-  complexityScore: number;
-  riskLevel: "low" | "medium" | "high" | "critical";
-  primaryRisks: string[];
-  // NEW DOH Compliance fields
-  nationality: string;
-  englishFirstName: string;
-  englishLastName: string;
-  arabicFirstName: string;
-  arabicLastName: string;
-  thiqaCardNumber?: string;
-  insuranceType: "government" | "private" | "self_pay";
-  homeboundStatus?: "qualified" | "not_qualified" | "pending_assessment";
-  eligibilityAssessment?: HomecareEligibilityAssessment;
-  // Enhanced Medical Records Fields (from PDF analysis)
-  medicalRecordNumber?: string;
-  bloodType?: string;
-  allergies?: string[];
-  emergencyContacts?: {
-    primary: {
-      name: string;
-      relationship: string;
-      phone: string;
-    };
-    secondary?: {
-      name: string;
-      relationship: string;
-      phone: string;
+  firstName: string;
+  lastName: string;
+  dateOfBirth: string;
+  gender: "Male" | "Female";
+  phoneNumber: string;
+  email?: string;
+  address: {
+    street: string;
+    city: string;
+    emirate: string;
+    postalCode?: string;
+    coordinates?: {
+      latitude: number;
+      longitude: number;
     };
   };
-  chronicConditions?: string[];
-  currentMedications?: {
+  emergencyContact: {
     name: string;
-    dosage: string;
-    frequency: string;
-    prescribedBy: string;
-    startDate: string;
+    relationship: string;
+    phoneNumber: string;
+    email?: string;
+    isPrimary: boolean;
+  };
+  secondaryContacts?: {
+    name: string;
+    relationship: string;
+    phoneNumber: string;
+    email?: string;
   }[];
-  vitalSignsHistory?: {
-    date: string;
-    temperature: number;
-    pulse: number;
-    bloodPressure: string;
-    respiratoryRate: number;
-    oxygenSaturation: number;
-    weight?: number;
-    height?: number;
+  insuranceInfo: {
+    provider: string;
+    policyNumber: string;
+    expiryDate: string;
+    copayAmount?: number;
+    deductible?: number;
+    authorizationNumber?: string;
+  };
+  medicalHistory: {
+    conditions: string[];
+    allergies: string[];
+    medications: string[];
+    surgicalHistory?: string[];
+    familyHistory?: string[];
+  };
+  status: "Active" | "Inactive" | "Discharged" | "Pending" | "Transferred";
+  registrationDate: string;
+  lastVisit?: string;
+  nextAppointment?: string;
+  assignedClinician?: string;
+  careTeam?: {
+    id: string;
+    name: string;
+    role: string;
+    specialty?: string;
   }[];
-  // DOH Patient Safety Taxonomy Integration
-  safetyIncidents?: {
-    incidentId: string;
-    date: string;
-    type: string;
-    severity: "low" | "medium" | "high" | "critical";
-    dohTaxonomy: {
-      level_1: string;
-      level_2: string;
-      level_3: string;
-      level_4: string;
-      level_5: string;
-      classificationConfidence: number;
-    };
-    resolved: boolean;
-  }[];
-  riskFactors?: {
-    fallRisk: "low" | "medium" | "high";
-    infectionRisk: "low" | "medium" | "high";
-    medicationRisk: "low" | "medium" | "high";
-    lastAssessmentDate: string;
+  riskLevel: "Low" | "Medium" | "High" | "Critical";
+  complianceScore: number;
+  satisfactionScore: number;
+  // Enhanced Patient Management Features
+  acuityScore?: number;
+  languagePreference?: string;
+  culturalConsiderations?: string[];
+  accessibilityNeeds?: string[];
+  transportationNeeds?: boolean;
+  familyAccessControls?: {
+    allowedMembers: {
+      name: string;
+      relationship: string;
+      phoneNumber: string;
+      accessLevel: "View" | "Limited" | "Full";
+      permissions: string[];
+    }[];
+    restrictedInformation: string[];
+    consentStatus: "Granted" | "Pending" | "Denied";
+    lastUpdated: string;
+  };
+  digitalEngagement?: {
+    portalAccess: boolean;
+    mobileAppUser: boolean;
+    communicationPreferences: string[];
+    lastLogin?: string;
+  };
+  qualityMetrics?: {
+    outcomeScores: number[];
+    goalAchievement: number;
+    readmissionRisk: number;
+    medicationAdherence: number;
+  };
+  financialInfo?: {
+    totalCost: number;
+    insuranceCoverage: number;
+    outOfPocketExpenses: number;
+    paymentStatus: "Current" | "Overdue" | "Paid";
+  };
+  tags?: string[];
+  notes?: string;
+  createdBy: string;
+  lastModifiedBy?: string;
+  lastModified?: string;
+}
+
+interface PatientManagementProps {
+  onPatientSelect?: (patient: Patient) => void;
+  selectedPatientId?: string;
+  viewMode?: "list" | "grid" | "detailed" | "analytics";
+  showFilters?: boolean;
+  enableAdvancedFeatures?: boolean;
+  departmentFilter?: string;
+  roleBasedAccess?: {
+    canCreate: boolean;
+    canEdit: boolean;
+    canDelete: boolean;
+    canExport: boolean;
+    canViewAnalytics: boolean;
+    canManageFamilyAccess: boolean;
   };
 }
 
-const PatientManagement = () => {
-  const [searchQuery, setSearchQuery] = useState("");
-  const [isRegisterDialogOpen, setIsRegisterDialogOpen] = useState(false);
-  const [isEmirateScanDialogOpen, setIsEmirateScanDialogOpen] = useState(false);
-  const [selectedPatient, setSelectedPatient] = useState<PatientData | null>(
-    null,
+interface SearchFilters {
+  searchTerm: string;
+  status: string;
+  riskLevel: string;
+  insuranceProvider: string;
+  assignedClinician: string;
+  dateRange: {
+    from?: string;
+    to?: string;
+  };
+  tags: string[];
+  acuityLevel?: string;
+  hasUpcomingAppointments?: boolean;
+  complianceThreshold?: number;
+}
+
+interface PatientAnalytics {
+  totalPatients: number;
+  activePatients: number;
+  averageSatisfactionScore: number;
+  averageComplianceScore: number;
+  riskDistribution: {
+    low: number;
+    medium: number;
+    high: number;
+    critical: number;
+  };
+  insuranceDistribution: { [key: string]: number };
+  outcomeMetrics: {
+    averageOutcomeScore: number;
+    goalAchievementRate: number;
+    readmissionRate: number;
+    medicationAdherenceRate: number;
+  };
+  trendData: {
+    patientGrowth: number[];
+    satisfactionTrend: number[];
+    complianceTrend: number[];
+  };
+  demographicBreakdown: {
+    ageGroups: { [key: string]: number };
+    genderDistribution: { [key: string]: number };
+    emirateDistribution: { [key: string]: number };
+  };
+}
+
+const PatientManagement: React.FC<PatientManagementProps> = ({
+  onPatientSelect,
+  selectedPatientId,
+  viewMode = "list",
+  showFilters = true,
+  enableAdvancedFeatures = true,
+  departmentFilter,
+  roleBasedAccess = {
+    canCreate: true,
+    canEdit: true,
+    canDelete: true,
+    canExport: true,
+    canViewAnalytics: true,
+    canManageFamilyAccess: true,
+  },
+}) => {
+  const [patients, setPatients] = useState<Patient[]>([]);
+  const [filteredPatients, setFilteredPatients] = useState<Patient[]>([]);
+  const [searchFilters, setSearchFilters] = useState<SearchFilters>({
+    searchTerm: "",
+    status: "All",
+    riskLevel: "All",
+    insuranceProvider: "All",
+    assignedClinician: "All",
+    dateRange: {},
+    tags: [],
+  });
+  const [isLoading, setIsLoading] = useState(false);
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [showFamilyAccessDialog, setShowFamilyAccessDialog] = useState(false);
+  const [showImportDialog, setShowImportDialog] = useState(false);
+  const [showExportDialog, setShowExportDialog] = useState(false);
+  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
+  const [newPatient, setNewPatient] = useState<Partial<Patient>>({});
+  const [patientAnalytics, setPatientAnalytics] =
+    useState<PatientAnalytics | null>(null);
+  const [selectedPatients, setSelectedPatients] = useState<string[]>([]);
+  const [currentView, setCurrentView] = useState<"list" | "grid" | "analytics">(
+    viewMode as any,
   );
-  const [activeTab, setActiveTab] = useState("all");
-  const [activeSection, setActiveSection] = useState("patients");
-  const [patients, setPatients] = useState<PatientData[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [isOfflineMode, setIsOfflineMode] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<"synced" | "pending" | "error">(
+    "synced",
+  );
+  const [advancedSearchVisible, setAdvancedSearchVisible] = useState(false);
   const { handleSuccess, handleApiError } = useErrorHandler();
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
 
-  // Emirates ID scanning state
-  const [scanResult, setScanResult] = useState<any>(null);
-  const [scanningProgress, setScanningProgress] = useState<number | null>(null);
-  const [validationErrors, setValidationErrors] = useState<string[]>([]);
-  const [isScanning, setIsScanning] = useState(false);
-
-  // Initialize component
-  useEffect(() => {
-    initializeComponent();
-
-    // Listen for online/offline status
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
-
-    window.addEventListener("online", handleOnline);
-    window.addEventListener("offline", handleOffline);
-
-    return () => {
-      window.removeEventListener("online", handleOnline);
-      window.removeEventListener("offline", handleOffline);
-    };
-  }, []);
-
-  const initializeComponent = async () => {
-    try {
-      // Get current user
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      setCurrentUser(user);
-
-      // Load patients
-      await loadPatients();
-    } catch (error) {
-      handleApiError(error, "PatientManagement initialization");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadPatients = async () => {
-    try {
-      const { data, error } = await PatientService.searchPatients(searchQuery, {
-        limit: 100,
-      });
-
-      if (error) {
-        handleApiError(error, "Loading patients");
-        return;
-      }
-
-      // Transform Supabase data to component format
-      const transformedPatients: PatientData[] =
-        data?.map((patient) => ({
-          id: patient.id,
-          name: `${patient.first_name_en} ${patient.last_name_en}`,
-          emiratesId: patient.emirates_id,
-          dob: patient.date_of_birth,
-          gender: patient.gender === "male" ? "Male" : "Female",
-          phone: patient.phone_number,
-          insurance: patient.insurance_provider,
-          insuranceStatus: patient.status === "active" ? "active" : "inactive",
-          lastVisit: new Date(patient.created_at).toISOString().split("T")[0],
-          episodes: 0, // Will be loaded separately
-          lifecycleStatus: "active_care",
-          homeboundStatus:
-            patient.status === "active" ? "qualified" : "pending_assessment",
-          complexityScore: Math.floor(Math.random() * 100),
-          riskLevel: "medium",
-          primaryRisks: patient.chronic_conditions || [],
-          nationality: patient.nationality,
-          englishFirstName: patient.first_name_en,
-          englishLastName: patient.last_name_en,
-          arabicFirstName: patient.first_name_ar || "",
-          arabicLastName: patient.last_name_ar || "",
-          thiqaCardNumber: patient.thiqa_card_number,
-          insuranceType: patient.insurance_type,
-          medicalRecordNumber: patient.medical_record_number,
-          bloodType: patient.blood_type,
-          allergies: patient.allergies,
-          emergencyContacts: patient.emergency_contacts as any,
-          chronicConditions: patient.chronic_conditions,
-          currentMedications: patient.current_medications as any,
-        })) || [];
-
-      setPatients(transformedPatients);
-    } catch (error) {
-      handleApiError(error, "Loading patients");
-    }
-  };
-
-  // Real-time updates
-  useEffect(() => {
-    if (!currentUser) return;
-
-    // Subscribe to patient updates
-    const subscription = supabase
-      .channel("patients-changes")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "patients",
-        },
-        (payload) => {
-          console.log("Patient updated:", payload);
-          // Reload patients when changes occur
-          loadPatients();
-        },
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(subscription);
-    };
-  }, [currentUser]);
-
-  // Enhanced validation for DOH compliance
-  const validatePatientData = (data: any): string[] => {
-    const errors: string[] = [];
-
-    // Required fields validation
-    if (!data.firstName?.trim()) errors.push("First name (English) is required");
-    if (!data.lastName?.trim()) errors.push("Last name (English) is required");
-    if (!data.emiratesId?.trim()) errors.push("Emirates ID is required");
-    if (!data.dateOfBirth) errors.push("Date of birth is required");
-    if (!data.gender) errors.push("Gender is required");
-    if (!data.nationality) errors.push("Nationality is required");
-    if (!data.phone?.trim()) errors.push("Phone number is required");
-    if (!data.insuranceProvider?.trim()) errors.push("Insurance provider is required");
-    if (!data.insuranceType?.trim()) errors.push("Insurance type is required");
-
-    // Emirates ID format validation
-    const emiratesIdPattern = /^784-\d{4}-\d{7}-\d{1}$/;
-    if (data.emiratesId && !emiratesIdPattern.test(data.emiratesId)) {
-      errors.push("Emirates ID format is invalid (should be 784-YYYY-XXXXXXX-X)");
-    }
-
-    // Phone number validation
-    const phonePattern = /^\+971\s?\d{2}\s?\d{3}\s?\d{4}$/;
-    if (data.phone && !phonePattern.test(data.phone)) {
-      errors.push("Phone number format is invalid (should be +971 XX XXX XXXX)");
-    }
-
-    // DOH homebound status validation
-    if (data.homeboundStatus === "qualified" && !data.homeboundJustification?.trim()) {
-      errors.push("Clinical justification is required for qualified homebound status");
-    }
-
-    return errors;
-  };
-
-  // Check for duplicate Emirates ID
-  const checkDuplicateEmiratesId = async (emiratesId: string): Promise<boolean> => {
-    try {
-      const { data } = await PatientService.searchPatients(emiratesId, { limit: 1 });
-      return data && data.length > 0;
-    } catch (error) {
-      console.error("Error checking duplicate Emirates ID:", error);
-      return false;
-    }
-  };
-
-  // Generate medical record number
-  const generateMedicalRecordNumber = (): string => {
-    const year = new Date().getFullYear();
-    const random = Math.floor(Math.random() * 100000).toString().padStart(5, '0');
-    return `MRN${year}${random}`;
-  };
-
-  // Create audit log
-  const createAuditLog = async (action: string, table: string, recordId: string, oldValues: any, newValues: any) => {
-    try {
-      const { dbUtils } = await import("@/api/supabase.api");
-      await dbUtils.createAuditLog(action, table, recordId, oldValues, newValues);
-    } catch (error) {
-      console.error("Failed to create audit log:", error);
-    }
-  };
-
-  // Handle patient registration with enhanced validation and DOH compliance
-  const handleRegisterPatient = async (patientData: any) => {
-    try {
-      if (!currentUser) {
-        handleApiError(
-          new Error("User not authenticated"),
-          "Patient registration",
-        );
-        return;
-      }
-
-      // Enhanced validation for DOH compliance
-      const validationErrors = validatePatientData(patientData);
-      if (validationErrors.length > 0) {
-        handleApiError(
-          new Error(`Validation failed: ${validationErrors.join(", ")}`),
-          "Patient registration validation",
-        );
-        return;
-      }
-
-      // Check for duplicate Emirates ID
-      const existingPatient = await checkDuplicateEmiratesId(patientData.emiratesId);
-      if (existingPatient) {
-        handleApiError(
-          new Error("Patient with this Emirates ID already exists"),
-          "Duplicate patient check",
-        );
-        return;
-      }
-
-      const { data, error } = await PatientService.createPatient({
-        emirates_id: patientData.emiratesId,
-        first_name_en: patientData.firstName,
-        last_name_en: patientData.lastName,
-        first_name_ar: patientData.arabicFirstName,
-        last_name_ar: patientData.arabicLastName,
-        date_of_birth: patientData.dateOfBirth,
-        gender: patientData.gender.toLowerCase(),
-        nationality: patientData.nationality,
-        phone_number: patientData.phone,
-        email: patientData.email,
-        insurance_provider: patientData.insuranceProvider,
-        insurance_type: patientData.insuranceType,
-        insurance_number: patientData.policyNumber,
-        thiqa_card_number: patientData.thiqaCard,
-        language_preference: patientData.primaryLanguage || "en",
-        interpreter_required: patientData.interpreterRequired || false,
-        created_by: currentUser.id,
-        // Enhanced DOH compliance fields
-        homebound_status: patientData.homeboundStatus || "pending_assessment",
-        homebound_justification: patientData.homeboundJustification,
-        homebound_assessment_date: patientData.homeboundAssessmentDate,
-        homebound_assessed_by: patientData.homeboundAssessedBy,
-        // Medical records integration
-        medical_record_number: generateMedicalRecordNumber(),
-        blood_type: patientData.bloodType,
-        allergies: patientData.allergies ? patientData.allergies.split(',').map(a => a.trim()) : [],
-        emergency_contacts: {
-          primary: {
-            name: patientData.emergencyContactName,
-            relationship: patientData.emergencyContactRelationship,
-            phone: patientData.emergencyContactPhone,
-          }
-        },
-        chronic_conditions: patientData.chronicConditions ? patientData.chronicConditions.split(',').map(c => c.trim()) : [],
-        // Insurance coverage enhancements (CN_15_2025)
-        pregnancy_coverage: patientData.pregnancyCoverage || "not_covered",
-        pod_card_validated: patientData.podCardValidated || false,
-        reproductive_health_coverage: {
-          prenatal_care: patientData.prenatalCare || false,
-          delivery_care: patientData.deliveryCare || false,
-          postnatal_care: patientData.postnatalCare || false,
-        },
-      });
-
-      if (error) {
-        handleApiError(error, "Patient registration");
-        return;
-      }
-
-      // Store offline if needed
-      if (!navigator.onLine) {
-        const { offlineService } = await import("@/services/offline.service");
-        await offlineService.saveAdministrativeData("patient_registration", {
-          type: "patient_registration",
-          data: {
-            patientId: data.id,
-            registrationData: patientData,
-            timestamp: new Date().toISOString(),
-          },
-          priority: "high",
-          syncStrategy: "immediate",
-          status: "completed",
-        });
-      }
-
-      // Log audit trail
-      await createAuditLog("patient_created", "patients", data.id, null, data);
-
-      handleSuccess("Patient registered successfully with DOH compliance");
-      setIsRegisterDialogOpen(false);
-      await loadPatients();
-    } catch (error) {
-      handleApiError(error, "Patient registration");
-    }
-  };
-
-  // Search patients with debouncing
-  useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      if (searchQuery.length >= 2 || searchQuery.length === 0) {
-        loadPatients();
-      }
-    }, 500);
-
-    return () => clearTimeout(timeoutId);
-  }, [searchQuery]);
-
-  // Mock patient data with lifecycle management (fallback)
-  const mockPatients: PatientData[] = [
+  // Enhanced mock data with advanced features
+  const mockPatients: Patient[] = [
     {
       id: "1",
-      name: "Ahmed Al Mansoori",
       emiratesId: "784-1990-1234567-1",
-      dob: "1990-05-15",
+      firstName: "Ahmed",
+      lastName: "Al-Mansoori",
+      dateOfBirth: "1985-03-15",
       gender: "Male",
-      phone: "+971 50 123 4567",
-      insurance: "Daman Enhanced",
-      insuranceStatus: "active",
-      lastVisit: "2023-06-10",
-      episodes: 3,
-      lifecycleStatus: "active_care",
-      admissionDate: "2023-05-01",
-      homeboundStatus: "qualified",
-      complexityScore: 75,
-      riskLevel: "medium",
-      primaryRisks: ["Fall Risk", "Medication Complexity"],
+      phoneNumber: "+971-50-123-4567",
+      email: "ahmed.almansoori@email.com",
+      address: {
+        street: "Al Wasl Road, Villa 123",
+        city: "Dubai",
+        emirate: "Dubai",
+        postalCode: "12345",
+        coordinates: {
+          latitude: 25.2048,
+          longitude: 55.2708,
+        },
+      },
+      emergencyContact: {
+        name: "Fatima Al-Mansoori",
+        relationship: "Wife",
+        phoneNumber: "+971-50-234-5678",
+        email: "fatima.almansoori@email.com",
+        isPrimary: true,
+      },
+      secondaryContacts: [
+        {
+          name: "Omar Al-Mansoori",
+          relationship: "Son",
+          phoneNumber: "+971-50-345-6789",
+          email: "omar.almansoori@email.com",
+        },
+      ],
+      insuranceInfo: {
+        provider: "Daman - Thiqa",
+        policyNumber: "THQ-2023-001234",
+        expiryDate: "2024-12-31",
+        copayAmount: 50,
+        deductible: 500,
+        authorizationNumber: "AUTH-456789",
+      },
+      medicalHistory: {
+        conditions: ["Diabetes Type 2", "Hypertension"],
+        allergies: ["Penicillin"],
+        medications: ["Metformin 500mg", "Lisinopril 10mg"],
+        surgicalHistory: ["Appendectomy (2010)"],
+        familyHistory: ["Diabetes (Father)", "Heart Disease (Mother)"],
+      },
+      status: "Active",
+      registrationDate: "2023-01-15",
+      lastVisit: "2023-06-20",
+      nextAppointment: "2023-07-05",
+      assignedClinician: "Dr. Sarah Ahmed",
+      careTeam: [
+        {
+          id: "DOC001",
+          name: "Dr. Sarah Ahmed",
+          role: "Primary Physician",
+          specialty: "Internal Medicine",
+        },
+        {
+          id: "NUR001",
+          name: "Nurse Fatima Al-Zahra",
+          role: "Registered Nurse",
+          specialty: "Home Healthcare",
+        },
+      ],
+      riskLevel: "Medium",
+      complianceScore: 85,
+      satisfactionScore: 92,
+      acuityScore: 3,
+      languagePreference: "Arabic",
+      culturalConsiderations: ["Islamic dietary requirements", "Prayer times"],
+      accessibilityNeeds: ["Wheelchair accessible"],
+      transportationNeeds: false,
+      familyAccessControls: {
+        allowedMembers: [
+          {
+            name: "Fatima Al-Mansoori",
+            relationship: "Wife",
+            phoneNumber: "+971-50-234-5678",
+            accessLevel: "Full",
+            permissions: [
+              "View Medical Records",
+              "Schedule Appointments",
+              "Receive Updates",
+            ],
+          },
+          {
+            name: "Omar Al-Mansoori",
+            relationship: "Son",
+            phoneNumber: "+971-50-345-6789",
+            accessLevel: "Limited",
+            permissions: ["Receive Emergency Updates"],
+          },
+        ],
+        restrictedInformation: [],
+        consentStatus: "Granted",
+        lastUpdated: "2023-06-15",
+      },
+      digitalEngagement: {
+        portalAccess: true,
+        mobileAppUser: true,
+        communicationPreferences: ["SMS", "Email", "Push Notifications"],
+        lastLogin: "2023-06-18",
+      },
+      qualityMetrics: {
+        outcomeScores: [85, 88, 92, 87],
+        goalAchievement: 78,
+        readmissionRisk: 15,
+        medicationAdherence: 92,
+      },
+      financialInfo: {
+        totalCost: 2400,
+        insuranceCoverage: 1920,
+        outOfPocketExpenses: 480,
+        paymentStatus: "Current",
+      },
+      tags: ["Diabetes", "High Priority", "Family Caregiver"],
+      notes:
+        "Patient is very compliant with treatment plan. Family is actively involved in care.",
+      createdBy: "admin",
+      lastModifiedBy: "nurse_001",
+      lastModified: "2023-06-20T10:30:00Z",
     },
     {
       id: "2",
-      name: "Fatima Al Hashemi",
-      emiratesId: "784-1985-7654321-2",
-      dob: "1985-11-22",
+      emiratesId: "784-1988-2345678-2",
+      firstName: "Mariam",
+      lastName: "Al-Zahra",
+      dateOfBirth: "1988-07-22",
       gender: "Female",
-      phone: "+971 55 765 4321",
-      insurance: "Daman Thiqa",
-      insuranceStatus: "active",
+      phoneNumber: "+971-50-987-6543",
+      email: "mariam.alzahra@email.com",
+      address: {
+        street: "Sheikh Zayed Road, Apt 456",
+        city: "Dubai",
+        emirate: "Dubai",
+        postalCode: "54321",
+      },
+      emergencyContact: {
+        name: "Hassan Al-Zahra",
+        relationship: "Husband",
+        phoneNumber: "+971-50-876-5432",
+        isPrimary: true,
+      },
+      insuranceInfo: {
+        provider: "ADNIC",
+        policyNumber: "ADN-2023-005678",
+        expiryDate: "2024-08-31",
+      },
+      medicalHistory: {
+        conditions: ["Asthma"],
+        allergies: ["Shellfish"],
+        medications: ["Albuterol Inhaler"],
+      },
+      status: "Active",
+      registrationDate: "2023-02-10",
       lastVisit: "2023-06-18",
-      episodes: 1,
-      lifecycleStatus: "discharge_planning",
-      admissionDate: "2023-06-01",
-      homeboundStatus: "qualified",
-      complexityScore: 45,
-      riskLevel: "low",
-      primaryRisks: ["Infection Risk"],
-    },
-    {
-      id: "3",
-      name: "Mohammed Al Zaabi",
-      emiratesId: "784-1975-9876543-3",
-      dob: "1975-03-08",
-      gender: "Male",
-      phone: "+971 54 987 6543",
-      insurance: "Daman Basic",
-      insuranceStatus: "expired",
-      lastVisit: "2023-05-25",
-      episodes: 2,
-      lifecycleStatus: "assessment",
-      homeboundStatus: "pending_assessment",
-      complexityScore: 90,
-      riskLevel: "high",
-      primaryRisks: [
-        "Hospitalization Risk",
-        "Fall Risk",
-        "Pressure Injury Risk",
-      ],
-    },
-    {
-      id: "4",
-      name: "Aisha Al Suwaidi",
-      emiratesId: "784-1995-5432109-4",
-      dob: "1995-09-30",
-      gender: "Female",
-      phone: "+971 56 543 2109",
-      insurance: "Daman MSC",
-      insuranceStatus: "pending",
-      lastVisit: "2023-06-15",
-      episodes: 1,
-      lifecycleStatus: "referral",
-      homeboundStatus: "not_qualified",
-      complexityScore: 30,
-      riskLevel: "low",
-      primaryRisks: [],
+      assignedClinician: "Dr. Amina Hassan",
+      riskLevel: "Low",
+      complianceScore: 95,
+      satisfactionScore: 88,
+      acuityScore: 2,
+      languagePreference: "English",
+      tags: ["Asthma", "Young Adult"],
+      createdBy: "admin",
+      lastModified: "2023-06-18T14:20:00Z",
     },
   ];
 
-  const handlePatientSelect = (patient: PatientData) => {
-    setSelectedPatient(patient);
-  };
-
-  const handleBackToList = () => {
-    setSelectedPatient(null);
-  };
-
-  // Enhanced patient management functions
-  const handleEditPatient = async (patient: PatientData) => {
-    try {
-      // Implementation for editing patient
-      console.log("Editing patient:", patient.id);
-      handleSuccess("Patient edit functionality will be implemented");
-    } catch (error) {
-      handleApiError(error, "Edit patient");
+  useEffect(() => {
+    loadPatients();
+    if (enableAdvancedFeatures) {
+      loadPatientAnalytics();
+      checkSystemStatus();
     }
-  };
+  }, []);
 
-  const handleLifecycleManagement = async (patient: PatientData) => {
-    try {
-      // Implementation for lifecycle management
-      console.log("Managing lifecycle for patient:", patient.id);
-      handleSuccess("Lifecycle management functionality will be implemented");
-    } catch (error) {
-      handleApiError(error, "Lifecycle management");
+  useEffect(() => {
+    filterPatients();
+  }, [patients, searchFilters]);
+
+  // Enhanced filtering with advanced search capabilities
+  const filteredPatientsData = useMemo(() => {
+    let filtered = patients;
+
+    // Text search across multiple fields
+    if (searchFilters.searchTerm) {
+      const searchLower = searchFilters.searchTerm.toLowerCase();
+      filtered = filtered.filter(
+        (patient) =>
+          patient.firstName.toLowerCase().includes(searchLower) ||
+          patient.lastName.toLowerCase().includes(searchLower) ||
+          patient.emiratesId.includes(searchFilters.searchTerm) ||
+          patient.phoneNumber.includes(searchFilters.searchTerm) ||
+          patient.email?.toLowerCase().includes(searchLower) ||
+          patient.assignedClinician?.toLowerCase().includes(searchLower) ||
+          patient.tags?.some((tag) => tag.toLowerCase().includes(searchLower)),
+      );
     }
-  };
 
-  const handleRiskAssessment = async (patient: PatientData) => {
-    try {
-      // Implementation for risk assessment
-      console.log("Risk assessment for patient:", patient.id);
-      handleSuccess("Risk assessment functionality will be implemented");
-    } catch (error) {
-      handleApiError(error, "Risk assessment");
+    // Status filter
+    if (searchFilters.status !== "All") {
+      filtered = filtered.filter(
+        (patient) => patient.status === searchFilters.status,
+      );
     }
-  };
 
-  const handleFamilyCaregivers = async (patient: PatientData) => {
-    try {
-      // Implementation for family/caregivers management
-      console.log("Managing family/caregivers for patient:", patient.id);
-      handleSuccess("Family/caregivers management functionality will be implemented");
-    } catch (error) {
-      handleApiError(error, "Family/caregivers management");
+    // Risk level filter
+    if (searchFilters.riskLevel !== "All") {
+      filtered = filtered.filter(
+        (patient) => patient.riskLevel === searchFilters.riskLevel,
+      );
     }
-  };
 
-  const handleHomeboundAssessment = async (patient: PatientData) => {
-    try {
-      // Implementation for homebound assessment
-      console.log("Homebound assessment for patient:", patient.id);
-      handleSuccess("Homebound assessment functionality will be implemented");
-    } catch (error) {
-      handleApiError(error, "Homebound assessment");
+    // Insurance provider filter
+    if (searchFilters.insuranceProvider !== "All") {
+      filtered = filtered.filter((patient) =>
+        patient.insuranceInfo.provider.includes(
+          searchFilters.insuranceProvider,
+        ),
+      );
     }
-  };
 
-  const handleExportPatientData = async (patient: PatientData) => {
-    try {
-      // Implementation for DOH report export
-      const reportData = {
-        patientId: patient.id,
-        name: patient.name,
-        emiratesId: patient.emiratesId,
-        exportDate: new Date().toISOString(),
-        complianceScore: patient.complexityScore,
-        homeboundStatus: patient.homeboundStatus,
-        riskLevel: patient.riskLevel,
-      };
-      
-      // Create downloadable report
-      const blob = new Blob([JSON.stringify(reportData, null, 2)], {
-        type: 'application/json'
+    // Assigned clinician filter
+    if (searchFilters.assignedClinician !== "All") {
+      filtered = filtered.filter(
+        (patient) =>
+          patient.assignedClinician === searchFilters.assignedClinician,
+      );
+    }
+
+    // Date range filter
+    if (searchFilters.dateRange.from || searchFilters.dateRange.to) {
+      filtered = filtered.filter((patient) => {
+        const patientDate = new Date(patient.registrationDate);
+        const fromDate = searchFilters.dateRange.from
+          ? new Date(searchFilters.dateRange.from)
+          : null;
+        const toDate = searchFilters.dateRange.to
+          ? new Date(searchFilters.dateRange.to)
+          : null;
+
+        if (fromDate && patientDate < fromDate) return false;
+        if (toDate && patientDate > toDate) return false;
+        return true;
       });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
+    }
+
+    // Tags filter
+    if (searchFilters.tags.length > 0) {
+      filtered = filtered.filter((patient) =>
+        searchFilters.tags.some((tag) => patient.tags?.includes(tag)),
+      );
+    }
+
+    // Acuity level filter
+    if (searchFilters.acuityLevel) {
+      filtered = filtered.filter(
+        (patient) =>
+          patient.acuityScore?.toString() === searchFilters.acuityLevel,
+      );
+    }
+
+    // Upcoming appointments filter
+    if (searchFilters.hasUpcomingAppointments) {
+      filtered = filtered.filter((patient) => patient.nextAppointment);
+    }
+
+    // Compliance threshold filter
+    if (searchFilters.complianceThreshold) {
+      filtered = filtered.filter(
+        (patient) =>
+          patient.complianceScore >= searchFilters.complianceThreshold!,
+      );
+    }
+
+    return filtered;
+  }, [patients, searchFilters]);
+
+  const loadPatients = async () => {
+    setIsLoading(true);
+    try {
+      // Replace with actual API call
+      // const { data, error } = await PatientService.searchPatients("");
+      // if (error) throw error;
+      // setPatients(data || []);
+
+      // Using mock data for now
+      setTimeout(() => {
+        setPatients(mockPatients);
+        setFilteredPatients(mockPatients);
+        setIsLoading(false);
+      }, 1000);
+    } catch (error) {
+      handleApiError(error, "Loading patients");
+      setIsLoading(false);
+    }
+  };
+
+  const loadPatientAnalytics = async () => {
+    try {
+      const [analytics, patientMetrics] = await Promise.all([
+        generateAdvancedAnalytics({
+          start_date: "2023-01-01",
+          end_date: new Date().toISOString().split("T")[0],
+        }),
+        getPatientManagementMetrics({
+          date_from: "2023-01-01",
+          date_to: new Date().toISOString().split("T")[0],
+        }),
+      ]);
+
+      // Transform analytics data for patient management
+      const patientAnalyticsData: PatientAnalytics = {
+        totalPatients: patientMetrics.total_patients,
+        activePatients: patientMetrics.active_patients,
+        averageSatisfactionScore: patientMetrics.average_satisfaction,
+        averageComplianceScore: patientMetrics.compliance_rate * 100,
+        riskDistribution: {
+          low: Math.round(patients.length * 0.4),
+          medium: Math.round(patients.length * 0.35),
+          high: Math.round(patients.length * 0.2),
+          critical: Math.round(patients.length * 0.05),
+        },
+        insuranceDistribution: {
+          "Daman - Thiqa": 45,
+          ADNIC: 25,
+          AXA: 15,
+          Others: 15,
+        },
+        outcomeMetrics: {
+          averageOutcomeScore: 87.5,
+          goalAchievementRate: 78.2,
+          readmissionRate: patientMetrics.readmission_rate * 100,
+          medicationAdherenceRate: 91.3,
+        },
+        trendData: {
+          patientGrowth: analytics.trend_analysis.patient_volume_trend,
+          satisfactionTrend: analytics.trend_analysis.satisfaction_trend,
+          complianceTrend: [92, 94, 91, 95, 93, 96, 94],
+        },
+        demographicBreakdown: {
+          ageGroups: {
+            "18-30": 15,
+            "31-45": 25,
+            "46-60": 35,
+            "60+": 25,
+          },
+          genderDistribution: {
+            Male: 52,
+            Female: 48,
+          },
+          emirateDistribution: {
+            Dubai: 35,
+            "Abu Dhabi": 30,
+            Sharjah: 20,
+            Others: 15,
+          },
+        },
+      };
+
+      setPatientAnalytics(patientAnalyticsData);
+    } catch (error) {
+      console.error("Failed to load patient analytics:", error);
+    }
+  };
+
+  const checkSystemStatus = async () => {
+    try {
+      const healthCheck = await performSystemHealthCheck();
+      setSyncStatus(
+        healthCheck.overall_health === "Excellent" ? "synced" : "error",
+      );
+    } catch (error) {
+      setSyncStatus("error");
+    }
+  };
+
+  const filterPatients = () => {
+    setFilteredPatients(filteredPatientsData);
+  };
+
+  const handleAddPatient = async () => {
+    try {
+      // Validate required fields
+      if (
+        !newPatient.firstName ||
+        !newPatient.lastName ||
+        !newPatient.emiratesId
+      ) {
+        throw new Error("Please fill in all required fields");
+      }
+
+      // Replace with actual API call
+      // const { data, error } = await PatientService.createPatient(newPatient);
+      // if (error) throw error;
+
+      const patient: Patient = {
+        ...newPatient,
+        id: Date.now().toString(),
+        registrationDate: new Date().toISOString().split("T")[0],
+        status: "Active",
+        complianceScore: 0,
+        satisfactionScore: 0,
+        createdBy: "current_user", // Replace with actual user
+        lastModified: new Date().toISOString(),
+        familyAccessControls: {
+          allowedMembers: [],
+          restrictedInformation: [],
+          consentStatus: "Pending",
+          lastUpdated: new Date().toISOString(),
+        },
+        digitalEngagement: {
+          portalAccess: false,
+          mobileAppUser: false,
+          communicationPreferences: ["Phone"],
+        },
+        tags: [],
+      } as Patient;
+
+      setPatients([...patients, patient]);
+      setNewPatient({});
+      setShowAddDialog(false);
+      handleSuccess("Patient added successfully");
+
+      // Track patient outcome for analytics
+      if (enableAdvancedFeatures) {
+        await trackPatientOutcome({
+          patient_id: patient.id,
+          episode_id: `EP-${patient.id}`,
+          staff_assigned: [patient.assignedClinician || "unassigned"],
+          service_type: "Initial Registration",
+          start_date: patient.registrationDate,
+          clinical_outcomes: {
+            functional_improvement: 0,
+            pain_reduction: 0,
+            medication_adherence: 0,
+            goal_achievement: 0,
+            readmission_within_30_days: false,
+          },
+          satisfaction_metrics: {
+            overall_satisfaction: 0,
+            care_quality_rating: 0,
+            communication_rating: 0,
+            timeliness_rating: 0,
+            would_recommend: false,
+          },
+          cost_effectiveness: {
+            total_cost: 0,
+            cost_per_visit: 0,
+            insurance_coverage: 0,
+            cost_savings_vs_hospital: 0,
+          },
+          quality_indicators: {
+            documentation_completeness: 100,
+            care_plan_adherence: 0,
+            safety_incidents: 0,
+            infection_prevention_score: 100,
+          },
+          staff_performance_impact: {
+            primary_nurse_rating: 0,
+            therapist_effectiveness: 0,
+            care_coordination_score: 0,
+            family_engagement_level: 0,
+          },
+        });
+      }
+    } catch (error) {
+      handleApiError(error, "Adding patient");
+    }
+  };
+
+  const handleEditPatient = async () => {
+    if (!selectedPatient) return;
+
+    try {
+      // Replace with actual API call
+      // const { data, error } = await PatientService.updatePatient(selectedPatient.id, selectedPatient);
+      // if (error) throw error;
+
+      const updatedPatient = {
+        ...selectedPatient,
+        lastModified: new Date().toISOString(),
+        lastModifiedBy: "current_user", // Replace with actual user
+      };
+
+      setPatients(
+        patients.map((p) => (p.id === selectedPatient.id ? updatedPatient : p)),
+      );
+      setShowEditDialog(false);
+      setSelectedPatient(null);
+      handleSuccess("Patient updated successfully");
+    } catch (error) {
+      handleApiError(error, "Updating patient");
+    }
+  };
+
+  const handleBulkAction = async (action: string) => {
+    if (selectedPatients.length === 0) {
+      handleApiError(new Error("Please select patients first"), "Bulk action");
+      return;
+    }
+
+    try {
+      switch (action) {
+        case "export":
+          await handleExportPatients(selectedPatients);
+          break;
+        case "deactivate":
+          await handleBulkStatusUpdate(selectedPatients, "Inactive");
+          break;
+        case "assign_clinician":
+          // Open dialog for clinician assignment
+          break;
+        case "add_tags":
+          // Open dialog for tag management
+          break;
+        default:
+          break;
+      }
+    } catch (error) {
+      handleApiError(error, "Bulk action");
+    }
+  };
+
+  const handleBulkStatusUpdate = async (
+    patientIds: string[],
+    newStatus: string,
+  ) => {
+    try {
+      const updatedPatients = patients.map((patient) =>
+        patientIds.includes(patient.id)
+          ? {
+              ...patient,
+              status: newStatus as any,
+              lastModified: new Date().toISOString(),
+            }
+          : patient,
+      );
+
+      setPatients(updatedPatients);
+      setSelectedPatients([]);
+      handleSuccess(`${patientIds.length} patients updated successfully`);
+    } catch (error) {
+      handleApiError(error, "Bulk status update");
+    }
+  };
+
+  const handleExportPatients = async (patientIds?: string[]) => {
+    try {
+      const patientsToExport = patientIds
+        ? patients.filter((p) => patientIds.includes(p.id))
+        : filteredPatientsData;
+
+      // Create CSV content
+      const headers = [
+        "ID",
+        "Emirates ID",
+        "First Name",
+        "Last Name",
+        "Date of Birth",
+        "Gender",
+        "Phone",
+        "Email",
+        "Status",
+        "Risk Level",
+        "Compliance Score",
+        "Satisfaction Score",
+        "Registration Date",
+      ];
+
+      const csvContent = [
+        headers.join(","),
+        ...patientsToExport.map((patient) =>
+          [
+            patient.id,
+            patient.emiratesId,
+            patient.firstName,
+            patient.lastName,
+            patient.dateOfBirth,
+            patient.gender,
+            patient.phoneNumber,
+            patient.email || "",
+            patient.status,
+            patient.riskLevel,
+            patient.complianceScore,
+            patient.satisfactionScore,
+            patient.registrationDate,
+          ].join(","),
+        ),
+      ].join("\n");
+
+      // Download CSV file
+      const blob = new Blob([csvContent], { type: "text/csv" });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
       a.href = url;
-      a.download = `DOH_Patient_Report_${patient.emiratesId}_${new Date().toISOString().split('T')[0]}.json`;
+      a.download = `patients_export_${new Date().toISOString().split("T")[0]}.csv`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      
-      handleSuccess("DOH patient report exported successfully");
+      window.URL.revokeObjectURL(url);
+
+      handleSuccess(
+        `Exported ${patientsToExport.length} patients successfully`,
+      );
     } catch (error) {
-      handleApiError(error, "Export patient data");
+      handleApiError(error, "Exporting patients");
     }
   };
 
-  const handleDeletePatient = async (patient: PatientData) => {
+  const handleImportPatients = async (file: File) => {
     try {
-      if (window.confirm(`Are you sure you want to delete patient ${patient.name}? This action cannot be undone.`)) {
-        // Implementation for patient deletion
-        console.log("Deleting patient:", patient.id);
-        handleSuccess("Patient deletion functionality will be implemented");
+      const text = await file.text();
+      const lines = text.split("\n");
+      const headers = lines[0].split(",");
+
+      const importedPatients: Patient[] = [];
+
+      for (let i = 1; i < lines.length; i++) {
+        if (lines[i].trim()) {
+          const values = lines[i].split(",");
+          const patient: Partial<Patient> = {};
+
+          headers.forEach((header, index) => {
+            const value = values[index]?.trim();
+            switch (header.trim()) {
+              case "Emirates ID":
+                patient.emiratesId = value;
+                break;
+              case "First Name":
+                patient.firstName = value;
+                break;
+              case "Last Name":
+                patient.lastName = value;
+                break;
+              case "Date of Birth":
+                patient.dateOfBirth = value;
+                break;
+              case "Gender":
+                patient.gender = value as "Male" | "Female";
+                break;
+              case "Phone":
+                patient.phoneNumber = value;
+                break;
+              case "Email":
+                patient.email = value;
+                break;
+              default:
+                break;
+            }
+          });
+
+          if (patient.firstName && patient.lastName && patient.emiratesId) {
+            importedPatients.push({
+              ...patient,
+              id: Date.now().toString() + i,
+              status: "Active",
+              registrationDate: new Date().toISOString().split("T")[0],
+              complianceScore: 0,
+              satisfactionScore: 0,
+              riskLevel: "Low",
+              createdBy: "import",
+              lastModified: new Date().toISOString(),
+            } as Patient);
+          }
+        }
       }
+
+      setPatients([...patients, ...importedPatients]);
+      handleSuccess(
+        `Imported ${importedPatients.length} patients successfully`,
+      );
+      setShowImportDialog(false);
     } catch (error) {
-      handleApiError(error, "Delete patient");
+      handleApiError(error, "Importing patients");
     }
   };
 
-  const getInsuranceStatusColor = (status: string) => {
-    switch (status) {
-      case "active":
-        return "bg-green-100 text-green-800";
-      case "expired":
-        return "bg-red-100 text-red-800";
-      case "pending":
-        return "bg-yellow-100 text-yellow-800";
-      default:
-        return "bg-gray-100 text-gray-800";
-    }
-  };
-
-  const getLifecycleStatusColor = (status: string) => {
-    switch (status) {
-      case "active_care":
-        return "bg-green-100 text-green-800";
-      case "discharge_planning":
-        return "bg-blue-100 text-blue-800";
-      case "assessment":
-        return "bg-yellow-100 text-yellow-800";
-      case "referral":
-        return "bg-purple-100 text-purple-800";
-      case "discharged":
-        return "bg-gray-100 text-gray-800";
-      case "readmission":
-        return "bg-orange-100 text-orange-800";
-      default:
-        return "bg-gray-100 text-gray-800";
-    }
-  };
-
-  const getRiskLevelColor = (level: string) => {
-    switch (level) {
-      case "low":
-        return "bg-green-100 text-green-800";
-      case "medium":
-        return "bg-yellow-100 text-yellow-800";
-      case "high":
-        return "bg-orange-100 text-orange-800";
-      case "critical":
-        return "bg-red-100 text-red-800";
-      default:
-        return "bg-gray-100 text-gray-800";
-    }
-  };
-
-  const getHomeboundStatusColor = (status: string) => {
-    switch (status) {
-      case "qualified":
-        return "bg-green-100 text-green-800";
-      case "not_qualified":
-        return "bg-red-100 text-red-800";
-      case "pending_assessment":
-        return "bg-yellow-100 text-yellow-800";
-      case "reassessment_required":
-        return "bg-orange-100 text-orange-800";
-      default:
-        return "bg-gray-100 text-gray-800";
-    }
-  };
-
-  // Emirates ID scanning functions
-  const handleCameraCapture = async () => {
+  const handleFamilyAccessUpdate = async (
+    patientId: string,
+    accessControls: any,
+  ) => {
     try {
-      setIsScanning(true);
-      setScanningProgress(0);
-      setValidationErrors([]);
-
-      // Initialize mobile communication service for enhanced camera capture
-      const { mobileCommunicationService } = await import(
-        "@/services/mobile-communication.service"
+      const updatedPatients = patients.map((patient) =>
+        patient.id === patientId
+          ? {
+              ...patient,
+              familyAccessControls: {
+                ...accessControls,
+                lastUpdated: new Date().toISOString(),
+              },
+              lastModified: new Date().toISOString(),
+            }
+          : patient,
       );
 
-      // Check camera capabilities
-      const cameraStatus =
-        await mobileCommunicationService.initializeCameraIntegration();
-
-      if (!cameraStatus.supported) {
-        setValidationErrors(["Camera not supported on this device"]);
-        setIsScanning(false);
-        return;
-      }
-
-      if (!cameraStatus.permissions.camera) {
-        setValidationErrors([
-          "Camera permission required for Emirates ID scanning",
-        ]);
-        setIsScanning(false);
-        return;
-      }
-
-      // Simulate scanning progress
-      const progressInterval = setInterval(() => {
-        setScanningProgress((prev) => {
-          if (prev === null) return 10;
-          if (prev >= 90) {
-            clearInterval(progressInterval);
-            return 100;
-          }
-          return prev + 10;
-        });
-      }, 200);
-
-      // Capture Emirates ID with enhanced mobile camera
-      const captureResult = await mobileCommunicationService.captureWoundImage({
-        facingMode: "environment", // Use back camera for document scanning
-        resolution: { width: 1920, height: 1080 }, // High resolution for OCR
-        flash: false,
-        annotations: {
-          measurements: [],
-          notes: ["Emirates ID Scan", new Date().toISOString()],
-          timestamp: new Date().toISOString(),
-        },
-      });
-
-      if (captureResult.success && captureResult.imageData) {
-        // Process captured image for OCR
-        try {
-          // In production, this would call the Emirates ID OCR service
-          // For now, simulate OCR processing
-          await new Promise((resolve) => setTimeout(resolve, 1500));
-
-          // Mock scan result - in production, this would come from the OCR service
-          const mockScanResult = {
-            emiratesId: "784-1995-1234567-8",
-            fullNameEnglish: "Ahmed Mohammed Al Rashid",
-            fullNameArabic: "أحمد محمد الراشد",
-            nationality: "United Arab Emirates",
-            dateOfBirth: "1995-03-15",
-            gender: "male",
-            issueDate: "2020-01-01",
-            expiryDate: "2030-01-01",
-            cardNumber: "123456789",
-            isValid: true,
-            verificationStatus: "verified",
-            confidence: 0.95,
-            capturedImage: captureResult.imageData.dataUrl,
-          };
-
-          setScanResult(mockScanResult);
-
-          // Save scan data offline if needed
-          if (!navigator.onLine) {
-            const { offlineService } = await import(
-              "@/services/offline.service"
-            );
-            await offlineService.saveAdministrativeData("emirates_id_scan", {
-              type: "emirates_id_scan",
-              data: {
-                scanResult: mockScanResult,
-                imageData: captureResult.imageData.metadata,
-                timestamp: new Date().toISOString(),
-              },
-              priority: "high",
-              syncStrategy: "immediate",
-              status: "completed",
-            });
-          }
-
-          // Validate the scanned Emirates ID
-          await validateScannedEmiratesId(mockScanResult.emiratesId);
-        } catch (error) {
-          setValidationErrors(["Failed to process Emirates ID scan"]);
-        }
-      } else {
-        setValidationErrors([`Camera capture failed: ${captureResult.error}`]);
-      }
+      setPatients(updatedPatients);
+      setShowFamilyAccessDialog(false);
+      handleSuccess("Family access controls updated successfully");
     } catch (error) {
-      console.error("Enhanced camera capture error:", error);
-      setValidationErrors(["Camera access denied or not available"]);
-    } finally {
-      setIsScanning(false);
-      setScanningProgress(null);
+      handleApiError(error, "Updating family access controls");
     }
   };
-
-  const handleFileUpload = async (
-    event: React.ChangeEvent<HTMLInputElement>,
-  ) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    try {
-      setIsScanning(true);
-      setScanningProgress(0);
-      setValidationErrors([]);
-
-      // Simulate file processing progress
-      const progressInterval = setInterval(() => {
-        setScanningProgress((prev) => {
-          if (prev === null) return 20;
-          if (prev >= 90) {
-            clearInterval(progressInterval);
-            return 100;
-          }
-          return prev + 15;
-        });
-      }, 300);
-
-      // Simulate OCR processing
-      setTimeout(async () => {
-        try {
-          // In production, this would call the Emirates ID verification service
-          // const { emiratesIdVerificationService } = await import('@/services/emirates-id-verification.service');
-          // const scanResult = await emiratesIdVerificationService.scanEmiratesId(file);
-
-          // Mock scan result
-          const mockScanResult = {
-            emiratesId: "784-1990-7654321-2",
-            fullNameEnglish: "Fatima Ali Al Zahra",
-            fullNameArabic: "فاطمة علي الزهراء",
-            nationality: "United Arab Emirates",
-            dateOfBirth: "1990-08-22",
-            gender: "female",
-            issueDate: "2019-05-01",
-            expiryDate: "2029-05-01",
-            cardNumber: "987654321",
-            isValid: true,
-            verificationStatus: "verified",
-            confidence: 0.92,
-          };
-
-          setScanResult(mockScanResult);
-
-          // Validate the scanned Emirates ID
-          await validateScannedEmiratesId(mockScanResult.emiratesId);
-        } catch (error) {
-          setValidationErrors(["Failed to process uploaded image"]);
-        } finally {
-          setIsScanning(false);
-          setScanningProgress(null);
-        }
-      }, 2500);
-    } catch (error) {
-      console.error("File upload error:", error);
-      setValidationErrors(["Failed to process uploaded file"]);
-      setIsScanning(false);
-      setScanningProgress(null);
-    }
-  };
-
-  const validateScannedEmiratesId = async (emiratesId: string) => {
-    try {
-      // In production, this would call the validation API
-      const response = await fetch("/api/emirates-id/verify", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ emiratesId }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Validation failed");
-      }
-
-      const validation = await response.json();
-
-      if (!validation.success) {
-        setValidationErrors(
-          validation.validation?.errors || ["Validation failed"],
-        );
-        setScanResult((prev) =>
-          prev ? { ...prev, verificationStatus: "failed" } : null,
-        );
-      }
-    } catch (error) {
-      console.error("Validation error:", error);
-      setValidationErrors([
-        "Unable to validate Emirates ID with government database",
-      ]);
-    }
-  };
-
-  const handleUseScanResults = () => {
-    if (scanResult) {
-      // Auto-fill the registration form with scan results
-      const formData = {
-        emiratesId: scanResult.emiratesId,
-        firstName: scanResult.fullNameEnglish?.split(' ')[0] || '',
-        lastName: scanResult.fullNameEnglish?.split(' ').slice(1).join(' ') || '',
-        arabicFirstName: scanResult.fullNameArabic?.split(' ')[0] || '',
-        arabicLastName: scanResult.fullNameArabic?.split(' ').slice(1).join(' ') || '',
-        dateOfBirth: scanResult.dateOfBirth,
-        gender: scanResult.gender,
-        nationality: scanResult.nationality,
-      };
-
-      // Update form fields with scanned data
-      Object.entries(formData).forEach(([key, value]) => {
-        const element = document.getElementById(key) as HTMLInputElement;
-        if (element) {
-          element.value = value || '';
-          element.dispatchEvent(new Event('input', { bubbles: true }));
-        }
-      });
-
-      setIsEmirateScanDialogOpen(false);
-      setIsRegisterDialogOpen(true);
-      
-      handleSuccess("Emirates ID scanned successfully - form auto-filled");
-    }
-  };
-
-  // Filter patients based on search query and active tab
-  const filteredPatients = (
-    patients.length > 0 ? patients : mockPatients
-  ).filter((patient) => {
-    const matchesSearch =
-      patient.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      patient.emiratesId.includes(searchQuery);
-
-    if (activeTab === "all") return matchesSearch;
-    if (activeTab === "active")
-      return matchesSearch && patient.insuranceStatus === "active";
-    if (activeTab === "expired")
-      return matchesSearch && patient.insuranceStatus === "expired";
-    if (activeTab === "pending")
-      return matchesSearch && patient.insuranceStatus === "pending";
-
-    return matchesSearch;
-  });
-
-  if (selectedPatient) {
-    return (
-      <PatientEpisode patient={selectedPatient} onBack={handleBackToList} />
-    );
-  }
-
-  if (activeSection === "referrals") {
-    return <PatientReferral />;
-  }
 
   return (
-    <div className="bg-white p-6 rounded-lg shadow-sm">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Patient Management</h1>
-        <div className="flex gap-2">
-          <Button
-            variant={activeSection === "referrals" ? "default" : "outline"}
-            onClick={() => setActiveSection("referrals")}
-          >
-            <UserPlus className="mr-2 h-4 w-4" /> Referrals
-          </Button>
-          <Button
-            variant={activeSection === "patients" ? "default" : "outline"}
-            onClick={() => setActiveSection("patients")}
-          >
-            <FileText className="mr-2 h-4 w-4" /> Patients
-          </Button>
-          <Button onClick={() => setIsRegisterDialogOpen(true)}>
-            <Plus className="mr-2 h-4 w-4" /> Register New Patient
-          </Button>
-        </div>
-      </div>
-
-      <Card className="mb-6">
-        <CardContent className="pt-6">
-          <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
-            <div className="relative w-full md:w-96">
-              <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search by name or Emirates ID"
-                className="pl-10"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
+    <TooltipProvider>
+      <div className="bg-white p-6 rounded-lg shadow-sm w-full">
+        {/* Enhanced Header with System Status */}
+        <div className="flex justify-between items-center mb-6">
+          <div className="flex items-center gap-4">
+            <div>
+              <h2 className="text-2xl font-bold flex items-center gap-2">
+                Patient Management
+                {enableAdvancedFeatures && (
+                  <Badge variant="outline" className="text-xs">
+                    Enhanced
+                  </Badge>
+                )}
+              </h2>
+              <p className="text-muted-foreground flex items-center gap-2">
+                Comprehensive patient records and analytics
+                {syncStatus === "synced" && (
+                  <Wifi className="h-3 w-3 text-green-500" />
+                )}
+                {syncStatus === "pending" && (
+                  <CloudSync className="h-3 w-3 text-orange-500 animate-spin" />
+                )}
+                {syncStatus === "error" && (
+                  <WifiOff className="h-3 w-3 text-red-500" />
+                )}
+              </p>
             </div>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm">
-                <Filter className="mr-2 h-4 w-4" /> Filter
-              </Button>
-              <Tabs
-                defaultValue="all"
-                className="w-[400px]"
-                onValueChange={setActiveTab}
+            {isOfflineMode && (
+              <Alert className="w-auto">
+                <HardDrive className="h-4 w-4" />
+                <AlertDescription className="text-xs">
+                  Offline Mode - Changes will sync when connected
+                </AlertDescription>
+              </Alert>
+            )}
+          </div>
+
+          <div className="flex gap-2">
+            {/* View Toggle */}
+            <div className="flex border rounded-lg p-1">
+              <Button
+                variant={currentView === "list" ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setCurrentView("list")}
               >
-                <TabsList>
-                  <TabsTrigger value="all">All Patients</TabsTrigger>
-                  <TabsTrigger value="active">Active</TabsTrigger>
-                  <TabsTrigger value="expired">Expired</TabsTrigger>
-                  <TabsTrigger value="pending">Pending</TabsTrigger>
-                </TabsList>
-              </Tabs>
+                <FileText className="h-4 w-4" />
+              </Button>
+              <Button
+                variant={currentView === "grid" ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setCurrentView("grid")}
+              >
+                <BarChart3 className="h-4 w-4" />
+              </Button>
+              {enableAdvancedFeatures && (
+                <Button
+                  variant={currentView === "analytics" ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => setCurrentView("analytics")}
+                >
+                  <PieChart className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+
+            {/* Action Buttons */}
+            {roleBasedAccess.canCreate && (
+              <Button onClick={() => setShowAddDialog(true)}>
+                <UserPlus className="h-4 w-4 mr-2" />
+                Add Patient
+              </Button>
+            )}
+
+            {roleBasedAccess.canExport && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline">
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                  <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => handleExportPatients()}>
+                    <Download className="h-4 w-4 mr-2" />
+                    Export All
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setShowImportDialog(true)}>
+                    <Upload className="h-4 w-4 mr-2" />
+                    Import Patients
+                  </DropdownMenuItem>
+                  {selectedPatients.length > 0 && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onClick={() => handleBulkAction("export")}
+                      >
+                        <FileSpreadsheet className="h-4 w-4 mr-2" />
+                        Export Selected ({selectedPatients.length})
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => handleBulkAction("deactivate")}
+                      >
+                        <Lock className="h-4 w-4 mr-2" />
+                        Deactivate Selected
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+
+            <Button variant="outline" onClick={loadPatients}>
+              <RefreshCw
+                className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`}
+              />
+            </Button>
+          </div>
+        </div>
+
+        {/* Enhanced Search and Filters */}
+        {showFilters && (
+          <div className="mb-6">
+            <div className="flex gap-4 p-4 bg-gray-50 rounded-lg">
+              <div className="flex-1">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                  <Input
+                    placeholder="Search patients by name, Emirates ID, phone, email, or tags..."
+                    value={searchFilters.searchTerm}
+                    onChange={(e) =>
+                      setSearchFilters((prev) => ({
+                        ...prev,
+                        searchTerm: e.target.value,
+                      }))
+                    }
+                    className="pl-10"
+                  />
+                </div>
+              </div>
+
+              <Select
+                value={searchFilters.status}
+                onValueChange={(value) =>
+                  setSearchFilters((prev) => ({ ...prev, status: value }))
+                }
+              >
+                <SelectTrigger className="w-40">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="All">All Status</SelectItem>
+                  <SelectItem value="Active">Active</SelectItem>
+                  <SelectItem value="Inactive">Inactive</SelectItem>
+                  <SelectItem value="Discharged">Discharged</SelectItem>
+                  <SelectItem value="Pending">Pending</SelectItem>
+                  <SelectItem value="Transferred">Transferred</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select
+                value={searchFilters.riskLevel}
+                onValueChange={(value) =>
+                  setSearchFilters((prev) => ({ ...prev, riskLevel: value }))
+                }
+              >
+                <SelectTrigger className="w-40">
+                  <SelectValue placeholder="Risk Level" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="All">All Risk Levels</SelectItem>
+                  <SelectItem value="Low">Low</SelectItem>
+                  <SelectItem value="Medium">Medium</SelectItem>
+                  <SelectItem value="High">High</SelectItem>
+                  <SelectItem value="Critical">Critical</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {enableAdvancedFeatures && (
+                <>
+                  <Select
+                    value={searchFilters.insuranceProvider}
+                    onValueChange={(value) =>
+                      setSearchFilters((prev) => ({
+                        ...prev,
+                        insuranceProvider: value,
+                      }))
+                    }
+                  >
+                    <SelectTrigger className="w-40">
+                      <SelectValue placeholder="Insurance" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="All">All Providers</SelectItem>
+                      <SelectItem value="Daman">Daman</SelectItem>
+                      <SelectItem value="ADNIC">ADNIC</SelectItem>
+                      <SelectItem value="AXA">AXA</SelectItem>
+                      <SelectItem value="Others">Others</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  <Button
+                    variant="outline"
+                    onClick={() =>
+                      setAdvancedSearchVisible(!advancedSearchVisible)
+                    }
+                  >
+                    <Filter className="h-4 w-4 mr-2" />
+                    Advanced
+                  </Button>
+                </>
+              )}
+            </div>
+
+            {/* Advanced Search Panel */}
+            {advancedSearchVisible && enableAdvancedFeatures && (
+              <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <Label className="text-sm font-medium">Acuity Level</Label>
+                    <Select
+                      value={searchFilters.acuityLevel || ""}
+                      onValueChange={(value) =>
+                        setSearchFilters((prev) => ({
+                          ...prev,
+                          acuityLevel: value || undefined,
+                        }))
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Any Level" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">Any Level</SelectItem>
+                        <SelectItem value="1">Level 1 (Low)</SelectItem>
+                        <SelectItem value="2">Level 2</SelectItem>
+                        <SelectItem value="3">Level 3 (Medium)</SelectItem>
+                        <SelectItem value="4">Level 4</SelectItem>
+                        <SelectItem value="5">Level 5 (Critical)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <Label className="text-sm font-medium">
+                      Registration Date From
+                    </Label>
+                    <Input
+                      type="date"
+                      value={searchFilters.dateRange.from || ""}
+                      onChange={(e) =>
+                        setSearchFilters((prev) => ({
+                          ...prev,
+                          dateRange: {
+                            ...prev.dateRange,
+                            from: e.target.value || undefined,
+                          },
+                        }))
+                      }
+                    />
+                  </div>
+
+                  <div>
+                    <Label className="text-sm font-medium">
+                      Registration Date To
+                    </Label>
+                    <Input
+                      type="date"
+                      value={searchFilters.dateRange.to || ""}
+                      onChange={(e) =>
+                        setSearchFilters((prev) => ({
+                          ...prev,
+                          dateRange: {
+                            ...prev.dateRange,
+                            to: e.target.value || undefined,
+                          },
+                        }))
+                      }
+                    />
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="upcoming-appointments"
+                      checked={searchFilters.hasUpcomingAppointments || false}
+                      onCheckedChange={(checked) =>
+                        setSearchFilters((prev) => ({
+                          ...prev,
+                          hasUpcomingAppointments: checked as boolean,
+                        }))
+                      }
+                    />
+                    <Label htmlFor="upcoming-appointments" className="text-sm">
+                      Has Upcoming Appointments
+                    </Label>
+                  </div>
+
+                  <div>
+                    <Label className="text-sm font-medium">
+                      Min Compliance Score
+                    </Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      max="100"
+                      placeholder="0-100"
+                      value={searchFilters.complianceThreshold || ""}
+                      onChange={(e) =>
+                        setSearchFilters((prev) => ({
+                          ...prev,
+                          complianceThreshold: e.target.value
+                            ? parseInt(e.target.value)
+                            : undefined,
+                        }))
+                      }
+                    />
+                  </div>
+
+                  <div className="flex items-end">
+                    <Button
+                      variant="outline"
+                      onClick={() =>
+                        setSearchFilters({
+                          searchTerm: "",
+                          status: "All",
+                          riskLevel: "All",
+                          insuranceProvider: "All",
+                          assignedClinician: "All",
+                          dateRange: {},
+                          tags: [],
+                        })
+                      }
+                    >
+                      Clear Filters
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Results Summary and Quick Stats */}
+        <div className="mb-4 flex justify-between items-center">
+          <div className="flex items-center gap-4">
+            <div className="text-sm text-muted-foreground">
+              Showing {filteredPatientsData.length} of {patients.length}{" "}
+              patients
+            </div>
+            {selectedPatients.length > 0 && (
+              <Badge variant="secondary">
+                {selectedPatients.length} selected
+              </Badge>
+            )}
+          </div>
+
+          {enableAdvancedFeatures && patientAnalytics && (
+            <div className="flex gap-4 text-sm">
+              <div className="flex items-center gap-1">
+                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                <span>Active: {patientAnalytics.activePatients}</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <Star className="h-3 w-3 text-yellow-500" />
+                <span>
+                  Avg Satisfaction:{" "}
+                  {patientAnalytics.averageSatisfactionScore.toFixed(1)}
+                </span>
+              </div>
+              <div className="flex items-center gap-1">
+                <Target className="h-3 w-3 text-blue-500" />
+                <span>
+                  Avg Compliance:{" "}
+                  {patientAnalytics.averageComplianceScore.toFixed(1)}%
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Main Content Area */}
+        {isLoading ? (
+          <div className="flex items-center justify-center h-64">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            <span className="ml-2">Loading patients...</span>
+          </div>
+        ) : (
+          <>
+            {currentView === "analytics" &&
+            enableAdvancedFeatures &&
+            patientAnalytics ? (
+              <PatientAnalyticsView analytics={patientAnalytics} />
+            ) : currentView === "grid" ? (
+              <PatientGridView
+                patients={filteredPatientsData}
+                selectedPatients={selectedPatients}
+                onPatientSelect={onPatientSelect}
+                onPatientEdit={(patient) => {
+                  setSelectedPatient(patient);
+                  setShowEditDialog(true);
+                }}
+                onSelectionChange={setSelectedPatients}
+                roleBasedAccess={roleBasedAccess}
+                enableAdvancedFeatures={enableAdvancedFeatures}
+              />
+            ) : (
+              <PatientListView
+                patients={filteredPatientsData}
+                selectedPatients={selectedPatients}
+                selectedPatientId={selectedPatientId}
+                onPatientSelect={onPatientSelect}
+                onPatientEdit={(patient) => {
+                  setSelectedPatient(patient);
+                  setShowEditDialog(true);
+                }}
+                onFamilyAccessEdit={(patient) => {
+                  setSelectedPatient(patient);
+                  setShowFamilyAccessDialog(true);
+                }}
+                onSelectionChange={setSelectedPatients}
+                roleBasedAccess={roleBasedAccess}
+                enableAdvancedFeatures={enableAdvancedFeatures}
+              />
+            )}
+          </>
+        )}
+
+        {/* Enhanced Dialogs */}
+        {/* Add Patient Dialog - Enhanced */}
+        <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Add New Patient</DialogTitle>
+              <DialogDescription>
+                Enter patient information. Required fields are marked with *
+              </DialogDescription>
+            </DialogHeader>
+            <EnhancedPatientForm
+              patient={newPatient}
+              onChange={setNewPatient}
+              onSubmit={handleAddPatient}
+              onCancel={() => setShowAddDialog(false)}
+              isEditing={false}
+              enableAdvancedFeatures={enableAdvancedFeatures}
+            />
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Patient Dialog - Enhanced */}
+        <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Edit Patient</DialogTitle>
+              <DialogDescription>Update patient information</DialogDescription>
+            </DialogHeader>
+            {selectedPatient && (
+              <EnhancedPatientForm
+                patient={selectedPatient}
+                onChange={setSelectedPatient}
+                onSubmit={handleEditPatient}
+                onCancel={() => {
+                  setShowEditDialog(false);
+                  setSelectedPatient(null);
+                }}
+                isEditing={true}
+                enableAdvancedFeatures={enableAdvancedFeatures}
+              />
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Family Access Controls Dialog */}
+        {enableAdvancedFeatures && (
+          <Dialog
+            open={showFamilyAccessDialog}
+            onOpenChange={setShowFamilyAccessDialog}
+          >
+            <DialogContent className="max-w-3xl">
+              <DialogHeader>
+                <DialogTitle>Family Access Controls</DialogTitle>
+                <DialogDescription>
+                  Manage family member access to patient information
+                </DialogDescription>
+              </DialogHeader>
+              {selectedPatient && (
+                <FamilyAccessControlsForm
+                  patient={selectedPatient}
+                  onSave={(accessControls) =>
+                    handleFamilyAccessUpdate(selectedPatient.id, accessControls)
+                  }
+                  onCancel={() => setShowFamilyAccessDialog(false)}
+                />
+              )}
+            </DialogContent>
+          </Dialog>
+        )}
+
+        {/* Import Dialog */}
+        <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Import Patients</DialogTitle>
+              <DialogDescription>
+                Upload a CSV file with patient data. Download template for
+                format reference.
+              </DialogDescription>
+            </DialogHeader>
+            <PatientImportForm
+              onImport={handleImportPatients}
+              onCancel={() => setShowImportDialog(false)}
+            />
+          </DialogContent>
+        </Dialog>
+      </div>
+    </TooltipProvider>
+  );
+};
+
+// Enhanced Patient List View Component
+const PatientListView: React.FC<{
+  patients: Patient[];
+  selectedPatients: string[];
+  selectedPatientId?: string;
+  onPatientSelect?: (patient: Patient) => void;
+  onPatientEdit: (patient: Patient) => void;
+  onFamilyAccessEdit: (patient: Patient) => void;
+  onSelectionChange: (selected: string[]) => void;
+  roleBasedAccess: any;
+  enableAdvancedFeatures: boolean;
+}> = ({
+  patients,
+  selectedPatients,
+  selectedPatientId,
+  onPatientSelect,
+  onPatientEdit,
+  onFamilyAccessEdit,
+  onSelectionChange,
+  roleBasedAccess,
+  enableAdvancedFeatures,
+}) => {
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      onSelectionChange(patients.map((p) => p.id));
+    } else {
+      onSelectionChange([]);
+    }
+  };
+
+  const handleSelectPatient = (patientId: string, checked: boolean) => {
+    if (checked) {
+      onSelectionChange([...selectedPatients, patientId]);
+    } else {
+      onSelectionChange(selectedPatients.filter((id) => id !== patientId));
+    }
+  };
+
+  return (
+    <div className="border rounded-lg">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead className="w-12">
+              <Checkbox
+                checked={
+                  selectedPatients.length === patients.length &&
+                  patients.length > 0
+                }
+                onCheckedChange={handleSelectAll}
+              />
+            </TableHead>
+            <TableHead>Patient</TableHead>
+            <TableHead>Emirates ID</TableHead>
+            <TableHead>Contact</TableHead>
+            <TableHead>Insurance</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead>Risk Level</TableHead>
+            {enableAdvancedFeatures && <TableHead>Acuity</TableHead>}
+            <TableHead>Scores</TableHead>
+            {enableAdvancedFeatures && <TableHead>Next Appt</TableHead>}
+            <TableHead>Actions</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {patients.map((patient) => (
+            <TableRow
+              key={patient.id}
+              className={`cursor-pointer hover:bg-gray-50 ${
+                selectedPatientId === patient.id ? "bg-blue-50" : ""
+              }`}
+              onClick={() => onPatientSelect?.(patient)}
+            >
+              <TableCell onClick={(e) => e.stopPropagation()}>
+                <Checkbox
+                  checked={selectedPatients.includes(patient.id)}
+                  onCheckedChange={(checked) =>
+                    handleSelectPatient(patient.id, checked as boolean)
+                  }
+                />
+              </TableCell>
+              <TableCell>
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
+                    <User className="h-5 w-5 text-primary" />
+                  </div>
+                  <div>
+                    <p className="font-medium">
+                      {patient.firstName} {patient.lastName}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {patient.gender} • Born: {patient.dateOfBirth}
+                    </p>
+                    {enableAdvancedFeatures &&
+                      patient.tags &&
+                      patient.tags.length > 0 && (
+                        <div className="flex gap-1 mt-1">
+                          {patient.tags.slice(0, 2).map((tag) => (
+                            <Badge
+                              key={tag}
+                              variant="outline"
+                              className="text-xs"
+                            >
+                              {tag}
+                            </Badge>
+                          ))}
+                          {patient.tags.length > 2 && (
+                            <Badge variant="outline" className="text-xs">
+                              +{patient.tags.length - 2}
+                            </Badge>
+                          )}
+                        </div>
+                      )}
+                  </div>
+                </div>
+              </TableCell>
+              <TableCell>
+                <code className="text-sm bg-gray-100 px-2 py-1 rounded">
+                  {patient.emiratesId}
+                </code>
+              </TableCell>
+              <TableCell>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1 text-sm">
+                    <Phone className="h-3 w-3" />
+                    {patient.phoneNumber}
+                  </div>
+                  {patient.email && (
+                    <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                      <Mail className="h-3 w-3" />
+                      {patient.email}
+                    </div>
+                  )}
+                  {enableAdvancedFeatures &&
+                    patient.digitalEngagement?.portalAccess && (
+                      <div className="flex items-center gap-1 text-xs text-blue-600">
+                        <Smartphone className="h-3 w-3" />
+                        Portal User
+                      </div>
+                    )}
+                </div>
+              </TableCell>
+              <TableCell>
+                <div className="text-sm">
+                  <p className="font-medium">
+                    {patient.insuranceInfo.provider}
+                  </p>
+                  <p className="text-muted-foreground">
+                    {patient.insuranceInfo.policyNumber}
+                  </p>
+                  {enableAdvancedFeatures &&
+                    patient.insuranceInfo.authorizationNumber && (
+                      <p className="text-xs text-green-600">
+                        Auth: {patient.insuranceInfo.authorizationNumber}
+                      </p>
+                    )}
+                </div>
+              </TableCell>
+              <TableCell>
+                <Badge
+                  className={
+                    patient.status === "Active"
+                      ? "bg-green-100 text-green-800"
+                      : patient.status === "Inactive"
+                        ? "bg-gray-100 text-gray-800"
+                        : patient.status === "Pending"
+                          ? "bg-yellow-100 text-yellow-800"
+                          : "bg-blue-100 text-blue-800"
+                  }
+                >
+                  {patient.status}
+                </Badge>
+              </TableCell>
+              <TableCell>
+                <Badge
+                  className={
+                    patient.riskLevel === "Critical"
+                      ? "bg-red-100 text-red-800"
+                      : patient.riskLevel === "High"
+                        ? "bg-orange-100 text-orange-800"
+                        : patient.riskLevel === "Medium"
+                          ? "bg-yellow-100 text-yellow-800"
+                          : "bg-green-100 text-green-800"
+                  }
+                >
+                  {patient.riskLevel}
+                </Badge>
+              </TableCell>
+              {enableAdvancedFeatures && (
+                <TableCell>
+                  {patient.acuityScore && (
+                    <div className="flex items-center gap-1">
+                      <Gauge className="h-3 w-3" />
+                      <span className="text-sm font-medium">
+                        {patient.acuityScore}
+                      </span>
+                    </div>
+                  )}
+                </TableCell>
+              )}
+              <TableCell>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1">
+                      <CheckCircle className="h-3 w-3 text-green-500" />
+                      <span className="text-xs">
+                        {patient.complianceScore}%
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1">
+                      <Star className="h-3 w-3 text-yellow-500" />
+                      <span className="text-xs">
+                        {patient.satisfactionScore}%
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </TableCell>
+              {enableAdvancedFeatures && (
+                <TableCell>
+                  {patient.nextAppointment ? (
+                    <div className="text-xs">
+                      <div className="flex items-center gap-1 text-blue-600">
+                        <Calendar className="h-3 w-3" />
+                        {new Date(patient.nextAppointment).toLocaleDateString()}
+                      </div>
+                    </div>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">
+                      None scheduled
+                    </span>
+                  )}
+                </TableCell>
+              )}
+              <TableCell>
+                <div className="flex gap-1">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onPatientSelect?.(patient);
+                        }}
+                      >
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>View Details</TooltipContent>
+                  </Tooltip>
+
+                  {roleBasedAccess.canEdit && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onPatientEdit(patient);
+                          }}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Edit Patient</TooltipContent>
+                    </Tooltip>
+                  )}
+
+                  {enableAdvancedFeatures &&
+                    roleBasedAccess.canManageFamilyAccess && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onFamilyAccessEdit(patient);
+                            }}
+                          >
+                            <Users className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Family Access</TooltipContent>
+                      </Tooltip>
+                    )}
+                </div>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+};
+
+// Placeholder components for enhanced features
+const PatientGridView: React.FC<any> = ({ patients }) => (
+  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    {patients.map((patient: Patient) => (
+      <Card key={patient.id} className="hover:shadow-md transition-shadow">
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
+              <User className="h-6 w-6 text-primary" />
+            </div>
+            <div>
+              <CardTitle className="text-lg">
+                {patient.firstName} {patient.lastName}
+              </CardTitle>
+              <p className="text-sm text-muted-foreground">
+                {patient.emiratesId}
+              </p>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2">
+            <div className="flex justify-between items-center">
+              <span className="text-sm">Status:</span>
+              <Badge
+                variant={patient.status === "Active" ? "default" : "secondary"}
+              >
+                {patient.status}
+              </Badge>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-sm">Risk Level:</span>
+              <Badge
+                variant={
+                  patient.riskLevel === "Critical" ? "destructive" : "outline"
+                }
+              >
+                {patient.riskLevel}
+              </Badge>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-sm">Compliance:</span>
+              <span className="text-sm font-medium">
+                {patient.complianceScore}%
+              </span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    ))}
+  </div>
+);
+
+const PatientAnalyticsView: React.FC<{ analytics: PatientAnalytics }> = ({
+  analytics,
+}) => (
+  <div className="space-y-6">
+    {/* Key Metrics Cards */}
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium">Total Patients</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold">{analytics.totalPatients}</div>
+          <p className="text-xs text-muted-foreground">
+            Active: {analytics.activePatients}
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium">
+            Avg Satisfaction
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold">
+            {analytics.averageSatisfactionScore.toFixed(1)}
+          </div>
+          <div className="flex items-center gap-1">
+            <Star className="h-3 w-3 text-yellow-500" />
+            <span className="text-xs text-muted-foreground">Out of 5.0</span>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium">Compliance Rate</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold">
+            {analytics.averageComplianceScore.toFixed(1)}%
+          </div>
+          <Progress value={analytics.averageComplianceScore} className="mt-2" />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium">
+            Goal Achievement
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold">
+            {analytics.outcomeMetrics.goalAchievementRate.toFixed(1)}%
+          </div>
+          <div className="flex items-center gap-1">
+            <Target className="h-3 w-3 text-blue-500" />
+            <span className="text-xs text-muted-foreground">
+              Treatment goals
+            </span>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+
+    {/* Risk Distribution Chart */}
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg font-medium">
+            Risk Level Distribution
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            <div className="flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                <span className="text-sm">Low Risk</span>
+              </div>
+              <span className="text-sm font-medium">
+                {analytics.riskDistribution.low}
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
+                <span className="text-sm">Medium Risk</span>
+              </div>
+              <span className="text-sm font-medium">
+                {analytics.riskDistribution.medium}
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 bg-orange-500 rounded-full"></div>
+                <span className="text-sm">High Risk</span>
+              </div>
+              <span className="text-sm font-medium">
+                {analytics.riskDistribution.high}
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+                <span className="text-sm">Critical Risk</span>
+              </div>
+              <span className="text-sm font-medium">
+                {analytics.riskDistribution.critical}
+              </span>
             </div>
           </div>
         </CardContent>
@@ -1042,2865 +2047,670 @@ const PatientManagement = () => {
 
       <Card>
         <CardHeader>
-          <CardTitle>Patient List</CardTitle>
+          <CardTitle className="text-lg font-medium">
+            Insurance Distribution
+          </CardTitle>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Patient</TableHead>
-                <TableHead>Emirates ID</TableHead>
-                <TableHead>Lifecycle Status</TableHead>
-                <TableHead>Homebound</TableHead>
-                <TableHead>Risk Level</TableHead>
-                <TableHead>Complexity</TableHead>
-                <TableHead>Insurance</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredPatients.length > 0 ? (
-                filteredPatients.map((patient) => (
-                  <TableRow key={patient.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <Avatar>
-                          <AvatarImage
-                            src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${patient.id}`}
-                          />
-                          <AvatarFallback>
-                            {patient.name.substring(0, 2).toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <div className="font-medium">{patient.name}</div>
-                          <div className="text-sm text-muted-foreground">
-                            {patient.gender},{" "}
-                            {new Date().getFullYear() -
-                              new Date(patient.dob).getFullYear()}{" "}
-                            yrs
-                          </div>
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>{patient.emiratesId}</TableCell>
-                    <TableCell>
-                      <Badge
-                        variant="outline"
-                        className={getLifecycleStatusColor(
-                          patient.lifecycleStatus,
-                        )}
-                      >
-                        {patient.lifecycleStatus
-                          .replace("_", " ")
-                          .charAt(0)
-                          .toUpperCase() +
-                          patient.lifecycleStatus.replace("_", " ").slice(1)}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        variant="outline"
-                        className={getHomeboundStatusColor(
-                          patient.homeboundStatus,
-                        )}
-                      >
-                        {patient.homeboundStatus
-                          .replace("_", " ")
-                          .charAt(0)
-                          .toUpperCase() +
-                          patient.homeboundStatus.replace("_", " ").slice(1)}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Badge
-                          variant="outline"
-                          className={getRiskLevelColor(patient.riskLevel)}
-                        >
-                          {patient.riskLevel.charAt(0).toUpperCase() +
-                            patient.riskLevel.slice(1)}
-                        </Badge>
-                        {patient.primaryRisks.length > 0 && (
-                          <span className="text-xs text-muted-foreground">
-                            ({patient.primaryRisks.length} risks)
-                          </span>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <div className="w-12 bg-gray-200 rounded-full h-2">
-                          <div
-                            className={`h-2 rounded-full ${
-                              patient.complexityScore >= 80
-                                ? "bg-red-500"
-                                : patient.complexityScore >= 60
-                                  ? "bg-orange-500"
-                                  : patient.complexityScore >= 40
-                                    ? "bg-yellow-500"
-                                    : "bg-green-500"
-                            }`}
-                            style={{ width: `${patient.complexityScore}%` }}
-                          ></div>
-                        </div>
-                        <span className="text-sm font-medium">
-                          {patient.complexityScore}
-                        </span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-col gap-1">
-                        <span className="text-sm">{patient.insurance}</span>
-                        <Badge
-                          variant="outline"
-                          className={`text-xs ${getInsuranceStatusColor(
-                            patient.insuranceStatus,
-                          )}`}
-                        >
-                          {patient.insuranceStatus.charAt(0).toUpperCase() +
-                            patient.insuranceStatus.slice(1)}
-                        </Badge>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon">
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            onClick={() => handlePatientSelect(patient)}
-                          >
-                            <FileText className="mr-2 h-4 w-4" /> View Episodes
-                          </DropdownMenuItem>
-                          <DropdownMenuItem>
-                            <Edit className="mr-2 h-4 w-4" /> Edit Patient
-                          </DropdownMenuItem>
-                          <DropdownMenuItem>
-                            <FileText className="mr-2 h-4 w-4" /> Lifecycle
-                            Management
-                          </DropdownMenuItem>
-                          <DropdownMenuItem>
-                            <AlertCircle className="mr-2 h-4 w-4" /> Risk
-                            Assessment
-                          </DropdownMenuItem>
-                          <DropdownMenuItem>
-                            <Users className="mr-2 h-4 w-4" /> Family/Caregivers
-                          </DropdownMenuItem>
-                          <DropdownMenuItem>
-                            <Shield className="mr-2 h-4 w-4" /> Homebound
-                            Assessment
-                          </DropdownMenuItem>
-                          <DropdownMenuItem>
-                            <Trash2 className="mr-2 h-4 w-4" /> Delete Patient
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center py-4">
-                    No patients found matching your search criteria.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
+          <div className="space-y-3">
+            {Object.entries(analytics.insuranceDistribution).map(
+              ([provider, percentage]) => (
+                <div
+                  key={provider}
+                  className="flex justify-between items-center"
+                >
+                  <span className="text-sm">{provider}</span>
+                  <div className="flex items-center gap-2">
+                    <div className="w-20 bg-gray-200 rounded-full h-2">
+                      <div
+                        className="bg-blue-500 h-2 rounded-full"
+                        style={{ width: `${percentage}%` }}
+                      ></div>
+                    </div>
+                    <span className="text-sm font-medium">{percentage}%</span>
+                  </div>
+                </div>
+              ),
+            )}
+          </div>
         </CardContent>
       </Card>
+    </div>
 
-      {/* Register New Patient Dialog */}
-      <Dialog
-        open={isRegisterDialogOpen}
-        onOpenChange={setIsRegisterDialogOpen}
-      >
-        <DialogContent className="sm:max-w-[600px]">
-          <DialogHeader>
-            <DialogTitle>Register New Patient</DialogTitle>
-          </DialogHeader>
-          <div className="grid gap-6 py-4">
-            <div className="flex flex-col items-center justify-center p-6 border-2 border-dashed rounded-lg">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setIsRegisterDialogOpen(false);
-                  setIsEmirateScanDialogOpen(true);
-                }}
+    {/* Outcome Metrics */}
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-lg font-medium">Clinical Outcomes</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="text-center">
+            <div className="text-2xl font-bold text-green-600">
+              {analytics.outcomeMetrics.averageOutcomeScore.toFixed(1)}
+            </div>
+            <p className="text-sm text-muted-foreground">Avg Outcome Score</p>
+          </div>
+          <div className="text-center">
+            <div className="text-2xl font-bold text-blue-600">
+              {analytics.outcomeMetrics.goalAchievementRate.toFixed(1)}%
+            </div>
+            <p className="text-sm text-muted-foreground">Goal Achievement</p>
+          </div>
+          <div className="text-center">
+            <div className="text-2xl font-bold text-orange-600">
+              {analytics.outcomeMetrics.readmissionRate.toFixed(1)}%
+            </div>
+            <p className="text-sm text-muted-foreground">Readmission Rate</p>
+          </div>
+          <div className="text-center">
+            <div className="text-2xl font-bold text-purple-600">
+              {analytics.outcomeMetrics.medicationAdherenceRate.toFixed(1)}%
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Medication Adherence
+            </p>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  </div>
+);
+
+const EnhancedPatientForm: React.FC<any> = ({
+  patient,
+  onChange,
+  onSubmit,
+  onCancel,
+  isEditing,
+  enableAdvancedFeatures,
+}) => {
+  const [currentTab, setCurrentTab] = useState("basic");
+
+  return (
+    <div className="space-y-6">
+      <Tabs value={currentTab} onValueChange={setCurrentTab}>
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="basic">Basic Info</TabsTrigger>
+          <TabsTrigger value="contact">Contact</TabsTrigger>
+          <TabsTrigger value="medical">Medical</TabsTrigger>
+          {enableAdvancedFeatures && (
+            <TabsTrigger value="advanced">Advanced</TabsTrigger>
+          )}
+        </TabsList>
+
+        <TabsContent value="basic" className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="firstName">First Name *</Label>
+              <Input
+                id="firstName"
+                value={patient.firstName || ""}
+                onChange={(e) =>
+                  onChange({ ...patient, firstName: e.target.value })
+                }
+                placeholder="Enter first name"
+              />
+            </div>
+            <div>
+              <Label htmlFor="lastName">Last Name *</Label>
+              <Input
+                id="lastName"
+                value={patient.lastName || ""}
+                onChange={(e) =>
+                  onChange({ ...patient, lastName: e.target.value })
+                }
+                placeholder="Enter last name"
+              />
+            </div>
+            <div>
+              <Label htmlFor="emiratesId">Emirates ID *</Label>
+              <Input
+                id="emiratesId"
+                value={patient.emiratesId || ""}
+                onChange={(e) =>
+                  onChange({ ...patient, emiratesId: e.target.value })
+                }
+                placeholder="784-YYYY-XXXXXXX-X"
+              />
+            </div>
+            <div>
+              <Label htmlFor="dateOfBirth">Date of Birth</Label>
+              <Input
+                id="dateOfBirth"
+                type="date"
+                value={patient.dateOfBirth || ""}
+                onChange={(e) =>
+                  onChange({ ...patient, dateOfBirth: e.target.value })
+                }
+              />
+            </div>
+            <div>
+              <Label htmlFor="gender">Gender</Label>
+              <Select
+                value={patient.gender || ""}
+                onValueChange={(value) =>
+                  onChange({ ...patient, gender: value })
+                }
               >
-                Scan Emirates ID
-              </Button>
-              <p className="mt-2 text-sm text-muted-foreground">
-                or enter details manually
-              </p>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label htmlFor="firstName" className="text-sm font-medium">
-                  First Name (English) *
-                </label>
-                <Input 
-                  id="firstName" 
-                  placeholder="First Name" 
-                  required
-                  className="border-gray-300 focus:border-blue-500"
-                />
-              </div>
-              <div className="space-y-2">
-                <label htmlFor="lastName" className="text-sm font-medium">
-                  Last Name (English) *
-                </label>
-                <Input 
-                  id="lastName" 
-                  placeholder="Last Name" 
-                  required
-                  className="border-gray-300 focus:border-blue-500"
-                />
-              </div>
-              <div className="space-y-2">
-                <label htmlFor="emiratesId" className="text-sm font-medium">
-                  Emirates ID *
-                </label>
-                <Input 
-                  id="emiratesId" 
-                  placeholder="784-YYYY-XXXXXXX-X" 
-                  required
-                  pattern="784-\d{4}-\d{7}-\d{1}"
-                  title="Format: 784-YYYY-XXXXXXX-X"
-                  className="border-gray-300 focus:border-blue-500"
-                />
-              </div>
-              <div className="space-y-2">
-                <label htmlFor="dob" className="text-sm font-medium">
-                  Date of Birth *
-                </label>
-                <Input 
-                  id="dob" 
-                  type="date" 
-                  required
-                  max={new Date().toISOString().split('T')[0]}
-                  className="border-gray-300 focus:border-blue-500"
-                />
-              </div>
-              <div className="space-y-2">
-                <label htmlFor="gender" className="text-sm font-medium">
-                  Gender *
-                </label>
-                <select 
-                  id="gender"
-                  className="w-full p-2 border border-gray-300 rounded focus:border-blue-500 focus:outline-none"
-                  required
-                >
-                  <option value="">Select Gender</option>
-                  <option value="male">Male</option>
-                  <option value="female">Female</option>
-                </select>
-              </div>
-              <div className="space-y-2">
-                <label htmlFor="nationality" className="text-sm font-medium">
-                  Nationality *
-                </label>
-                <select 
-                  id="nationality"
-                  className="w-full p-2 border border-gray-300 rounded focus:border-blue-500 focus:outline-none"
-                  required
-                >
-                  <option value="">Select Nationality</option>
-                  <option value="UAE">United Arab Emirates</option>
-                  <option value="Saudi Arabia">Saudi Arabia</option>
-                  <option value="Egypt">Egypt</option>
-                  <option value="India">India</option>
-                  <option value="Pakistan">Pakistan</option>
-                  <option value="Philippines">Philippines</option>
-                  <option value="Bangladesh">Bangladesh</option>
-                  <option value="Sri Lanka">Sri Lanka</option>
-                  <option value="Nepal">Nepal</option>
-                  <option value="Jordan">Jordan</option>
-                  <option value="Lebanon">Lebanon</option>
-                  <option value="Syria">Syria</option>
-                  <option value="Other">Other</option>
-                </select>
-              </div>
-            </div>
-
-            <Separator />
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label
-                  htmlFor="arabicFirstName"
-                  className="text-sm font-medium"
-                >
-                  First Name (Arabic)
-                </label>
-                <Input
-                  id="arabicFirstName"
-                  placeholder="الاسم الأول"
-                  dir="rtl"
-                />
-              </div>
-              <div className="space-y-2">
-                <label htmlFor="arabicLastName" className="text-sm font-medium">
-                  Last Name (Arabic)
-                </label>
-                <Input
-                  id="arabicLastName"
-                  placeholder="اسم العائلة"
-                  dir="rtl"
-                />
-              </div>
-              <div className="space-y-2">
-                <label htmlFor="phone" className="text-sm font-medium">
-                  Phone Number
-                </label>
-                <Input id="phone" placeholder="+971 XX XXX XXXX" />
-              </div>
-              <div className="space-y-2">
-                <label htmlFor="thiqaCard" className="text-sm font-medium">
-                  Thiqa Card Number (Optional)
-                </label>
-                <Input id="thiqaCard" placeholder="Thiqa Card Number" />
-              </div>
-            </div>
-
-            <Separator />
-
-            {/* DOH 2025 Enhanced Patient Registration Fields */}
-            <div className="space-y-4">
-              <h3 className="text-lg font-medium">
-                DOH 2025 Enhanced Registration
-              </h3>
-
-              <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                <h4 className="font-medium text-blue-900 mb-2">
-                  Homebound Status Assessment (DOH Requirement)
-                </h4>
-                <div className="space-y-3">
-                  <div className="space-y-2">
-                    <label htmlFor="homeboundStatus" className="text-sm font-medium text-blue-800">
-                      Homebound Status *
-                    </label>
-                    <select 
-                      id="homeboundStatus"
-                      className="w-full p-2 border border-blue-300 rounded text-sm focus:border-blue-500 focus:outline-none"
-                      required
-                      onChange={(e) => {
-                        const justificationField = document.getElementById('homeboundJustification') as HTMLTextAreaElement;
-                        if (justificationField) {
-                          justificationField.required = e.target.value === 'qualified';
-                        }
-                      }}
-                    >
-                      <option value="">Select homebound status</option>
-                      <option value="qualified">
-                        Qualified - Unable to leave home without considerable effort
-                      </option>
-                      <option value="not_qualified">
-                        Not Qualified - Able to leave home regularly
-                      </option>
-                      <option value="pending_assessment">
-                        Pending Assessment
-                      </option>
-                      <option value="reassessment_required">
-                        Reassessment Required
-                      </option>
-                    </select>
-                  </div>
-                  <div className="space-y-2">
-                    <label htmlFor="homeboundJustification" className="text-sm font-medium text-blue-800">
-                      Clinical Justification for Homebound Status
-                      <span id="justificationRequired" className="text-red-500 hidden"> *</span>
-                    </label>
-                    <textarea
-                      id="homeboundJustification"
-                      className="w-full p-2 border border-blue-300 rounded text-sm focus:border-blue-500 focus:outline-none"
-                      rows={3}
-                      placeholder="Provide clinical justification for homebound status determination (required for qualified status)"
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <label htmlFor="homeboundAssessmentDate" className="text-sm font-medium text-blue-800">
-                        Assessment Date
-                      </label>
-                      <input
-                        id="homeboundAssessmentDate"
-                        type="date"
-                        className="w-full p-2 border border-blue-300 rounded text-sm focus:border-blue-500 focus:outline-none"
-                        max={new Date().toISOString().split('T')[0]}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <label htmlFor="homeboundAssessedBy" className="text-sm font-medium text-blue-800">
-                        Assessed By
-                      </label>
-                      <input
-                        id="homeboundAssessedBy"
-                        type="text"
-                        className="w-full p-2 border border-blue-300 rounded text-sm focus:border-blue-500 focus:outline-none"
-                        placeholder="Healthcare provider name"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="p-4 bg-green-50 rounded-lg border border-green-200">
-                <h4 className="font-medium text-green-900 mb-2">
-                  Language Preferences & Communication
-                </h4>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label htmlFor="primaryLanguage" className="text-sm font-medium text-green-800">
-                      Primary Language *
-                    </label>
-                    <select 
-                      id="primaryLanguage"
-                      className="w-full p-2 border border-green-300 rounded text-sm focus:border-green-500 focus:outline-none"
-                      required
-                    >
-                      <option value="">Select primary language</option>
-                      <option value="arabic">Arabic</option>
-                      <option value="english">English</option>
-                      <option value="urdu">Urdu</option>
-                      <option value="hindi">Hindi</option>
-                      <option value="tagalog">Tagalog</option>
-                      <option value="bengali">Bengali</option>
-                      <option value="malayalam">Malayalam</option>
-                      <option value="tamil">Tamil</option>
-                      <option value="farsi">Farsi</option>
-                      <option value="french">French</option>
-                      <option value="other">Other</option>
-                    </select>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-green-800">
-                      Communication Preferences
-                    </label>
-                    <div className="space-y-2">
-                      <div className="flex items-center space-x-2">
-                        <input
-                          type="checkbox"
-                          id="interpreterRequired"
-                          className="rounded border-green-300 focus:ring-green-500"
-                        />
-                        <label htmlFor="interpreterRequired" className="text-sm">
-                          Interpreter services needed
-                        </label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <input
-                          type="checkbox"
-                          id="writtenTranslation"
-                          className="rounded border-green-300 focus:ring-green-500"
-                        />
-                        <label htmlFor="writtenTranslation" className="text-sm">
-                          Written translation required
-                        </label>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <Separator />
-
-            <div className="space-y-4">
-              <h3 className="text-lg font-medium">Insurance Information</h3>
-
-              <div className="space-y-2">
-                <label htmlFor="insuranceType" className="text-sm font-medium">Insurance Type *</label>
-                <select 
-                  id="insuranceType"
-                  className="w-full p-2 border border-gray-300 rounded focus:border-blue-500 focus:outline-none"
-                  required
-                >
-                  <option value="">Select Insurance Type</option>
-                  <option value="government">Government Insurance</option>
-                  <option value="private">Private Insurance</option>
-                  <option value="self_pay">Self Pay</option>
-                </select>
-              </div>
-
-              {/* Insurance Coverage Enhancement (CN_15_2025) */}
-              <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                <h4 className="font-medium text-blue-900 mb-2">
-                  Enhanced Coverage Verification (CN_15_2025)
-                </h4>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label htmlFor="pregnancyCoverage" className="text-sm font-medium text-blue-800">
-                      Pregnancy & Childbirth Coverage
-                    </label>
-                    <select 
-                      id="pregnancyCoverage"
-                      className="w-full p-2 border border-blue-300 rounded text-sm focus:border-blue-500 focus:outline-none"
-                    >
-                      <option value="not_covered">Not Covered</option>
-                      <option value="covered">Fully Covered</option>
-                      <option value="partial">Partially Covered</option>
-                      <option value="pending">Verification Pending</option>
-                    </select>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-blue-800">
-                      POD Card Validation
-                    </label>
-                    <div className="flex items-center space-x-2">
-                      <input
-                        type="checkbox"
-                        id="podCardValidated"
-                        className="rounded border-blue-300 focus:ring-blue-500"
-                      />
-                      <label htmlFor="podCardValidated" className="text-sm">
-                        POD Card Validated
-                      </label>
-                    </div>
-                  </div>
-                </div>
-                <div className="mt-3">
-                  <label className="text-sm font-medium text-blue-800">
-                    Reproductive Health Services Coverage
-                  </label>
-                  <div className="grid grid-cols-3 gap-2 mt-1">
-                    <div className="flex items-center space-x-1">
-                      <input
-                        type="checkbox"
-                        id="prenatalCare"
-                        className="rounded border-blue-300 focus:ring-blue-500"
-                      />
-                      <label htmlFor="prenatalCare" className="text-xs">
-                        Prenatal Care
-                      </label>
-                    </div>
-                    <div className="flex items-center space-x-1">
-                      <input
-                        type="checkbox"
-                        id="deliveryCare"
-                        className="rounded border-blue-300 focus:ring-blue-500"
-                      />
-                      <label htmlFor="deliveryCare" className="text-xs">
-                        Delivery Care
-                      </label>
-                    </div>
-                    <div className="flex items-center space-x-1">
-                      <input
-                        type="checkbox"
-                        id="postnatalCare"
-                        className="rounded border-blue-300 focus:ring-blue-500"
-                      />
-                      <label htmlFor="postnatalCare" className="text-xs">
-                        Postnatal Care
-                      </label>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label htmlFor="insuranceProvider" className="text-sm font-medium">
-                    Insurance Provider *
-                  </label>
-                  <select 
-                    id="insuranceProvider"
-                    className="w-full p-2 border border-gray-300 rounded focus:border-blue-500 focus:outline-none"
-                    required
-                  >
-                    <option value="">Select insurance provider</option>
-                    <option value="Daman">Daman</option>
-                    <option value="ADNIC">ADNIC</option>
-                    <option value="Oman Insurance">Oman Insurance</option>
-                    <option value="AXA">AXA</option>
-                    <option value="Allianz">Allianz</option>
-                    <option value="MetLife">MetLife</option>
-                    <option value="Cigna">Cigna</option>
-                    <option value="Bupa">Bupa</option>
-                    <option value="Other">Other</option>
-                  </select>
-                </div>
-                <div className="space-y-2">
-                  <label htmlFor="insurancePlan" className="text-sm font-medium">
-                    Insurance Plan *
-                  </label>
-                  <select 
-                    id="insurancePlan"
-                    className="w-full p-2 border border-gray-300 rounded focus:border-blue-500 focus:outline-none"
-                    required
-                  >
-                    <option value="">Select insurance plan</option>
-                    <option value="Enhanced">Enhanced</option>
-                    <option value="Thiqa">Thiqa</option>
-                    <option value="Basic">Basic</option>
-                    <option value="Premium">Premium</option>
-                    <option value="Essential">Essential</option>
-                    <option value="Comprehensive">Comprehensive</option>
-                  </select>
-                </div>
-                <div className="space-y-2">
-                  <label htmlFor="policyNumber" className="text-sm font-medium">
-                    Policy Number *
-                  </label>
-                  <Input 
-                    id="policyNumber" 
-                    placeholder="Policy Number" 
-                    required
-                    className="border-gray-300 focus:border-blue-500"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label htmlFor="expiryDate" className="text-sm font-medium">
-                    Policy Expiry Date
-                  </label>
-                  <Input 
-                    id="expiryDate" 
-                    type="date" 
-                    min={new Date().toISOString().split('T')[0]}
-                    className="border-gray-300 focus:border-blue-500"
-                  />
-                </div>
-              </div>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select gender" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Male">Male</SelectItem>
+                  <SelectItem value="Female">Female</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setIsRegisterDialogOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              variant="default"
-              size="lg"
-              className="w-full"
-              disabled={loading}
-            >
-              Register Patient
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        </TabsContent>
 
-      {/* Emirates ID Scanning Dialog */}
-      <Dialog
-        open={isEmirateScanDialogOpen}
-        onOpenChange={setIsEmirateScanDialogOpen}
-      >
-        <DialogContent className="sm:max-w-[600px]">
-          <DialogHeader>
-            <DialogTitle>Scan Emirates ID</DialogTitle>
-          </DialogHeader>
+        <TabsContent value="contact" className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="phoneNumber">Phone Number *</Label>
+              <Input
+                id="phoneNumber"
+                value={patient.phoneNumber || ""}
+                onChange={(e) =>
+                  onChange({ ...patient, phoneNumber: e.target.value })
+                }
+                placeholder="+971-XX-XXX-XXXX"
+              />
+            </div>
+            <div>
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                value={patient.email || ""}
+                onChange={(e) =>
+                  onChange({ ...patient, email: e.target.value })
+                }
+                placeholder="patient@email.com"
+              />
+            </div>
+            <div className="md:col-span-2">
+              <Label htmlFor="address">Address</Label>
+              <Textarea
+                id="address"
+                value={patient.address?.street || ""}
+                onChange={(e) =>
+                  onChange({
+                    ...patient,
+                    address: { ...patient.address, street: e.target.value },
+                  })
+                }
+                placeholder="Enter full address"
+                rows={3}
+              />
+            </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="medical" className="space-y-4">
           <div className="space-y-4">
-            {/* Camera/File Upload Section */}
-            <div className="flex flex-col items-center justify-center p-6 border-2 border-dashed rounded-lg">
-              <div className="w-full h-64 bg-gray-100 rounded-lg flex items-center justify-center mb-4">
-                <div className="text-center">
-                  <div className="mb-2">Camera access or file upload</div>
-                  <div className="flex gap-2 justify-center">
-                    <Button onClick={() => handleCameraCapture()}>
-                      Enable Camera
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={() =>
-                        document.getElementById("emiratesIdFile")?.click()
-                      }
-                    >
-                      Upload Image
-                    </Button>
-                  </div>
-                  <input
-                    id="emiratesIdFile"
-                    type="file"
-                    accept="image/*,.pdf"
-                    className="hidden"
-                    onChange={handleFileUpload}
+            <div>
+              <Label htmlFor="conditions">Medical Conditions</Label>
+              <Textarea
+                id="conditions"
+                value={patient.medicalHistory?.conditions?.join(", ") || ""}
+                onChange={(e) =>
+                  onChange({
+                    ...patient,
+                    medicalHistory: {
+                      ...patient.medicalHistory,
+                      conditions: e.target.value
+                        .split(", ")
+                        .filter((c) => c.trim()),
+                    },
+                  })
+                }
+                placeholder="Enter medical conditions (comma separated)"
+                rows={2}
+              />
+            </div>
+            <div>
+              <Label htmlFor="allergies">Allergies</Label>
+              <Textarea
+                id="allergies"
+                value={patient.medicalHistory?.allergies?.join(", ") || ""}
+                onChange={(e) =>
+                  onChange({
+                    ...patient,
+                    medicalHistory: {
+                      ...patient.medicalHistory,
+                      allergies: e.target.value
+                        .split(", ")
+                        .filter((a) => a.trim()),
+                    },
+                  })
+                }
+                placeholder="Enter allergies (comma separated)"
+                rows={2}
+              />
+            </div>
+            <div>
+              <Label htmlFor="medications">Current Medications</Label>
+              <Textarea
+                id="medications"
+                value={patient.medicalHistory?.medications?.join(", ") || ""}
+                onChange={(e) =>
+                  onChange({
+                    ...patient,
+                    medicalHistory: {
+                      ...patient.medicalHistory,
+                      medications: e.target.value
+                        .split(", ")
+                        .filter((m) => m.trim()),
+                    },
+                  })
+                }
+                placeholder="Enter current medications (comma separated)"
+                rows={2}
+              />
+            </div>
+          </div>
+        </TabsContent>
+
+        {enableAdvancedFeatures && (
+          <TabsContent value="advanced" className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="riskLevel">Risk Level</Label>
+                <Select
+                  value={patient.riskLevel || "Low"}
+                  onValueChange={(value) =>
+                    onChange({ ...patient, riskLevel: value })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select risk level" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Low">Low</SelectItem>
+                    <SelectItem value="Medium">Medium</SelectItem>
+                    <SelectItem value="High">High</SelectItem>
+                    <SelectItem value="Critical">Critical</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="languagePreference">Language Preference</Label>
+                <Select
+                  value={patient.languagePreference || ""}
+                  onValueChange={(value) =>
+                    onChange({ ...patient, languagePreference: value })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select language" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Arabic">Arabic</SelectItem>
+                    <SelectItem value="English">English</SelectItem>
+                    <SelectItem value="Hindi">Hindi</SelectItem>
+                    <SelectItem value="Urdu">Urdu</SelectItem>
+                    <SelectItem value="Filipino">Filipino</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="md:col-span-2">
+                <Label htmlFor="notes">Notes</Label>
+                <Textarea
+                  id="notes"
+                  value={patient.notes || ""}
+                  onChange={(e) =>
+                    onChange({ ...patient, notes: e.target.value })
+                  }
+                  placeholder="Additional notes about the patient"
+                  rows={3}
+                />
+              </div>
+            </div>
+          </TabsContent>
+        )}
+      </Tabs>
+
+      <div className="flex justify-end gap-2">
+        <Button variant="outline" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button onClick={onSubmit}>
+          {isEditing ? "Update" : "Add"} Patient
+        </Button>
+      </div>
+    </div>
+  );
+};
+
+const FamilyAccessControlsForm: React.FC<any> = ({
+  patient,
+  onSave,
+  onCancel,
+}) => {
+  const [newMember, setNewMember] = useState({
+    name: "",
+    relationship: "",
+    phoneNumber: "",
+    accessLevel: "View" as "View" | "Limited" | "Full",
+    permissions: [] as string[],
+  });
+  const [showAddForm, setShowAddForm] = useState(false);
+
+  const availablePermissions = [
+    "View Medical Records",
+    "Schedule Appointments",
+    "Receive Updates",
+    "Emergency Contact",
+    "Billing Information",
+    "Care Plan Access",
+  ];
+
+  const handleAddMember = () => {
+    if (!newMember.name || !newMember.relationship) return;
+
+    const updatedAccessControls = {
+      ...patient.familyAccessControls,
+      allowedMembers: [
+        ...(patient.familyAccessControls?.allowedMembers || []),
+        newMember,
+      ],
+    };
+
+    onSave(updatedAccessControls);
+    setNewMember({
+      name: "",
+      relationship: "",
+      phoneNumber: "",
+      accessLevel: "View",
+      permissions: [],
+    });
+    setShowAddForm(false);
+  };
+
+  const handleRemoveMember = (index: number) => {
+    const updatedMembers =
+      patient.familyAccessControls?.allowedMembers?.filter(
+        (_: any, i: number) => i !== index,
+      ) || [];
+
+    const updatedAccessControls = {
+      ...patient.familyAccessControls,
+      allowedMembers: updatedMembers,
+    };
+
+    onSave(updatedAccessControls);
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="text-sm text-muted-foreground">
+        Configure family member access to {patient.firstName} {patient.lastName}
+        's information. Family members can be granted different levels of access
+        to patient data.
+      </div>
+
+      <div className="space-y-4">
+        <div className="flex justify-between items-center">
+          <Label className="text-base font-medium">
+            Authorized Family Members
+          </Label>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowAddForm(true)}
+            disabled={showAddForm}
+          >
+            <UserPlus className="h-4 w-4 mr-2" />
+            Add Member
+          </Button>
+        </div>
+
+        {showAddForm && (
+          <Card className="p-4">
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="memberName">Full Name *</Label>
+                  <Input
+                    id="memberName"
+                    value={newMember.name}
+                    onChange={(e) =>
+                      setNewMember({ ...newMember, name: e.target.value })
+                    }
+                    placeholder="Enter full name"
                   />
                 </div>
+                <div>
+                  <Label htmlFor="relationship">Relationship *</Label>
+                  <Select
+                    value={newMember.relationship}
+                    onValueChange={(value) =>
+                      setNewMember({ ...newMember, relationship: value })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select relationship" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Spouse">Spouse</SelectItem>
+                      <SelectItem value="Child">Child</SelectItem>
+                      <SelectItem value="Parent">Parent</SelectItem>
+                      <SelectItem value="Sibling">Sibling</SelectItem>
+                      <SelectItem value="Guardian">Guardian</SelectItem>
+                      <SelectItem value="Other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="memberPhone">Phone Number</Label>
+                  <Input
+                    id="memberPhone"
+                    value={newMember.phoneNumber}
+                    onChange={(e) =>
+                      setNewMember({
+                        ...newMember,
+                        phoneNumber: e.target.value,
+                      })
+                    }
+                    placeholder="+971-XX-XXX-XXXX"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="accessLevel">Access Level</Label>
+                  <Select
+                    value={newMember.accessLevel}
+                    onValueChange={(value: any) =>
+                      setNewMember({ ...newMember, accessLevel: value })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="View">View Only</SelectItem>
+                      <SelectItem value="Limited">Limited Access</SelectItem>
+                      <SelectItem value="Full">Full Access</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-              <p className="text-sm text-muted-foreground text-center">
-                Position the Emirates ID within the frame or upload a clear
-                image. The system will automatically scan and extract
-                information.
+
+              <div>
+                <Label>Permissions</Label>
+                <div className="grid grid-cols-2 gap-2 mt-2">
+                  {availablePermissions.map((permission) => (
+                    <div
+                      key={permission}
+                      className="flex items-center space-x-2"
+                    >
+                      <Checkbox
+                        id={permission}
+                        checked={newMember.permissions.includes(permission)}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setNewMember({
+                              ...newMember,
+                              permissions: [
+                                ...newMember.permissions,
+                                permission,
+                              ],
+                            });
+                          } else {
+                            setNewMember({
+                              ...newMember,
+                              permissions: newMember.permissions.filter(
+                                (p) => p !== permission,
+                              ),
+                            });
+                          }
+                        }}
+                      />
+                      <Label htmlFor={permission} className="text-sm">
+                        {permission}
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowAddForm(false);
+                    setNewMember({
+                      name: "",
+                      relationship: "",
+                      phoneNumber: "",
+                      accessLevel: "View",
+                      permissions: [],
+                    });
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button onClick={handleAddMember}>Add Member</Button>
+              </div>
+            </div>
+          </Card>
+        )}
+
+        <div className="space-y-3">
+          {patient.familyAccessControls?.allowedMembers?.map(
+            (member: any, index: number) => (
+              <Card key={index} className="p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                        <User className="h-5 w-5 text-blue-600" />
+                      </div>
+                      <div>
+                        <p className="font-medium">{member.name}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {member.relationship} • {member.accessLevel} Access
+                        </p>
+                        {member.phoneNumber && (
+                          <p className="text-xs text-muted-foreground">
+                            {member.phoneNumber}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    {member.permissions && member.permissions.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {member.permissions.map((permission: string) => (
+                          <Badge
+                            key={permission}
+                            variant="outline"
+                            className="text-xs"
+                          >
+                            {permission}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleRemoveMember(index)}
+                    className="text-red-600 hover:text-red-700"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </Card>
+            ),
+          ) || (
+            <div className="text-center py-8 text-muted-foreground">
+              <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p>No family members configured</p>
+              <p className="text-sm">
+                Add family members to grant them access to patient information
               </p>
             </div>
+          )}
+        </div>
+      </div>
 
-            {/* Scanning Progress */}
-            {scanningProgress && (
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span>Scanning Emirates ID...</span>
-                  <span>{scanningProgress}%</span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div
-                    className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                    style={{ width: `${scanningProgress}%` }}
-                  ></div>
-                </div>
-              </div>
-            )}
+      <div className="flex justify-end gap-2">
+        <Button variant="outline" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button onClick={() => onSave(patient.familyAccessControls)}>
+          Save Changes
+        </Button>
+      </div>
+    </div>
+  );
+};
 
-            {/* Scan Results */}
-            {scanResult && (
-              <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-                <h4 className="font-medium text-green-900 mb-2">
-                  Scan Results
-                </h4>
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  <div>
-                    <strong>Emirates ID:</strong> {scanResult.emiratesId}
-                  </div>
-                  <div>
-                    <strong>Name:</strong> {scanResult.fullNameEnglish}
-                  </div>
-                  <div>
-                    <strong>Nationality:</strong> {scanResult.nationality}
-                  </div>
-                  <div>
-                    <strong>Date of Birth:</strong> {scanResult.dateOfBirth}
-                  </div>
-                  <div>
-                    <strong>Gender:</strong> {scanResult.gender}
-                  </div>
-                  <div>
-                    <strong>Expiry Date:</strong> {scanResult.expiryDate}
-                  </div>
-                </div>
-                <div className="mt-2 flex items-center gap-2">
-                  <span
-                    className={`px-2 py-1 rounded text-xs ${
-                      scanResult.verificationStatus === "verified"
-                        ? "bg-green-100 text-green-800"
-                        : "bg-yellow-100 text-yellow-800"
-                    }`}
-                  >
-                    {scanResult.verificationStatus === "verified"
-                      ? "Verified"
-                      : "Pending Verification"}
-                  </span>
-                  <span className="text-xs text-gray-600">
-                    Confidence: {Math.round((scanResult.confidence || 0) * 100)}
-                    %
-                  </span>
-                </div>
-              </div>
-            )}
+const PatientImportForm: React.FC<any> = ({ onImport, onCancel }) => {
+  const [file, setFile] = useState<File | null>(null);
 
-            {/* Validation Errors */}
-            {validationErrors.length > 0 && (
-              <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-                <h4 className="font-medium text-red-900 mb-2">
-                  Validation Errors
-                </h4>
-                <ul className="text-sm text-red-800 space-y-1">
-                  {validationErrors.map((error, index) => (
-                    <li key={index}>• {error}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setIsEmirateScanDialogOpen(false);
-                setIsRegisterDialogOpen(true);
-                setScanResult(null);
-                setValidationErrors([]);
-                setScanningProgress(null);
-              }}
-            >
-              Back to Form
-            </Button>
-            <Button
-              disabled={
-                !scanResult || scanResult.verificationStatus !== "verified"
-              }
-              onClick={handleUseScanResults}
-            >
-              Use Scan Results
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setFile(e.target.files[0]);
+    }
+  };
+
+  const handleImport = () => {
+    if (file) {
+      onImport(file);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <Label htmlFor="file">Select CSV File</Label>
+        <Input
+          id="file"
+          type="file"
+          accept=".csv"
+          onChange={handleFileChange}
+        />
+      </div>
+
+      <div className="text-sm text-muted-foreground">
+        <p>
+          CSV should include columns: Emirates ID, First Name, Last Name, Date
+          of Birth, Gender, Phone, Email
+        </p>
+      </div>
+
+      <div className="flex justify-end gap-2">
+        <Button variant="outline" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button onClick={handleImport} disabled={!file}>
+          Import Patients
+        </Button>
+      </div>
     </div>
   );
 };
 
 export default PatientManagement;
-
-// Enhanced medical terminology dictionary
-const medicalTerminologies: Record<string, string[]> = {
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "not_qualified", "pending_assessment", "reassessment_required"],
-  "risk_level": ["low", "medium", "high", "critical"],
-  "complexity_score": [0, 100],
-  "primary_risks": ["Fall Risk", "Medication Complexity", "Infection Risk", "Hospitalization Risk", "Pressure Injury Risk", "Medication Risk"],
-  "nationality": ["UAE", "Saudi Arabia", "Egypt", "India", "Pakistan", "Philippines", "Other"],
-  "insurance_type": ["government", "private", "self_pay"],
-  "insurance_status": ["active", "expired", "pending"],
-  "lifecycle_status": ["referral", "assessment", "admission", "active_care", "discharge_planning", "discharged", "readmission"],
-  "homebound_status": ["qualified", "
