@@ -4,12 +4,17 @@
   "description": "DOH-compliant homecare management platform by Reyada Home Health Care Services L.L.C.",
   "start_url": "/",
   "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
   "background_color": "#ffffff",
   "theme_color": "#0066E6",
   "orientation": "portrait-primary",
   "scope": "/",
   "lang": "en",
   "categories": ["healthcare", "medical", "productivity"],
+  "launch_handler": {
+    "client_mode": "navigate-existing"
+  },
+  "id": "reyada-homecare",
   "icons": [
     {
       "src": "/icons/icon-72x72.png",

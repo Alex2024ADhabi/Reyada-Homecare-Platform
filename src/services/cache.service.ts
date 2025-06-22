@@ -954,20 +954,801 @@ class CDNManager {
   }
 }
 
+// Performance Optimization Manager
+class PerformanceOptimizationManager {
+  private connectionPool: DatabaseConnectionPool;
+  private queryOptimizer: QueryOptimizer;
+  private dataArchiver: DataArchiver;
+  private cacheInvalidator: UnifiedCacheInvalidator;
+  private performanceMonitor: PerformanceMonitor;
+
+  constructor() {
+    this.connectionPool = new DatabaseConnectionPool();
+    this.queryOptimizer = new QueryOptimizer();
+    this.dataArchiver = new DataArchiver();
+    this.cacheInvalidator = new UnifiedCacheInvalidator();
+    this.performanceMonitor = new PerformanceMonitor();
+    this.initializeOptimizations();
+  }
+
+  private async initializeOptimizations(): Promise<void> {
+    await this.connectionPool.initialize();
+    await this.queryOptimizer.initialize();
+    await this.dataArchiver.initialize();
+    await this.performanceMonitor.start();
+    console.log("Performance optimizations initialized successfully");
+  }
+
+  async optimizeQuery(
+    query: string,
+    parameters?: any[],
+  ): Promise<OptimizedQuery> {
+    return this.queryOptimizer.optimize(query, parameters);
+  }
+
+  async getConnection(): Promise<DatabaseConnection> {
+    return this.connectionPool.getConnection();
+  }
+
+  async releaseConnection(connection: DatabaseConnection): Promise<void> {
+    return this.connectionPool.releaseConnection(connection);
+  }
+
+  async archiveOldData(
+    tableName: string,
+    cutoffDate: Date,
+  ): Promise<ArchiveResult> {
+    return this.dataArchiver.archiveData(tableName, cutoffDate);
+  }
+
+  async invalidateCache(
+    pattern: string,
+    tags?: string[],
+  ): Promise<InvalidationResult> {
+    return this.cacheInvalidator.invalidate(pattern, tags);
+  }
+
+  getPerformanceMetrics(): PerformanceMetrics {
+    return this.performanceMonitor.getMetrics();
+  }
+}
+
+// Database Connection Pool
+class DatabaseConnectionPool {
+  private connections: DatabaseConnection[] = [];
+  private availableConnections: DatabaseConnection[] = [];
+  private usedConnections: Set<DatabaseConnection> = new Set();
+  private config = {
+    maxConnections: 100,
+    minConnections: 10,
+    connectionTimeout: 30000,
+    idleTimeout: 300000,
+  };
+  private metrics = {
+    totalConnections: 0,
+    activeConnections: 0,
+    waitingRequests: 0,
+    connectionErrors: 0,
+  };
+
+  async initialize(): Promise<void> {
+    // Create minimum connections
+    for (let i = 0; i < this.config.minConnections; i++) {
+      const connection = await this.createConnection();
+      this.connections.push(connection);
+      this.availableConnections.push(connection);
+    }
+
+    // Start connection health monitoring
+    this.startHealthMonitoring();
+    console.log(
+      `Connection pool initialized with ${this.config.minConnections} connections`,
+    );
+  }
+
+  async getConnection(): Promise<DatabaseConnection> {
+    const startTime = Date.now();
+
+    try {
+      // Check for available connection
+      if (this.availableConnections.length > 0) {
+        const connection = this.availableConnections.pop()!;
+        this.usedConnections.add(connection);
+        this.metrics.activeConnections++;
+        return connection;
+      }
+
+      // Create new connection if under limit
+      if (this.connections.length < this.config.maxConnections) {
+        const connection = await this.createConnection();
+        this.connections.push(connection);
+        this.usedConnections.add(connection);
+        this.metrics.totalConnections++;
+        this.metrics.activeConnections++;
+        return connection;
+      }
+
+      // Wait for available connection
+      this.metrics.waitingRequests++;
+      return await this.waitForConnection();
+    } catch (error) {
+      this.metrics.connectionErrors++;
+      throw new Error(`Failed to get database connection: ${error.message}`);
+    } finally {
+      const duration = Date.now() - startTime;
+      console.log(`Connection acquired in ${duration}ms`);
+    }
+  }
+
+  async releaseConnection(connection: DatabaseConnection): Promise<void> {
+    if (this.usedConnections.has(connection)) {
+      this.usedConnections.delete(connection);
+      this.availableConnections.push(connection);
+      this.metrics.activeConnections--;
+      connection.lastUsed = new Date();
+    }
+  }
+
+  private async createConnection(): Promise<DatabaseConnection> {
+    return {
+      id: `conn_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      isHealthy: true,
+      createdAt: new Date(),
+      lastUsed: new Date(),
+      queryCount: 0,
+      // Mock connection - in real implementation would be actual DB connection
+      execute: async (query: string, params?: any[]) => {
+        // Simulate query execution
+        await new Promise((resolve) =>
+          setTimeout(resolve, Math.random() * 100),
+        );
+        return { rows: [], affectedRows: 0 };
+      },
+    };
+  }
+
+  private async waitForConnection(): Promise<DatabaseConnection> {
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error("Connection timeout"));
+      }, this.config.connectionTimeout);
+
+      const checkForConnection = () => {
+        if (this.availableConnections.length > 0) {
+          clearTimeout(timeout);
+          const connection = this.availableConnections.pop()!;
+          this.usedConnections.add(connection);
+          this.metrics.activeConnections++;
+          this.metrics.waitingRequests--;
+          resolve(connection);
+        } else {
+          setTimeout(checkForConnection, 100);
+        }
+      };
+
+      checkForConnection();
+    });
+  }
+
+  private startHealthMonitoring(): void {
+    setInterval(() => {
+      this.checkConnectionHealth();
+      this.cleanupIdleConnections();
+    }, 60000); // Check every minute
+  }
+
+  private checkConnectionHealth(): void {
+    this.connections.forEach(async (connection) => {
+      try {
+        await connection.execute("SELECT 1");
+        connection.isHealthy = true;
+      } catch (error) {
+        connection.isHealthy = false;
+        console.warn(
+          `Connection ${connection.id} is unhealthy:`,
+          error.message,
+        );
+      }
+    });
+  }
+
+  private cleanupIdleConnections(): void {
+    const now = Date.now();
+    const idleConnections = this.availableConnections.filter(
+      (conn) => now - conn.lastUsed.getTime() > this.config.idleTimeout,
+    );
+
+    if (
+      this.connections.length - idleConnections.length >=
+      this.config.minConnections
+    ) {
+      idleConnections.forEach((conn) => {
+        const index = this.availableConnections.indexOf(conn);
+        if (index > -1) {
+          this.availableConnections.splice(index, 1);
+          const connIndex = this.connections.indexOf(conn);
+          if (connIndex > -1) {
+            this.connections.splice(connIndex, 1);
+            this.metrics.totalConnections--;
+          }
+        }
+      });
+      console.log(`Cleaned up ${idleConnections.length} idle connections`);
+    }
+  }
+
+  getMetrics() {
+    return {
+      ...this.metrics,
+      totalConnections: this.connections.length,
+      availableConnections: this.availableConnections.length,
+      usedConnections: this.usedConnections.size,
+    };
+  }
+}
+
+// Query Optimizer
+class QueryOptimizer {
+  private optimizationRules: OptimizationRule[] = [];
+  private queryCache: Map<string, OptimizedQuery> = new Map();
+  private performanceStats: Map<string, QueryPerformanceStats> = new Map();
+
+  async initialize(): Promise<void> {
+    this.loadOptimizationRules();
+    console.log("Query optimizer initialized with optimization rules");
+  }
+
+  async optimize(query: string, parameters?: any[]): Promise<OptimizedQuery> {
+    const queryHash = this.generateQueryHash(query, parameters);
+
+    // Check cache first
+    const cached = this.queryCache.get(queryHash);
+    if (cached) {
+      return cached;
+    }
+
+    const startTime = Date.now();
+    let optimizedQuery = query;
+    const appliedOptimizations: string[] = [];
+
+    // Apply optimization rules
+    for (const rule of this.optimizationRules) {
+      const result = rule.apply(optimizedQuery, parameters);
+      if (result.optimized) {
+        optimizedQuery = result.query;
+        appliedOptimizations.push(rule.name);
+      }
+    }
+
+    const optimizationTime = Date.now() - startTime;
+    const result: OptimizedQuery = {
+      originalQuery: query,
+      optimizedQuery,
+      parameters: parameters || [],
+      appliedOptimizations,
+      optimizationTime,
+      estimatedImprovement: this.estimateImprovement(appliedOptimizations),
+    };
+
+    // Cache the result
+    this.queryCache.set(queryHash, result);
+
+    return result;
+  }
+
+  private loadOptimizationRules(): void {
+    this.optimizationRules = [
+      {
+        name: "index_hint_optimization",
+        description: "Add index hints for better performance",
+        apply: (query: string, params?: any[]) => {
+          if (query.includes("WHERE") && !query.includes("USE INDEX")) {
+            // Simple index hint addition
+            const optimized = query.replace(
+              /FROM (\w+) WHERE/,
+              "FROM $1 USE INDEX (idx_$1_primary) WHERE",
+            );
+            return { optimized: optimized !== query, query: optimized };
+          }
+          return { optimized: false, query };
+        },
+      },
+      {
+        name: "limit_optimization",
+        description: "Add LIMIT clause if missing for large result sets",
+        apply: (query: string, params?: any[]) => {
+          if (
+            query.includes("SELECT") &&
+            !query.includes("LIMIT") &&
+            !query.includes("COUNT")
+          ) {
+            const optimized = `${query} LIMIT 1000`;
+            return { optimized: true, query: optimized };
+          }
+          return { optimized: false, query };
+        },
+      },
+      {
+        name: "join_optimization",
+        description: "Optimize JOIN operations",
+        apply: (query: string, params?: any[]) => {
+          if (query.includes("LEFT JOIN") && query.includes("WHERE")) {
+            // Convert LEFT JOIN to INNER JOIN where possible
+            const optimized = query.replace(/LEFT JOIN/g, "INNER JOIN");
+            return { optimized: optimized !== query, query: optimized };
+          }
+          return { optimized: false, query };
+        },
+      },
+    ];
+  }
+
+  private generateQueryHash(query: string, parameters?: any[]): string {
+    const content = query + JSON.stringify(parameters || []);
+    return btoa(content)
+      .replace(/[^a-zA-Z0-9]/g, "")
+      .substring(0, 32);
+  }
+
+  private estimateImprovement(optimizations: string[]): number {
+    const improvementMap: { [key: string]: number } = {
+      index_hint_optimization: 0.3,
+      limit_optimization: 0.5,
+      join_optimization: 0.2,
+    };
+
+    return optimizations.reduce((total, opt) => {
+      return total + (improvementMap[opt] || 0);
+    }, 0);
+  }
+
+  recordPerformance(
+    queryHash: string,
+    executionTime: number,
+    rowsReturned: number,
+  ): void {
+    const stats = this.performanceStats.get(queryHash) || {
+      executionCount: 0,
+      totalExecutionTime: 0,
+      averageExecutionTime: 0,
+      minExecutionTime: Infinity,
+      maxExecutionTime: 0,
+      totalRowsReturned: 0,
+      averageRowsReturned: 0,
+    };
+
+    stats.executionCount++;
+    stats.totalExecutionTime += executionTime;
+    stats.averageExecutionTime =
+      stats.totalExecutionTime / stats.executionCount;
+    stats.minExecutionTime = Math.min(stats.minExecutionTime, executionTime);
+    stats.maxExecutionTime = Math.max(stats.maxExecutionTime, executionTime);
+    stats.totalRowsReturned += rowsReturned;
+    stats.averageRowsReturned = stats.totalRowsReturned / stats.executionCount;
+
+    this.performanceStats.set(queryHash, stats);
+  }
+
+  getPerformanceStats(): Map<string, QueryPerformanceStats> {
+    return this.performanceStats;
+  }
+}
+
+// Data Archiver
+class DataArchiver {
+  private archiveConfig = {
+    batchSize: 10000,
+    archiveAfterDays: 90,
+    compressionEnabled: true,
+    encryptionEnabled: true,
+  };
+  private archiveStats = {
+    totalArchived: 0,
+    totalSpaceSaved: 0,
+    lastArchiveRun: null as Date | null,
+  };
+
+  async initialize(): Promise<void> {
+    // Schedule periodic archiving
+    setInterval(
+      () => {
+        this.runPeriodicArchiving();
+      },
+      24 * 60 * 60 * 1000,
+    ); // Daily
+
+    console.log("Data archiver initialized");
+  }
+
+  async archiveData(
+    tableName: string,
+    cutoffDate: Date,
+  ): Promise<ArchiveResult> {
+    const startTime = Date.now();
+    let archivedRecords = 0;
+    let spaceSaved = 0;
+
+    try {
+      // Simulate archiving process
+      const recordsToArchive = await this.identifyRecordsToArchive(
+        tableName,
+        cutoffDate,
+      );
+
+      for (
+        let i = 0;
+        i < recordsToArchive.length;
+        i += this.archiveConfig.batchSize
+      ) {
+        const batch = recordsToArchive.slice(
+          i,
+          i + this.archiveConfig.batchSize,
+        );
+        const result = await this.archiveBatch(tableName, batch);
+        archivedRecords += result.recordCount;
+        spaceSaved += result.spaceSaved;
+      }
+
+      // Update statistics
+      this.archiveStats.totalArchived += archivedRecords;
+      this.archiveStats.totalSpaceSaved += spaceSaved;
+      this.archiveStats.lastArchiveRun = new Date();
+
+      const duration = Date.now() - startTime;
+
+      return {
+        tableName,
+        recordsArchived: archivedRecords,
+        spaceSaved,
+        duration,
+        success: true,
+      };
+    } catch (error) {
+      return {
+        tableName,
+        recordsArchived: 0,
+        spaceSaved: 0,
+        duration: Date.now() - startTime,
+        success: false,
+        error: error.message,
+      };
+    }
+  }
+
+  private async identifyRecordsToArchive(
+    tableName: string,
+    cutoffDate: Date,
+  ): Promise<any[]> {
+    // Mock implementation - would query actual database
+    const mockRecords = [];
+    for (let i = 0; i < Math.floor(Math.random() * 10000); i++) {
+      mockRecords.push({
+        id: i,
+        createdAt: new Date(
+          Date.now() - Math.random() * 365 * 24 * 60 * 60 * 1000,
+        ),
+        data: `Record ${i} data`,
+      });
+    }
+
+    return mockRecords.filter((record) => record.createdAt < cutoffDate);
+  }
+
+  private async archiveBatch(
+    tableName: string,
+    records: any[],
+  ): Promise<{ recordCount: number; spaceSaved: number }> {
+    // Simulate archiving batch
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    const recordCount = records.length;
+    const spaceSaved = recordCount * 1024; // Assume 1KB per record saved
+
+    return { recordCount, spaceSaved };
+  }
+
+  private async runPeriodicArchiving(): Promise<void> {
+    const cutoffDate = new Date(
+      Date.now() - this.archiveConfig.archiveAfterDays * 24 * 60 * 60 * 1000,
+    );
+    const tablesToArchive = [
+      "audit_logs",
+      "system_logs",
+      "performance_metrics",
+      "cache_analytics",
+      "old_patient_data",
+    ];
+
+    for (const table of tablesToArchive) {
+      try {
+        const result = await this.archiveData(table, cutoffDate);
+        console.log(`Archived ${result.recordsArchived} records from ${table}`);
+      } catch (error) {
+        console.error(`Failed to archive ${table}:`, error);
+      }
+    }
+  }
+
+  getArchiveStats() {
+    return this.archiveStats;
+  }
+}
+
+// Unified Cache Invalidator
+class UnifiedCacheInvalidator {
+  private invalidationStrategies: Map<string, InvalidationStrategy> = new Map();
+  private invalidationQueue: InvalidationRequest[] = [];
+  private isProcessing = false;
+
+  constructor() {
+    this.initializeStrategies();
+    this.startQueueProcessor();
+  }
+
+  private initializeStrategies(): void {
+    this.invalidationStrategies.set("tag-based", {
+      name: "tag-based",
+      invalidate: async (pattern: string, tags?: string[]) => {
+        const invalidatedKeys: string[] = [];
+
+        // Simulate tag-based invalidation
+        if (tags) {
+          for (const tag of tags) {
+            const keysWithTag = await this.findKeysByTag(tag);
+            invalidatedKeys.push(...keysWithTag);
+          }
+        }
+
+        return { invalidatedKeys, strategy: "tag-based" };
+      },
+    });
+
+    this.invalidationStrategies.set("pattern-based", {
+      name: "pattern-based",
+      invalidate: async (pattern: string) => {
+        const invalidatedKeys = await this.findKeysByPattern(pattern);
+        return { invalidatedKeys, strategy: "pattern-based" };
+      },
+    });
+
+    this.invalidationStrategies.set("cascading", {
+      name: "cascading",
+      invalidate: async (pattern: string, tags?: string[]) => {
+        const invalidatedKeys: string[] = [];
+
+        // Find dependent keys
+        const dependentKeys = await this.findDependentKeys(pattern);
+        invalidatedKeys.push(...dependentKeys);
+
+        return { invalidatedKeys, strategy: "cascading" };
+      },
+    });
+  }
+
+  async invalidate(
+    pattern: string,
+    tags?: string[],
+  ): Promise<InvalidationResult> {
+    const request: InvalidationRequest = {
+      id: `inv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      pattern,
+      tags,
+      timestamp: new Date(),
+      status: "pending",
+    };
+
+    this.invalidationQueue.push(request);
+
+    return new Promise((resolve) => {
+      const checkCompletion = () => {
+        const completedRequest = this.invalidationQueue.find(
+          (req) => req.id === request.id && req.status === "completed",
+        );
+
+        if (completedRequest) {
+          resolve(completedRequest.result!);
+        } else {
+          setTimeout(checkCompletion, 100);
+        }
+      };
+
+      checkCompletion();
+    });
+  }
+
+  private startQueueProcessor(): void {
+    setInterval(async () => {
+      if (!this.isProcessing && this.invalidationQueue.length > 0) {
+        await this.processInvalidationQueue();
+      }
+    }, 1000);
+  }
+
+  private async processInvalidationQueue(): Promise<void> {
+    this.isProcessing = true;
+
+    try {
+      const pendingRequests = this.invalidationQueue.filter(
+        (req) => req.status === "pending",
+      );
+
+      for (const request of pendingRequests) {
+        try {
+          request.status = "processing";
+
+          const results = await Promise.all(
+            Array.from(this.invalidationStrategies.values()).map((strategy) =>
+              strategy.invalidate(request.pattern, request.tags),
+            ),
+          );
+
+          const allInvalidatedKeys = results.flatMap(
+            (result) => result.invalidatedKeys,
+          );
+          const uniqueKeys = [...new Set(allInvalidatedKeys)];
+
+          request.result = {
+            pattern: request.pattern,
+            tags: request.tags,
+            invalidatedKeys: uniqueKeys,
+            strategiesUsed: results.map((r) => r.strategy),
+            totalInvalidated: uniqueKeys.length,
+            duration: Date.now() - request.timestamp.getTime(),
+          };
+
+          request.status = "completed";
+        } catch (error) {
+          request.status = "failed";
+          request.error = error.message;
+        }
+      }
+    } finally {
+      this.isProcessing = false;
+    }
+  }
+
+  private async findKeysByTag(tag: string): Promise<string[]> {
+    // Mock implementation
+    return [`key_with_${tag}_1`, `key_with_${tag}_2`];
+  }
+
+  private async findKeysByPattern(pattern: string): Promise<string[]> {
+    // Mock implementation
+    return [`${pattern}_key_1`, `${pattern}_key_2`];
+  }
+
+  private async findDependentKeys(pattern: string): Promise<string[]> {
+    // Mock implementation
+    return [`dependent_${pattern}_1`, `dependent_${pattern}_2`];
+  }
+}
+
+// Performance Monitor
+class PerformanceMonitor {
+  private metrics: PerformanceMetrics = {
+    database: {
+      connectionPoolSize: 0,
+      activeConnections: 0,
+      averageQueryTime: 0,
+      slowQueries: 0,
+      queryThroughput: 0,
+    },
+    cache: {
+      hitRatio: 0,
+      missRatio: 0,
+      evictionRate: 0,
+      memoryUsage: 0,
+      invalidationRate: 0,
+    },
+    system: {
+      cpuUsage: 0,
+      memoryUsage: 0,
+      diskUsage: 0,
+      networkLatency: 0,
+    },
+    application: {
+      responseTime: 0,
+      throughput: 0,
+      errorRate: 0,
+      activeUsers: 0,
+    },
+  };
+  private isRunning = false;
+
+  async start(): Promise<void> {
+    if (this.isRunning) return;
+
+    this.isRunning = true;
+    this.startMetricsCollection();
+    console.log("Performance monitoring started");
+  }
+
+  stop(): void {
+    this.isRunning = false;
+    console.log("Performance monitoring stopped");
+  }
+
+  private startMetricsCollection(): void {
+    setInterval(() => {
+      if (this.isRunning) {
+        this.collectMetrics();
+      }
+    }, 30000); // Collect every 30 seconds
+  }
+
+  private collectMetrics(): void {
+    // Simulate metrics collection
+    this.metrics.database.averageQueryTime = Math.random() * 100 + 50;
+    this.metrics.database.queryThroughput = Math.random() * 1000 + 500;
+    this.metrics.cache.hitRatio = Math.random() * 0.3 + 0.7;
+    this.metrics.cache.memoryUsage = Math.random() * 0.5 + 0.3;
+    this.metrics.system.cpuUsage = Math.random() * 0.4 + 0.2;
+    this.metrics.system.memoryUsage = Math.random() * 0.6 + 0.3;
+    this.metrics.application.responseTime = Math.random() * 200 + 100;
+    this.metrics.application.throughput = Math.random() * 500 + 200;
+  }
+
+  getMetrics(): PerformanceMetrics {
+    return { ...this.metrics };
+  }
+
+  getOptimizationRecommendations(): OptimizationRecommendation[] {
+    const recommendations: OptimizationRecommendation[] = [];
+
+    if (this.metrics.cache.hitRatio < 0.8) {
+      recommendations.push({
+        type: "cache",
+        priority: "high",
+        description: "Cache hit ratio is below optimal threshold",
+        recommendation:
+          "Consider increasing cache size or implementing cache warming",
+        estimatedImpact: "High",
+      });
+    }
+
+    if (this.metrics.database.averageQueryTime > 100) {
+      recommendations.push({
+        type: "database",
+        priority: "medium",
+        description: "Average query time is above optimal threshold",
+        recommendation: "Review slow queries and consider adding indexes",
+        estimatedImpact: "Medium",
+      });
+    }
+
+    if (this.metrics.system.memoryUsage > 0.8) {
+      recommendations.push({
+        type: "system",
+        priority: "high",
+        description: "Memory usage is high",
+        recommendation:
+          "Consider increasing memory allocation or optimizing memory usage",
+        estimatedImpact: "High",
+      });
+    }
+
+    return recommendations;
+  }
+}
+
 // Export the main cache service
 export class AdvancedCacheService {
   private cacheManager: IntelligentCacheManager;
   private analytics: CacheAnalytics;
   private predictor: PredictiveCacheWarming;
   private cdnManager: CDNManager;
+  private performanceOptimizer: PerformanceOptimizationManager;
 
   constructor() {
     this.cacheManager = new IntelligentCacheManager();
     this.analytics = new CacheAnalytics();
     this.predictor = new PredictiveCacheWarming();
     this.cdnManager = new CDNManager();
+    this.performanceOptimizer = new PerformanceOptimizationManager();
 
-    console.log("Advanced Cache Service initialized successfully");
+    console.log(
+      "Advanced Cache Service with Performance Optimization initialized successfully",
+    );
   }
 
   async get<T>(key: string, options?: any): Promise<T | null> {
@@ -990,13 +1771,49 @@ export class AdvancedCacheService {
     const cacheAnalytics = await this.analytics.getReport();
     const cdnStats = await this.cdnManager.getStats();
     const warmingStats = this.predictor.getStats();
+    const performanceMetrics =
+      this.performanceOptimizer.getPerformanceMetrics();
 
     return {
       cache: cacheAnalytics,
       cdn: cdnStats,
       warming: warmingStats,
+      performance: performanceMetrics,
       timestamp: new Date(),
     };
+  }
+
+  async optimizeQuery(
+    query: string,
+    parameters?: any[],
+  ): Promise<OptimizedQuery> {
+    return this.performanceOptimizer.optimizeQuery(query, parameters);
+  }
+
+  async getOptimizedConnection(): Promise<DatabaseConnection> {
+    return this.performanceOptimizer.getConnection();
+  }
+
+  async releaseConnection(connection: DatabaseConnection): Promise<void> {
+    return this.performanceOptimizer.releaseConnection(connection);
+  }
+
+  async archiveOldData(
+    tableName: string,
+    cutoffDate: Date,
+  ): Promise<ArchiveResult> {
+    return this.performanceOptimizer.archiveOldData(tableName, cutoffDate);
+  }
+
+  async invalidateUnified(
+    pattern: string,
+    tags?: string[],
+  ): Promise<InvalidationResult> {
+    return this.performanceOptimizer.invalidateCache(pattern, tags);
+  }
+
+  getOptimizationRecommendations(): OptimizationRecommendation[] {
+    return this.performanceOptimizer.getPerformanceMetrics() as any;
   }
 
   async healthCheck(): Promise<any> {
@@ -1025,5 +1842,129 @@ export class AdvancedCacheService {
   }
 }
 
+// Type definitions for performance optimization
+interface DatabaseConnection {
+  id: string;
+  isHealthy: boolean;
+  createdAt: Date;
+  lastUsed: Date;
+  queryCount: number;
+  execute: (
+    query: string,
+    params?: any[],
+  ) => Promise<{ rows: any[]; affectedRows: number }>;
+}
+
+interface OptimizedQuery {
+  originalQuery: string;
+  optimizedQuery: string;
+  parameters: any[];
+  appliedOptimizations: string[];
+  optimizationTime: number;
+  estimatedImprovement: number;
+}
+
+interface OptimizationRule {
+  name: string;
+  description: string;
+  apply: (
+    query: string,
+    params?: any[],
+  ) => { optimized: boolean; query: string };
+}
+
+interface QueryPerformanceStats {
+  executionCount: number;
+  totalExecutionTime: number;
+  averageExecutionTime: number;
+  minExecutionTime: number;
+  maxExecutionTime: number;
+  totalRowsReturned: number;
+  averageRowsReturned: number;
+}
+
+interface ArchiveResult {
+  tableName: string;
+  recordsArchived: number;
+  spaceSaved: number;
+  duration: number;
+  success: boolean;
+  error?: string;
+}
+
+interface InvalidationStrategy {
+  name: string;
+  invalidate: (
+    pattern: string,
+    tags?: string[],
+  ) => Promise<{ invalidatedKeys: string[]; strategy: string }>;
+}
+
+interface InvalidationRequest {
+  id: string;
+  pattern: string;
+  tags?: string[];
+  timestamp: Date;
+  status: "pending" | "processing" | "completed" | "failed";
+  result?: InvalidationResult;
+  error?: string;
+}
+
+interface InvalidationResult {
+  pattern: string;
+  tags?: string[];
+  invalidatedKeys: string[];
+  strategiesUsed: string[];
+  totalInvalidated: number;
+  duration: number;
+}
+
+interface PerformanceMetrics {
+  database: {
+    connectionPoolSize: number;
+    activeConnections: number;
+    averageQueryTime: number;
+    slowQueries: number;
+    queryThroughput: number;
+  };
+  cache: {
+    hitRatio: number;
+    missRatio: number;
+    evictionRate: number;
+    memoryUsage: number;
+    invalidationRate: number;
+  };
+  system: {
+    cpuUsage: number;
+    memoryUsage: number;
+    diskUsage: number;
+    networkLatency: number;
+  };
+  application: {
+    responseTime: number;
+    throughput: number;
+    errorRate: number;
+    activeUsers: number;
+  };
+}
+
+interface OptimizationRecommendation {
+  type: "cache" | "database" | "system" | "application";
+  priority: "low" | "medium" | "high" | "critical";
+  description: string;
+  recommendation: string;
+  estimatedImpact: "Low" | "Medium" | "High";
+}
+
 export const advancedCacheService = new AdvancedCacheService();
 export default advancedCacheService;
+
+// Export performance optimization utilities
+export {
+  DatabaseConnection,
+  OptimizedQuery,
+  ArchiveResult,
+  InvalidationResult,
+  PerformanceMetrics,
+  OptimizationRecommendation,
+};

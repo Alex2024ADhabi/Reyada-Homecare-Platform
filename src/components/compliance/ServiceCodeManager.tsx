@@ -23,6 +23,10 @@ import {
   RefreshCw,
   Search,
   Filter,
+  Plus,
+  Edit,
+  Trash2,
+  Archive,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -67,6 +71,15 @@ const ServiceCodeManager: React.FC<ServiceCodeManagerProps> = ({
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [refreshing, setRefreshing] = useState(false);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newServiceCode, setNewServiceCode] = useState({
+    code: "",
+    description: "",
+    category: "nursing" as ServiceCode["category"],
+    price: 0,
+    currency: "AED",
+    effectiveDate: new Date().toISOString().split("T")[0],
+  });
 
   useEffect(() => {
     loadServiceCodes();
@@ -76,121 +89,35 @@ const ServiceCodeManager: React.FC<ServiceCodeManagerProps> = ({
   const loadServiceCodes = async () => {
     try {
       setLoading(true);
-      // Mock data - replace with actual API call
-      const mockCodes: ServiceCode[] = [
-        {
-          id: "sc-001",
-          code: "17-25-1",
-          description: "Simple Home Visit - Nursing",
-          category: "nursing",
-          price: 300,
-          currency: "AED",
-          status: "active",
-          effectiveDate: "2024-06-01",
-          usageCount: 245,
-          lastUsed: "2024-03-15",
-          complianceNotes: ["DOH approved June 2024", "Daman standard pricing"],
-          dohApproved: true,
-          damanApproved: true,
-        },
-        {
-          id: "sc-002",
-          code: "17-25-2",
-          description: "Simple Home Visit - Supportive",
-          category: "supportive",
-          price: 300,
-          currency: "AED",
-          status: "active",
-          effectiveDate: "2024-06-01",
-          usageCount: 189,
-          lastUsed: "2024-03-14",
-          complianceNotes: ["DOH approved June 2024"],
-          dohApproved: true,
-          damanApproved: true,
-        },
-        {
-          id: "sc-003",
-          code: "17-25-3",
-          description: "Specialized Home Visit - Consultation",
-          category: "consultation",
-          price: 800,
-          currency: "AED",
-          status: "active",
-          effectiveDate: "2024-06-01",
-          usageCount: 67,
-          lastUsed: "2024-03-13",
-          complianceNotes: ["Higher tier pricing approved"],
-          dohApproved: true,
-          damanApproved: true,
-        },
-        {
-          id: "sc-004",
-          code: "17-25-4",
-          description: "Routine Home Nursing Care",
-          category: "routine",
-          price: 900,
-          currency: "AED",
-          status: "active",
-          effectiveDate: "2024-06-01",
-          usageCount: 134,
-          lastUsed: "2024-03-16",
-          complianceNotes: [],
-          dohApproved: true,
-          damanApproved: true,
-        },
-        {
-          id: "sc-005",
-          code: "17-25-5",
-          description: "Advanced Home Nursing Care",
-          category: "advanced",
-          price: 1800,
-          currency: "AED",
-          status: "active",
-          effectiveDate: "2024-06-01",
-          usageCount: 89,
-          lastUsed: "2024-03-12",
-          complianceNotes: ["Premium tier service"],
-          dohApproved: true,
-          damanApproved: true,
-        },
-        {
-          id: "sc-006",
-          code: "17-26-1",
-          description: "Legacy Home Visit - Basic",
-          category: "nursing",
-          price: 250,
-          currency: "AED",
-          status: "deprecated",
-          effectiveDate: "2023-01-01",
-          deprecationDate: "2024-06-01",
-          replacementCode: "17-25-1",
-          usageCount: 0,
-          lastUsed: "2024-05-31",
-          complianceNotes: ["Deprecated - use 17-25-1 instead"],
-          dohApproved: false,
-          damanApproved: false,
-        },
-        {
-          id: "sc-007",
-          code: "17-26-2",
-          description: "Legacy Home Visit - Standard",
-          category: "supportive",
-          price: 350,
-          currency: "AED",
-          status: "deprecated",
-          effectiveDate: "2023-01-01",
-          deprecationDate: "2024-06-01",
-          replacementCode: "17-25-2",
-          usageCount: 0,
-          lastUsed: "2024-05-30",
-          complianceNotes: ["Deprecated - use 17-25-2 instead"],
-          dohApproved: false,
-          damanApproved: false,
-        },
-      ];
-      setServiceCodes(mockCodes);
+      const response = await fetch("/api/daman-authorization/service-codes");
+      if (!response.ok) {
+        throw new Error("Failed to fetch service codes");
+      }
+      const codes = await response.json();
+      setServiceCodes(codes);
     } catch (error) {
       console.error("Error loading service codes:", error);
+      // Initialize with default codes if none exist
+      try {
+        const initResponse = await fetch(
+          "/api/daman-authorization/service-codes/initialize",
+          {
+            method: "POST",
+          },
+        );
+        if (initResponse.ok) {
+          // Retry loading after initialization
+          const retryResponse = await fetch(
+            "/api/daman-authorization/service-codes",
+          );
+          if (retryResponse.ok) {
+            const codes = await retryResponse.json();
+            setServiceCodes(codes);
+          }
+        }
+      } catch (initError) {
+        console.error("Error initializing service codes:", initError);
+      }
     } finally {
       setLoading(false);
     }
@@ -246,6 +173,119 @@ const ServiceCodeManager: React.FC<ServiceCodeManagerProps> = ({
     setRefreshing(true);
     await Promise.all([loadServiceCodes(), loadCodeMappings()]);
     setRefreshing(false);
+  };
+
+  const handleAddServiceCode = async () => {
+    try {
+      const response = await fetch("/api/daman-authorization/service-codes", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          ...newServiceCode,
+          createdBy: "admin", // In real app, get from auth context
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.details || "Failed to create service code");
+      }
+
+      const result = await response.json();
+      console.log("Service code created:", result);
+
+      // Reset form and close
+      setNewServiceCode({
+        code: "",
+        description: "",
+        category: "nursing",
+        price: 0,
+        currency: "AED",
+        effectiveDate: new Date().toISOString().split("T")[0],
+      });
+      setShowAddForm(false);
+
+      // Reload service codes
+      await loadServiceCodes();
+    } catch (error) {
+      console.error("Error creating service code:", error);
+      alert(`Error: ${error.message}`);
+    }
+  };
+
+  const handleApproveServiceCode = async (
+    codeId: string,
+    approvalType: "doh" | "daman",
+    status: "approved" | "rejected",
+  ) => {
+    try {
+      const response = await fetch(
+        `/api/daman-authorization/service-codes/${codeId}/approval`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            approvalType,
+            status,
+            approvedBy: "admin", // In real app, get from auth context
+          }),
+        },
+      );
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.details || "Failed to update approval status");
+      }
+
+      const result = await response.json();
+      console.log("Approval updated:", result);
+
+      // Reload service codes
+      await loadServiceCodes();
+    } catch (error) {
+      console.error("Error updating approval:", error);
+      alert(`Error: ${error.message}`);
+    }
+  };
+
+  const handleDeprecateServiceCode = async (
+    codeId: string,
+    replacementCode?: string,
+  ) => {
+    try {
+      const response = await fetch(
+        `/api/daman-authorization/service-codes/${codeId}/deprecate`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            replacementCode,
+            deprecationReason: "Manual deprecation",
+            deprecatedBy: "admin", // In real app, get from auth context
+          }),
+        },
+      );
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.details || "Failed to deprecate service code");
+      }
+
+      const result = await response.json();
+      console.log("Service code deprecated:", result);
+
+      // Reload service codes
+      await loadServiceCodes();
+    } catch (error) {
+      console.error("Error deprecating service code:", error);
+      alert(`Error: ${error.message}`);
+    }
   };
 
   const getStatusColor = (status: string) => {
@@ -338,16 +378,25 @@ const ServiceCodeManager: React.FC<ServiceCodeManagerProps> = ({
             validate pricing
           </p>
         </div>
-        <Button
-          onClick={refreshData}
-          disabled={refreshing}
-          className="bg-blue-600 hover:bg-blue-700"
-        >
-          <RefreshCw
-            className={cn("h-4 w-4 mr-2", refreshing && "animate-spin")}
-          />
-          Refresh
-        </Button>
+        <div className="flex space-x-2">
+          <Button
+            onClick={() => setShowAddForm(true)}
+            className="bg-green-600 hover:bg-green-700"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Add Service Code
+          </Button>
+          <Button
+            onClick={refreshData}
+            disabled={refreshing}
+            className="bg-blue-600 hover:bg-blue-700"
+          >
+            <RefreshCw
+              className={cn("h-4 w-4 mr-2", refreshing && "animate-spin")}
+            />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {/* Deprecated Codes Alert */}
@@ -424,6 +473,127 @@ const ServiceCodeManager: React.FC<ServiceCodeManagerProps> = ({
           </CardContent>
         </Card>
       </div>
+
+      {/* Add Service Code Form */}
+      {showAddForm && (
+        <Card className="border-green-200 bg-green-50">
+          <CardHeader>
+            <CardTitle className="text-green-800">
+              Add New Service Code
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Service Code *
+                </label>
+                <input
+                  type="text"
+                  placeholder="17-25-X"
+                  value={newServiceCode.code}
+                  onChange={(e) =>
+                    setNewServiceCode({
+                      ...newServiceCode,
+                      code: e.target.value,
+                    })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Category *
+                </label>
+                <Select
+                  value={newServiceCode.category}
+                  onValueChange={(value: ServiceCode["category"]) =>
+                    setNewServiceCode({ ...newServiceCode, category: value })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="nursing">Nursing</SelectItem>
+                    <SelectItem value="supportive">Supportive</SelectItem>
+                    <SelectItem value="consultation">Consultation</SelectItem>
+                    <SelectItem value="routine">Routine</SelectItem>
+                    <SelectItem value="advanced">Advanced</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Description *
+                </label>
+                <input
+                  type="text"
+                  placeholder="Service description"
+                  value={newServiceCode.description}
+                  onChange={(e) =>
+                    setNewServiceCode({
+                      ...newServiceCode,
+                      description: e.target.value,
+                    })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Price (AED) *
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={newServiceCode.price}
+                  onChange={(e) =>
+                    setNewServiceCode({
+                      ...newServiceCode,
+                      price: parseFloat(e.target.value) || 0,
+                    })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Effective Date *
+                </label>
+                <input
+                  type="date"
+                  value={newServiceCode.effectiveDate}
+                  onChange={(e) =>
+                    setNewServiceCode({
+                      ...newServiceCode,
+                      effectiveDate: e.target.value,
+                    })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end space-x-2 mt-4">
+              <Button variant="outline" onClick={() => setShowAddForm(false)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={handleAddServiceCode}
+                className="bg-green-600 hover:bg-green-700"
+                disabled={
+                  !newServiceCode.code ||
+                  !newServiceCode.description ||
+                  newServiceCode.price <= 0
+                }
+              >
+                Create Service Code
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Main Content */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -578,8 +748,51 @@ const ServiceCodeManager: React.FC<ServiceCodeManagerProps> = ({
                           </div>
                           <div className="flex flex-col space-y-2">
                             <Button size="sm" variant="outline">
-                              Edit Code
+                              <Edit className="h-3 w-3 mr-1" />
+                              Edit
                             </Button>
+                            {code.status === "pending" && (
+                              <>
+                                <Button
+                                  size="sm"
+                                  className="bg-green-600 hover:bg-green-700"
+                                  onClick={() =>
+                                    handleApproveServiceCode(
+                                      code.id,
+                                      "doh",
+                                      "approved",
+                                    )
+                                  }
+                                >
+                                  DOH Approve
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  className="bg-blue-600 hover:bg-blue-700"
+                                  onClick={() =>
+                                    handleApproveServiceCode(
+                                      code.id,
+                                      "daman",
+                                      "approved",
+                                    )
+                                  }
+                                >
+                                  Daman Approve
+                                </Button>
+                              </>
+                            )}
+                            {code.status === "active" && (
+                              <Button
+                                size="sm"
+                                className="bg-orange-600 hover:bg-orange-700"
+                                onClick={() =>
+                                  handleDeprecateServiceCode(code.id)
+                                }
+                              >
+                                <Archive className="h-3 w-3 mr-1" />
+                                Deprecate
+                              </Button>
+                            )}
                             {code.status === "deprecated" && (
                               <Button
                                 size="sm"

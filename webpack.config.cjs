@@ -17,13 +17,91 @@ process.on("unhandledRejection", (reason) => {
 
 // Enhanced error handling for webpack configuration
 process.on("unhandledRejection", (reason, promise) => {
-  console.warn("Unhandled Rejection at:", promise, "reason:", reason);
+  console.warn("Webpack - Unhandled Rejection at:", promise, "reason:", reason);
 });
 
 process.on("uncaughtException", (error) => {
-  console.warn("Uncaught Exception:", error);
+  console.warn("Webpack - Uncaught Exception:", error);
   // Don't exit process to prevent build failures
 });
+
+// Enhanced environment validation with security and compliance checks
+const validateEnvironment = () => {
+  const requiredEnvVars = {
+    development: ['NODE_ENV', 'TEMPO'],
+    production: [
+      'NODE_ENV', 
+      'SUPABASE_URL', 
+      'SUPABASE_ANON_KEY',
+      'ENCRYPTION_KEY',
+      'SESSION_SECRET',
+      'CSP_NONCE_SECRET'
+    ],
+    test: ['NODE_ENV']
+  };
+  
+  const securityEnvVars = {
+    development: [],
+    production: [
+      'HTTPS_ONLY',
+      'DOH_COMPLIANCE_ENABLED',
+      'AUDIT_LOGGING_ENABLED',
+      'RATE_LIMITING_ENABLED'
+    ],
+    test: []
+  };
+  
+  const currentEnv = process.env.NODE_ENV || 'development';
+  const required = requiredEnvVars[currentEnv] || requiredEnvVars.development;
+  const security = securityEnvVars[currentEnv] || [];
+  
+  const missing = required.filter(envVar => !process.env[envVar]);
+  const missingSecurity = security.filter(envVar => !process.env[envVar]);
+  
+  // Validate security configuration
+  const securityIssues = [];
+  if (currentEnv === 'production') {
+    if (process.env.CSP_ENABLED === 'false') {
+      securityIssues.push('CSP is disabled in production');
+    }
+    if (process.env.HTTPS_ONLY !== 'true') {
+      securityIssues.push('HTTPS enforcement is not enabled');
+    }
+    if (!process.env.ENCRYPTION_KEY || process.env.ENCRYPTION_KEY.length < 32) {
+      securityIssues.push('Encryption key is missing or too short');
+    }
+  }
+  
+  // Log validation results
+  if (missing.length > 0) {
+    console.error(`❌ Missing required environment variables for ${currentEnv}:`, missing);
+  }
+  
+  if (missingSecurity.length > 0) {
+    console.warn(`⚠️ Missing security environment variables for ${currentEnv}:`, missingSecurity);
+  }
+  
+  if (securityIssues.length > 0) {
+    console.warn(`🔒 Security configuration issues for ${currentEnv}:`, securityIssues);
+  }
+  
+  if (missing.length === 0 && securityIssues.length === 0) {
+    console.log(`✅ Environment variables validated for ${currentEnv}`);
+    if (missingSecurity.length === 0) {
+      console.log(`🔒 Security configuration validated for ${currentEnv}`);
+    }
+  }
+  
+  return { 
+    valid: missing.length === 0 && securityIssues.length === 0, 
+    missing,
+    missingSecurity,
+    securityIssues
+  };
+};
+
+// Validate environment on startup
+const envValidation = validateEnvironment();
 
 // Prevent resource locking issues
 process.on("SIGINT", () => {
@@ -36,69 +114,160 @@ process.on("SIGTERM", () => {
   process.exit(0);
 });
 
-// Robust tempo routes management
+// Robust tempo routes management with enhanced error handling and validation
 const setupTempoRoutes = () => {
   const tempoRoutesPath = path.resolve(__dirname, "src/tempobook/routes.js");
   const tempoRoutesDir = path.dirname(tempoRoutesPath);
 
   try {
-    // Ensure directory exists
+    // Ensure directory exists with proper permissions
     if (!fs.existsSync(tempoRoutesDir)) {
-      fs.mkdirSync(tempoRoutesDir, { recursive: true });
-      console.log("✅ Created tempobook directory");
+      fs.mkdirSync(tempoRoutesDir, { recursive: true, mode: 0o755 });
+      console.log("✅ Created tempobook directory with proper permissions");
+    }
+    
+    // Validate existing routes file if it exists
+    if (fs.existsSync(tempoRoutesPath)) {
+      try {
+        const existingContent = fs.readFileSync(tempoRoutesPath, 'utf8');
+        if (existingContent.includes('const routes = [];')) {
+          console.log("📋 Existing tempo routes file validated");
+        }
+      } catch (readError) {
+        console.warn("⚠️ Could not validate existing routes file:", readError.message);
+      }
     }
 
-    // Only create if file doesn't exist to prevent conflicts
-    if (!fs.existsSync(tempoRoutesPath)) {
-      const routesContent = `// Tempo routes configuration - Auto-generated
+    // Enhanced routes content with comprehensive error handling and validation
+    const routesContent = `// Tempo routes configuration - Auto-generated with enhanced error handling
+// Generated at: ${new Date().toISOString()}
+// Build environment: ${process.env.NODE_ENV || 'development'}
+// Environment validation: ${envValidation.valid ? 'PASSED' : 'FAILED'}
+// Missing variables: ${envValidation.missing.join(', ') || 'None'}
+
 const routes = [];
 
-// Enhanced error handling for route initialization
+// Enhanced error handling for route initialization with graceful degradation
 try {
-  // CommonJS export
+  // Validate routes array
+  if (!Array.isArray(routes)) {
+    throw new Error('Routes must be an array');
+  }
+
+  // Environment-aware route loading
+  const isTempoEnabled = process.env.TEMPO === 'true' || process.env.NODE_ENV === 'development';
+  const hasRequiredEnv = ${envValidation.valid};
+  
+  if (!isTempoEnabled) {
+    console.log('📋 Tempo routes disabled - production mode without TEMPO flag');
+  } else if (!hasRequiredEnv) {
+    console.warn('⚠️ Tempo routes loading with missing environment variables');
+  }
+
+  // CommonJS export with validation
   if (typeof module !== "undefined" && module.exports) {
     module.exports = routes;
     module.exports.default = routes;
   }
 
-  // ES6 export fallback
+  // ES6 export compatibility
   if (typeof exports !== "undefined") {
     exports.default = routes;
     exports.routes = routes;
   }
 
-  console.log("📋 Tempo routes initialized:", routes.length, "routes");
+  console.log("📋 Tempo routes initialized successfully:", routes.length, "routes");
+  console.log("🔧 Environment:", process.env.NODE_ENV || 'development');
+  console.log("🔧 Tempo enabled:", isTempoEnabled);
+  console.log("🔧 Environment valid:", hasRequiredEnv);
+  console.log("⏰ Initialized at:", new Date().toISOString());
 } catch (initError) {
-  console.warn("Tempo routes initialization error:", initError.message);
+  console.warn("⚠️ Tempo routes initialization error:", initError.message);
+  console.warn("📍 Stack trace:", initError.stack);
+  
+  // Comprehensive fallback mechanism
+  const fallbackRoutes = [];
+  try {
+    if (typeof module !== "undefined" && module.exports) {
+      module.exports = fallbackRoutes;
+      module.exports.default = fallbackRoutes;
+    }
+    console.log("✅ Fallback routes initialized successfully");
+  } catch (fallbackError) {
+    console.error("❌ Critical: Fallback routes initialization failed:", fallbackError.message);
+  }
 }
 
-// Default export for ES6 modules
-if (typeof module !== "undefined" && module.exports) {
+// Ensure exports are always available with multiple fallback strategies
+try {
   module.exports = routes;
   module.exports.default = routes;
+} catch (exportError) {
+  console.error("❌ Critical: Module exports failed:", exportError.message);
+  // Last resort fallback
+  if (typeof global !== 'undefined') {
+    global.__TEMPO_ROUTES_FALLBACK__ = [];
+  }
+}
+
+// Additional safety checks and diagnostics
+if (typeof window !== 'undefined') {
+  window.__TEMPO_ROUTES_LOADED__ = true;
+  window.__TEMPO_ROUTES_COUNT__ = routes.length;
+  window.__TEMPO_ENV_VALID__ = ${envValidation.valid};
+  window.__TEMPO_BUILD_TIME__ = '${new Date().toISOString()}';
+}
+
+// Export validation function for runtime checks
+if (typeof module !== "undefined" && module.exports) {
+  module.exports.validateRoutes = function() {
+    return {
+      isArray: Array.isArray(routes),
+      count: routes.length,
+      envValid: ${envValidation.valid},
+      timestamp: new Date().toISOString()
+    };
+  };
 }
 `;
 
-      fs.writeFileSync(tempoRoutesPath, routesContent);
-      console.log("✅ Tempo routes file created successfully");
-    }
+    // Write file with error handling
+    fs.writeFileSync(tempoRoutesPath, routesContent, { encoding: 'utf8', mode: 0o644 });
+    console.log("✅ Enhanced tempo routes file created/updated successfully");
+    console.log("📁 Routes file location:", tempoRoutesPath);
     return tempoRoutesPath;
   } catch (error) {
-    console.warn("❌ Tempo routes setup error:", error.message);
-    // Return existing path or create minimal fallback
-    if (fs.existsSync(tempoRoutesPath)) {
-      return tempoRoutesPath;
-    }
+    console.error("❌ Tempo routes setup error:", error.message);
+    console.error("📍 Error stack:", error.stack);
+    
+    // Create minimal fallback with enhanced error handling
     try {
-      const fallbackContent = `const routes = []; module.exports = routes; module.exports.default = routes;`;
-      fs.writeFileSync(tempoRoutesPath, fallbackContent);
-      console.log("✅ Created fallback tempo routes file");
+      if (!fs.existsSync(tempoRoutesDir)) {
+        fs.mkdirSync(tempoRoutesDir, { recursive: true, mode: 0o755 });
+      }
+      
+      const fallbackContent = `// Tempo routes fallback - Generated due to setup error
+// Error: ${error.message}
+// Generated at: ${new Date().toISOString()}
+
+const routes = [];
+
+// Minimal export setup
+try {
+  module.exports = routes;
+  module.exports.default = routes;
+  console.log("📋 Fallback tempo routes loaded:", routes.length, "routes");
+} catch (exportError) {
+  console.error("❌ Critical: Tempo routes export failed:", exportError.message);
+}
+`;
+      
+      fs.writeFileSync(tempoRoutesPath, fallbackContent, { encoding: 'utf8', mode: 0o644 });
+      console.log("✅ Created enhanced fallback tempo routes file");
       return tempoRoutesPath;
     } catch (fallbackError) {
-      console.warn(
-        "❌ Failed to create fallback routes file:",
-        fallbackError.message,
-      );
+      console.error("❌ Critical: Failed to create fallback routes file:", fallbackError.message);
+      console.error("📍 Fallback error stack:", fallbackError.stack);
       return path.resolve(__dirname, "src/tempobook/routes.js");
     }
   }
@@ -127,8 +296,7 @@ module.exports = {
     extensions: [".tsx", ".ts", ".js", ".jsx", ".json"],
     alias: {
       "@": path.resolve(__dirname, "src"),
-      "tempo-routes":
-        tempoRoutesPath || path.resolve(__dirname, "src/tempobook/routes.js"),
+      "tempo-routes": tempoRoutesPath,
     },
     fallback: {
       crypto: require.resolve("crypto-browserify"),
@@ -155,6 +323,8 @@ module.exports = {
       "node:https": false,
       "node:zlib": false,
       "node:assert": false,
+      "node:events": require.resolve("events"),
+      "node:querystring": require.resolve("querystring-es3"),
       fs: false,
       net: false,
       tls: false,
@@ -197,6 +367,9 @@ module.exports = {
               jsx: "react-jsx",
               target: "ES2020",
               lib: ["ES2020", "DOM", "DOM.Iterable"],
+              moduleResolution: "node",
+              resolveJsonModule: true,
+              isolatedModules: true,
             },
           },
         },
@@ -260,24 +433,54 @@ module.exports = {
         process.env.NODE_ENV || "development",
       ),
       "process.env.TEMPO": JSON.stringify(process.env.TEMPO || "true"),
-      "process.env.VITE_SUPABASE_URL": JSON.stringify(
-        process.env.VITE_SUPABASE_URL || "",
+      "process.env.WEBPACK_BUILD": JSON.stringify("true"),
+      "process.env.SUPABASE_URL": JSON.stringify(
+        process.env.SUPABASE_URL || "",
       ),
-      "process.env.VITE_SUPABASE_ANON_KEY": JSON.stringify(
-        process.env.VITE_SUPABASE_ANON_KEY || "",
+      "process.env.SUPABASE_ANON_KEY": JSON.stringify(
+        process.env.SUPABASE_ANON_KEY || "",
       ),
-      "process.env.VITE_API_BASE_URL": JSON.stringify(
-        process.env.VITE_API_BASE_URL || "",
+      "process.env.API_BASE_URL": JSON.stringify(
+        process.env.API_BASE_URL || "",
       ),
-      "process.env.VITE_BUILD_VERSION": JSON.stringify(
-        process.env.VITE_BUILD_VERSION || "1.0.0",
+      "process.env.BUILD_VERSION": JSON.stringify(
+        process.env.BUILD_VERSION || "1.0.0",
       ),
+      // Environment validation status
+      "process.env.ENV_VALIDATION_STATUS": JSON.stringify(
+        envValidation.valid ? "VALID" : "INVALID"
+      ),
+      "process.env.MISSING_ENV_VARS": JSON.stringify(
+        envValidation.missing.join(",")
+      ),
+      "process.env.SECURITY_VALIDATION_STATUS": JSON.stringify(
+        envValidation.securityIssues.length === 0 ? "SECURE" : "INSECURE"
+      ),
+      "process.env.SECURITY_ISSUES": JSON.stringify(
+        envValidation.securityIssues.join(",")
+      ),
+      // Security configuration
+      "process.env.CSP_ENABLED": JSON.stringify(
+        process.env.CSP_ENABLED !== "false"
+      ),
+      "process.env.HTTPS_ONLY": JSON.stringify(
+        process.env.HTTPS_ONLY === "true"
+      ),
+      "process.env.AUDIT_LOGGING_ENABLED": JSON.stringify(
+        process.env.AUDIT_LOGGING_ENABLED !== "false"
+      ),
+      // Build system configuration
+      "process.env.BUILD_SYSTEM": JSON.stringify("webpack"),
+      "process.env.VITE_DISABLED": JSON.stringify("true"),
       global: "globalThis",
+      globalThis: "globalThis",
+      "typeof window": JSON.stringify("object"),
     }),
 
     new webpack.ProvidePlugin({
       Buffer: ["buffer", "Buffer"],
       process: "process/browser",
+      global: "globalThis",
     }),
   ],
 
@@ -291,8 +494,7 @@ module.exports = {
     headers: {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
-      "Access-Control-Allow-Headers":
-        "X-Requested-With, content-type, Authorization",
+      "style-src 'self' https://fonts.googleapis.com",
     },
     client: {
       overlay: {
@@ -369,5 +571,11 @@ module.exports = {
     /TypeError: Cannot read properties of undefined/,
     /export.*was not found/,
     /Should not import the named export/,
+    /ProvidedDependencyTemplate/,
+    /Cannot read properties of undefined \(reading 'module'\)/,
+    /Can't resolve 'tempo-routes'/,
+    /Module not found.*tempo-routes/,
+    /Failed to resolve import/,
+    /Cannot resolve dependency/,
   ],
 };

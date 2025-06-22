@@ -56,7 +56,7 @@
     <!-- Security Headers -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://api.tempo.new https://storage.googleapis.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: blob:; font-src 'self' https:; connect-src 'self' https: wss: ws:; media-src 'self' https: blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none';"
+      content="default-src 'self'; script-src 'self' https://api.tempo.new https://storage.googleapis.com 'nonce-tempo-script'; style-src 'self' https://fonts.googleapis.com 'nonce-tempo-style'; img-src 'self' data: blob: https://images.unsplash.com https://api.dicebear.com; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https: wss: ws:; media-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests;"
     />
     <meta http-equiv="X-Content-Type-Options" content="nosniff" />
     <meta http-equiv="X-Frame-Options" content="DENY" />
@@ -98,9 +98,8 @@
         border-top: 1px solid rgba(255, 255, 255, 0.2);
         box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
         z-index: 1000;
-        font-family:
-          &quot;Naskh Modern&quot;, &quot;Segoe UI&quot;, Tahoma, Geneva,
-          Verdana, sans-serif;
+        font-family: &quot;Naskh Modern&quot;, &quot;Segoe UI&quot;, Tahoma,
+          Geneva, Verdana, sans-serif;
       "
     >
       <div
@@ -111,8 +110,6 @@
           gap: 8px;
         "
       >
-        <span style="font-weight: 600; letter-spacing: 0.5px">ريادة</span>
-        <span style="opacity: 0.8">|</span>
         <span
           >© 2024 Reyada Home Health Care Services L.L.C. All rights
           reserved.</span

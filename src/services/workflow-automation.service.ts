@@ -121,10 +121,322 @@ class WorkflowAutomationService {
   }
 
   /**
-   * Initialize default healthcare workflows
+   * Initialize default healthcare workflows including revenue cycle integration
    */
   private initializeDefaultWorkflows(): void {
     const defaultWorkflows: WorkflowDefinition[] = [
+      // Revenue Cycle Integration Workflows
+      {
+        id: "claims-processing-unified",
+        name: "Unified Claims Processing Workflow",
+        description:
+          "End-to-end automated claims processing with revenue optimization",
+        triggers: [
+          {
+            type: "event",
+            event: "claim_submitted",
+            parameters: { autoProcess: true },
+          },
+        ],
+        steps: [
+          {
+            id: "claim-validation",
+            name: "Comprehensive Claim Validation",
+            type: "action",
+            action: "validate_claim_data",
+            parameters: {
+              validationRules: [
+                "required_fields",
+                "business_rules",
+                "data_quality",
+                "compliance_check",
+              ],
+              automatedFix: true,
+            },
+            nextSteps: ["eligibility-verification"],
+            retryPolicy: {
+              maxRetries: 3,
+              backoffStrategy: "exponential",
+              retryDelay: 1000,
+            },
+          },
+          {
+            id: "eligibility-verification",
+            name: "Real-time Eligibility Verification",
+            type: "integration",
+            action: "verify_patient_eligibility",
+            parameters: {
+              sources: ["daman_api", "insurance_provider"],
+              cacheEnabled: true,
+              timeout: 30000,
+            },
+            nextSteps: ["authorization-check"],
+          },
+          {
+            id: "authorization-check",
+            name: "Prior Authorization Validation",
+            type: "decision",
+            parameters: {
+              condition: "authorization_required",
+              autoApprovalThreshold: 1000,
+              escalationRules: {
+                high_value: "manual_review",
+                complex_case: "clinical_review",
+              },
+            },
+            nextSteps: ["reimbursement-calculation", "manual-review"],
+          },
+          {
+            id: "reimbursement-calculation",
+            name: "Intelligent Reimbursement Calculation",
+            type: "action",
+            action: "calculate_reimbursement",
+            parameters: {
+              contractRates: true,
+              adjustmentFactors: [
+                "patient_type",
+                "service_location",
+                "provider_tier",
+              ],
+              revenueOptimization: true,
+            },
+            nextSteps: ["revenue-optimization"],
+          },
+          {
+            id: "revenue-optimization",
+            name: "Revenue Optimization Analysis",
+            type: "action",
+            action: "optimize_revenue",
+            parameters: {
+              denialRiskAssessment: true,
+              paymentAcceleration: true,
+              leakagePrevention: true,
+              reconciliationTracking: true,
+            },
+            nextSteps: ["automated-submission"],
+          },
+          {
+            id: "automated-submission",
+            name: "Automated Claim Submission",
+            type: "integration",
+            action: "submit_claim",
+            parameters: {
+              submissionEndpoint: "/api/claims/submit",
+              realTimeTracking: true,
+              confirmationRequired: true,
+            },
+            nextSteps: ["tracking-setup"],
+          },
+          {
+            id: "tracking-setup",
+            name: "Real-time Tracking Setup",
+            type: "action",
+            action: "setup_claim_tracking",
+            parameters: {
+              trackingInterval: 3600000, // 1 hour
+              statusUpdates: true,
+              alertThresholds: {
+                processing_delay: 72, // hours
+                denial_risk: 0.3,
+              },
+            },
+            nextSteps: [],
+          },
+        ],
+        conditions: [],
+        automationLevel: "automatic",
+        priority: "high",
+        category: "administrative",
+        isActive: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+      {
+        id: "payment-reconciliation-automated",
+        name: "Automated Payment Reconciliation Workflow",
+        description: "Intelligent payment matching and variance management",
+        triggers: [
+          {
+            type: "event",
+            event: "payment_received",
+            parameters: { autoReconcile: true },
+          },
+        ],
+        steps: [
+          {
+            id: "payment-matching",
+            name: "Intelligent Payment Matching",
+            type: "action",
+            action: "match_payment_to_claim",
+            parameters: {
+              matchingCriteria: ["claim_id", "amount_range", "date_range"],
+              fuzzyMatching: true,
+              confidenceThreshold: 0.85,
+              mlModelEnabled: true,
+            },
+            nextSteps: ["variance-analysis"],
+          },
+          {
+            id: "variance-analysis",
+            name: "Automated Variance Analysis",
+            type: "action",
+            action: "analyze_payment_variance",
+            parameters: {
+              varianceThreshold: 0.05, // 5%
+              acceptableReasons: [
+                "contractual_adjustment",
+                "copay",
+                "deductible",
+              ],
+              rootCauseAnalysis: true,
+            },
+            nextSteps: ["reconciliation-decision"],
+          },
+          {
+            id: "reconciliation-decision",
+            name: "Automated Reconciliation Decision",
+            type: "decision",
+            parameters: {
+              condition: "variance_within_threshold",
+              autoReconcileLimit: 1000,
+              escalationMatrix: {
+                low_variance: "auto_reconcile",
+                medium_variance: "supervisor_review",
+                high_variance: "manager_review",
+                suspicious_pattern: "fraud_investigation",
+              },
+            },
+            nextSteps: ["auto-reconcile", "manual-review", "escalation"],
+          },
+          {
+            id: "auto-reconcile",
+            name: "Automatic Reconciliation",
+            type: "action",
+            action: "reconcile_payment",
+            parameters: {
+              updateAccountsReceivable: true,
+              generateReceipt: true,
+              notifyStakeholders: true,
+            },
+            nextSteps: ["reconciliation-reporting"],
+          },
+          {
+            id: "reconciliation-reporting",
+            name: "Reconciliation Reporting",
+            type: "notification",
+            action: "generate_reconciliation_report",
+            parameters: {
+              recipients: ["finance_team", "revenue_manager"],
+              reportFormat: "detailed",
+              includeMetrics: true,
+            },
+            nextSteps: [],
+          },
+        ],
+        conditions: [],
+        automationLevel: "automatic",
+        priority: "high",
+        category: "administrative",
+        isActive: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+      {
+        id: "revenue-optimization-continuous",
+        name: "Continuous Revenue Optimization Workflow",
+        description: "Proactive revenue cycle monitoring and optimization",
+        triggers: [
+          {
+            type: "schedule",
+            schedule: "0 */4 * * *", // Every 4 hours
+            parameters: { optimizationType: "continuous" },
+          },
+          {
+            type: "condition",
+            condition: "denial_rate_threshold_exceeded",
+            parameters: { threshold: 0.15 },
+          },
+        ],
+        steps: [
+          {
+            id: "revenue-cycle-analysis",
+            name: "Revenue Cycle Performance Analysis",
+            type: "action",
+            action: "analyze_revenue_cycle",
+            parameters: {
+              metricsToAnalyze: [
+                "denial_rate",
+                "collection_rate",
+                "days_in_ar",
+                "processing_time",
+                "reconciliation_rate",
+              ],
+              trendAnalysis: true,
+              benchmarkComparison: true,
+            },
+            nextSteps: ["bottleneck-identification"],
+          },
+          {
+            id: "bottleneck-identification",
+            name: "Process Bottleneck Identification",
+            type: "action",
+            action: "identify_bottlenecks",
+            parameters: {
+              aiAnalysis: true,
+              historicalComparison: true,
+              impactAssessment: true,
+            },
+            nextSteps: ["optimization-recommendations"],
+          },
+          {
+            id: "optimization-recommendations",
+            name: "Generate Optimization Recommendations",
+            type: "action",
+            action: "generate_optimization_plan",
+            parameters: {
+              prioritizeByImpact: true,
+              implementationEffort: true,
+              roiCalculation: true,
+            },
+            nextSteps: ["automated-optimizations"],
+          },
+          {
+            id: "automated-optimizations",
+            name: "Execute Automated Optimizations",
+            type: "action",
+            action: "execute_optimizations",
+            parameters: {
+              autoImplementThreshold: "low_effort_high_impact",
+              approvalRequired: false,
+              rollbackCapability: true,
+            },
+            nextSteps: ["performance-monitoring"],
+          },
+          {
+            id: "performance-monitoring",
+            name: "Optimization Performance Monitoring",
+            type: "action",
+            action: "monitor_optimization_impact",
+            parameters: {
+              monitoringPeriod: 7, // days
+              successMetrics: [
+                "revenue_increase",
+                "time_reduction",
+                "error_decrease",
+              ],
+              alertOnRegression: true,
+            },
+            nextSteps: [],
+          },
+        ],
+        conditions: [],
+        automationLevel: "automatic",
+        priority: "critical",
+        category: "administrative",
+        isActive: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
       {
         id: "patient-admission",
         name: "Patient Admission Workflow",

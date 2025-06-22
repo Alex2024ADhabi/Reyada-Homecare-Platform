@@ -428,6 +428,640 @@ router.get("/authorization/:id/realtime-status", async (req, res) => {
   }
 });
 
+// Dynamic Service Code Management
+router.get("/service-codes", async (req, res) => {
+  try {
+    const serviceCodes = await db
+      .collection("service_codes")
+      .find({})
+      .toArray();
+    res.json(serviceCodes);
+  } catch (error) {
+    console.error("Error fetching service codes:", error);
+    res.status(500).json({ error: "Failed to fetch service codes" });
+  }
+});
+
+// Add new service code
+router.post("/service-codes", async (req, res) => {
+  try {
+    const serviceCodeData = req.body;
+
+    // Validate required fields
+    const requiredFields = [
+      "code",
+      "description",
+      "category",
+      "price",
+      "currency",
+      "effectiveDate",
+    ];
+
+    const missingFields = requiredFields.filter(
+      (field) => !serviceCodeData[field] && serviceCodeData[field] !== 0,
+    );
+
+    if (missingFields.length > 0) {
+      return res.status(400).json({
+        error: "Missing required fields",
+        details: `Required fields missing: ${missingFields.join(", ")}`,
+        missingFields,
+      });
+    }
+
+    // Validate service code format
+    const codePattern = /^17-25-\d+$/;
+    if (!codePattern.test(serviceCodeData.code)) {
+      return res.status(400).json({
+        error: "Invalid service code format",
+        details:
+          "Service code must follow format: 17-25-X (where X is a number)",
+        validFormat: "17-25-X",
+      });
+    }
+
+    // Check if code already exists
+    const existingCode = await db.collection("service_codes").findOne({
+      code: serviceCodeData.code,
+    });
+
+    if (existingCode) {
+      return res.status(409).json({
+        error: "Service code already exists",
+        details: `Service code ${serviceCodeData.code} is already in use`,
+        existingCode: existingCode.code,
+      });
+    }
+
+    // Validate category
+    const validCategories = [
+      "nursing",
+      "supportive",
+      "consultation",
+      "routine",
+      "advanced",
+    ];
+    if (!validCategories.includes(serviceCodeData.category)) {
+      return res.status(400).json({
+        error: "Invalid category",
+        details: `Category must be one of: ${validCategories.join(", ")}`,
+        validCategories,
+      });
+    }
+
+    // Validate price
+    if (serviceCodeData.price < 0) {
+      return res.status(400).json({
+        error: "Invalid price",
+        details: "Price cannot be negative",
+      });
+    }
+
+    // Create new service code
+    const newServiceCode = {
+      ...serviceCodeData,
+      id: `sc-${Date.now()}`,
+      status: "pending", // New codes start as pending approval
+      usageCount: 0,
+      lastUsed: null,
+      complianceNotes: [],
+      dohApproved: false,
+      damanApproved: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      createdBy: serviceCodeData.createdBy || "system",
+    };
+
+    const result = await db
+      .collection("service_codes")
+      .insertOne(newServiceCode);
+
+    res.status(201).json({
+      success: true,
+      message: "Service code created successfully",
+      serviceCode: {
+        ...newServiceCode,
+        _id: result.insertedId,
+      },
+      nextSteps: [
+        "Service code created with pending status",
+        "DOH approval required before activation",
+        "Daman approval required for insurance claims",
+        "Code will be available for use once approved",
+      ],
+    });
+  } catch (error) {
+    console.error("Error creating service code:", error);
+    res.status(500).json({ error: "Failed to create service code" });
+  }
+});
+
+// Update service code
+router.put("/service-codes/:id", async (req, res) => {
+  try {
+    const serviceCodeId = req.params.id;
+    const updateData = req.body;
+
+    // Find existing service code
+    const existingCode = await db.collection("service_codes").findOne({
+      $or: [{ _id: new ObjectId(serviceCodeId) }, { id: serviceCodeId }],
+    });
+
+    if (!existingCode) {
+      return res.status(404).json({ error: "Service code not found" });
+    }
+
+    // Validate updates
+    if (updateData.code && updateData.code !== existingCode.code) {
+      const codePattern = /^17-25-\d+$/;
+      if (!codePattern.test(updateData.code)) {
+        return res.status(400).json({
+          error: "Invalid service code format",
+          details:
+            "Service code must follow format: 17-25-X (where X is a number)",
+        });
+      }
+
+      // Check if new code already exists
+      const duplicateCode = await db.collection("service_codes").findOne({
+        code: updateData.code,
+        _id: { $ne: existingCode._id },
+      });
+
+      if (duplicateCode) {
+        return res.status(409).json({
+          error: "Service code already exists",
+          details: `Service code ${updateData.code} is already in use`,
+        });
+      }
+    }
+
+    // Update service code
+    const updatedServiceCode = {
+      ...updateData,
+      updatedAt: new Date().toISOString(),
+      updatedBy: updateData.updatedBy || "system",
+    };
+
+    await db
+      .collection("service_codes")
+      .updateOne({ _id: existingCode._id }, { $set: updatedServiceCode });
+
+    const result = await db.collection("service_codes").findOne({
+      _id: existingCode._id,
+    });
+
+    res.json({
+      success: true,
+      message: "Service code updated successfully",
+      serviceCode: result,
+    });
+  } catch (error) {
+    console.error("Error updating service code:", error);
+    res.status(500).json({ error: "Failed to update service code" });
+  }
+});
+
+// Approve/Reject service code
+router.patch("/service-codes/:id/approval", async (req, res) => {
+  try {
+    const serviceCodeId = req.params.id;
+    const { approvalType, status, notes, approvedBy } = req.body;
+
+    // Validate approval type
+    if (!["doh", "daman"].includes(approvalType)) {
+      return res.status(400).json({
+        error: "Invalid approval type",
+        details: "Approval type must be 'doh' or 'daman'",
+      });
+    }
+
+    // Validate status
+    if (!["approved", "rejected"].includes(status)) {
+      return res.status(400).json({
+        error: "Invalid status",
+        details: "Status must be 'approved' or 'rejected'",
+      });
+    }
+
+    // Find service code
+    const serviceCode = await db.collection("service_codes").findOne({
+      $or: [{ _id: new ObjectId(serviceCodeId) }, { id: serviceCodeId }],
+    });
+
+    if (!serviceCode) {
+      return res.status(404).json({ error: "Service code not found" });
+    }
+
+    // Update approval status
+    const updateFields = {
+      [`${approvalType}Approved`]: status === "approved",
+      [`${approvalType}ApprovalDate`]: new Date().toISOString(),
+      [`${approvalType}ApprovedBy`]: approvedBy || "system",
+      updatedAt: new Date().toISOString(),
+    };
+
+    // Add compliance notes
+    const complianceNote = `${approvalType.toUpperCase()} ${status} on ${new Date().toLocaleDateString()}`;
+    if (notes) {
+      updateFields.complianceNotes = [
+        ...(serviceCode.complianceNotes || []),
+        complianceNote,
+        notes,
+      ];
+    } else {
+      updateFields.complianceNotes = [
+        ...(serviceCode.complianceNotes || []),
+        complianceNote,
+      ];
+    }
+
+    // Update overall status if both approvals are complete
+    if (approvalType === "doh" && status === "approved") {
+      if (serviceCode.damanApproved) {
+        updateFields.status = "active";
+      }
+    } else if (approvalType === "daman" && status === "approved") {
+      if (serviceCode.dohApproved) {
+        updateFields.status = "active";
+      }
+    }
+
+    if (status === "rejected") {
+      updateFields.status = "inactive";
+    }
+
+    await db
+      .collection("service_codes")
+      .updateOne({ _id: serviceCode._id }, { $set: updateFields });
+
+    const updatedCode = await db.collection("service_codes").findOne({
+      _id: serviceCode._id,
+    });
+
+    res.json({
+      success: true,
+      message: `Service code ${status} by ${approvalType.toUpperCase()}`,
+      serviceCode: updatedCode,
+      approvalStatus: {
+        dohApproved: updatedCode.dohApproved,
+        damanApproved: updatedCode.damanApproved,
+        overallStatus: updatedCode.status,
+      },
+    });
+  } catch (error) {
+    console.error("Error updating service code approval:", error);
+    res.status(500).json({ error: "Failed to update service code approval" });
+  }
+});
+
+// Delete service code (soft delete)
+router.delete("/service-codes/:id", async (req, res) => {
+  try {
+    const serviceCodeId = req.params.id;
+    const { reason, deletedBy } = req.body;
+
+    // Find service code
+    const serviceCode = await db.collection("service_codes").findOne({
+      $or: [{ _id: new ObjectId(serviceCodeId) }, { id: serviceCodeId }],
+    });
+
+    if (!serviceCode) {
+      return res.status(404).json({ error: "Service code not found" });
+    }
+
+    // Check if code is in use
+    if (serviceCode.usageCount > 0) {
+      return res.status(400).json({
+        error: "Cannot delete service code",
+        details: "Service code is currently in use and cannot be deleted",
+        usageCount: serviceCode.usageCount,
+        suggestion: "Consider deprecating the code instead",
+      });
+    }
+
+    // Soft delete - mark as inactive
+    await db.collection("service_codes").updateOne(
+      { _id: serviceCode._id },
+      {
+        $set: {
+          status: "inactive",
+          deletedAt: new Date().toISOString(),
+          deletedBy: deletedBy || "system",
+          deletionReason: reason || "Manual deletion",
+          updatedAt: new Date().toISOString(),
+        },
+      },
+    );
+
+    res.json({
+      success: true,
+      message: "Service code deactivated successfully",
+      note: "Code has been marked as inactive rather than permanently deleted",
+    });
+  } catch (error) {
+    console.error("Error deleting service code:", error);
+    res.status(500).json({ error: "Failed to delete service code" });
+  }
+});
+
+// Deprecate service code and set replacement
+router.patch("/service-codes/:id/deprecate", async (req, res) => {
+  try {
+    const serviceCodeId = req.params.id;
+    const { replacementCode, deprecationReason, deprecatedBy } = req.body;
+
+    // Find service code
+    const serviceCode = await db.collection("service_codes").findOne({
+      $or: [{ _id: new ObjectId(serviceCodeId) }, { id: serviceCodeId }],
+    });
+
+    if (!serviceCode) {
+      return res.status(404).json({ error: "Service code not found" });
+    }
+
+    // Validate replacement code if provided
+    if (replacementCode) {
+      const replacement = await db.collection("service_codes").findOne({
+        code: replacementCode,
+      });
+
+      if (!replacement) {
+        return res.status(400).json({
+          error: "Replacement code not found",
+          details: `Service code ${replacementCode} does not exist`,
+        });
+      }
+
+      if (replacement.status !== "active") {
+        return res.status(400).json({
+          error: "Invalid replacement code",
+          details: "Replacement code must be active",
+        });
+      }
+    }
+
+    // Update service code
+    await db.collection("service_codes").updateOne(
+      { _id: serviceCode._id },
+      {
+        $set: {
+          status: "deprecated",
+          deprecationDate: new Date().toISOString(),
+          replacementCode: replacementCode || null,
+          deprecationReason: deprecationReason || "Manual deprecation",
+          deprecatedBy: deprecatedBy || "system",
+          updatedAt: new Date().toISOString(),
+          complianceNotes: [
+            ...(serviceCode.complianceNotes || []),
+            `Deprecated on ${new Date().toLocaleDateString()}${replacementCode ? ` - Use ${replacementCode} instead` : ""}`,
+          ],
+        },
+      },
+    );
+
+    const updatedCode = await db.collection("service_codes").findOne({
+      _id: serviceCode._id,
+    });
+
+    res.json({
+      success: true,
+      message: "Service code deprecated successfully",
+      serviceCode: updatedCode,
+      migrationInfo: replacementCode
+        ? {
+            oldCode: serviceCode.code,
+            newCode: replacementCode,
+            migrationRequired: true,
+          }
+        : null,
+    });
+  } catch (error) {
+    console.error("Error deprecating service code:", error);
+    res.status(500).json({ error: "Failed to deprecate service code" });
+  }
+});
+
+// Get service code usage statistics
+router.get("/service-codes/:id/usage", async (req, res) => {
+  try {
+    const serviceCodeId = req.params.id;
+
+    // Find service code
+    const serviceCode = await db.collection("service_codes").findOne({
+      $or: [
+        { _id: new ObjectId(serviceCodeId) },
+        { id: serviceCodeId },
+        { code: serviceCodeId },
+      ],
+    });
+
+    if (!serviceCode) {
+      return res.status(404).json({ error: "Service code not found" });
+    }
+
+    // Get usage statistics from authorizations
+    const usageStats = await db
+      .collection("daman_authorizations")
+      .aggregate([
+        { $match: { serviceCode: serviceCode.code } },
+        {
+          $group: {
+            _id: "$serviceCode",
+            totalUsage: { $sum: 1 },
+            approvedUsage: {
+              $sum: {
+                $cond: [{ $eq: ["$authorization_status", "Approved"] }, 1, 0],
+              },
+            },
+            deniedUsage: {
+              $sum: {
+                $cond: [{ $eq: ["$authorization_status", "Denied"] }, 1, 0],
+              },
+            },
+            pendingUsage: {
+              $sum: {
+                $cond: [{ $eq: ["$authorization_status", "Pending"] }, 1, 0],
+              },
+            },
+            totalRevenue: {
+              $sum: {
+                $cond: [
+                  { $eq: ["$authorization_status", "Approved"] },
+                  { $multiply: ["$requestedDuration", serviceCode.price] },
+                  0,
+                ],
+              },
+            },
+          },
+        },
+      ])
+      .toArray();
+
+    const stats = usageStats[0] || {
+      totalUsage: 0,
+      approvedUsage: 0,
+      deniedUsage: 0,
+      pendingUsage: 0,
+      totalRevenue: 0,
+    };
+
+    res.json({
+      success: true,
+      serviceCode: {
+        id: serviceCode.id,
+        code: serviceCode.code,
+        description: serviceCode.description,
+        status: serviceCode.status,
+      },
+      usageStatistics: {
+        ...stats,
+        approvalRate:
+          stats.totalUsage > 0
+            ? ((stats.approvedUsage / stats.totalUsage) * 100).toFixed(2)
+            : 0,
+        denialRate:
+          stats.totalUsage > 0
+            ? ((stats.deniedUsage / stats.totalUsage) * 100).toFixed(2)
+            : 0,
+        averageRevenuePerUse:
+          stats.approvedUsage > 0
+            ? (stats.totalRevenue / stats.approvedUsage).toFixed(2)
+            : 0,
+      },
+      lastUpdated: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("Error fetching service code usage:", error);
+    res.status(500).json({ error: "Failed to fetch service code usage" });
+  }
+});
+
+// Initialize service codes collection with default codes
+router.post("/service-codes/initialize", async (req, res) => {
+  try {
+    // Check if collection already has data
+    const existingCodes = await db.collection("service_codes").countDocuments();
+
+    if (existingCodes > 0) {
+      return res.status(400).json({
+        error: "Service codes already initialized",
+        details: `Found ${existingCodes} existing service codes`,
+      });
+    }
+
+    // Default service codes
+    const defaultCodes = [
+      {
+        id: "sc-001",
+        code: "17-25-1",
+        description: "Simple Home Visit - Nursing",
+        category: "nursing",
+        price: 300,
+        currency: "AED",
+        status: "active",
+        effectiveDate: "2024-06-01",
+        usageCount: 0,
+        lastUsed: null,
+        complianceNotes: ["DOH approved June 2024", "Daman standard pricing"],
+        dohApproved: true,
+        damanApproved: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        createdBy: "system",
+      },
+      {
+        id: "sc-002",
+        code: "17-25-2",
+        description: "Simple Home Visit - Supportive",
+        category: "supportive",
+        price: 300,
+        currency: "AED",
+        status: "active",
+        effectiveDate: "2024-06-01",
+        usageCount: 0,
+        lastUsed: null,
+        complianceNotes: ["DOH approved June 2024"],
+        dohApproved: true,
+        damanApproved: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        createdBy: "system",
+      },
+      {
+        id: "sc-003",
+        code: "17-25-3",
+        description: "Specialized Home Visit - Consultation",
+        category: "consultation",
+        price: 800,
+        currency: "AED",
+        status: "active",
+        effectiveDate: "2024-06-01",
+        usageCount: 0,
+        lastUsed: null,
+        complianceNotes: ["Higher tier pricing approved"],
+        dohApproved: true,
+        damanApproved: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        createdBy: "system",
+      },
+      {
+        id: "sc-004",
+        code: "17-25-4",
+        description: "Routine Home Nursing Care",
+        category: "routine",
+        price: 900,
+        currency: "AED",
+        status: "active",
+        effectiveDate: "2024-06-01",
+        usageCount: 0,
+        lastUsed: null,
+        complianceNotes: [],
+        dohApproved: true,
+        damanApproved: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        createdBy: "system",
+      },
+      {
+        id: "sc-005",
+        code: "17-25-5",
+        description: "Advanced Home Nursing Care",
+        category: "advanced",
+        price: 1800,
+        currency: "AED",
+        status: "active",
+        effectiveDate: "2024-06-01",
+        usageCount: 0,
+        lastUsed: null,
+        complianceNotes: ["Premium tier service"],
+        dohApproved: true,
+        damanApproved: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        createdBy: "system",
+      },
+    ];
+
+    await db.collection("service_codes").insertMany(defaultCodes);
+
+    res.status(201).json({
+      success: true,
+      message: "Service codes initialized successfully",
+      codesCreated: defaultCodes.length,
+      codes: defaultCodes.map((code) => ({
+        id: code.id,
+        code: code.code,
+        description: code.description,
+      })),
+    });
+  } catch (error) {
+    console.error("Error initializing service codes:", error);
+    res.status(500).json({ error: "Failed to initialize service codes" });
+  }
+});
+
 // Enhanced validation functions
 const validateAuthorizationData = async (data: any) => {
   const errors: string[] = [];
@@ -460,7 +1094,7 @@ const validateAuthorizationData = async (data: any) => {
 
   // Service code validation with enhanced logic
   if (data.serviceCode) {
-    const validationResult = validateServiceCode(data.serviceCode);
+    const validationResult = await validateServiceCode(data.serviceCode);
     if (!validationResult.isValid) {
       errors.push(validationResult.error);
     }
@@ -480,26 +1114,68 @@ const validateAuthorizationData = async (data: any) => {
   };
 };
 
-// New service code validation logic
-const validateServiceCode = (serviceCode: string) => {
-  const validCodes = ["17-25-1", "17-25-2", "17-25-3", "17-25-4", "17-25-5"];
-  const deprecatedCodes = ["17-26-1", "17-26-2", "17-26-3", "17-26-4"];
+// Enhanced service code validation logic with dynamic lookup
+const validateServiceCode = async (serviceCode: string) => {
+  try {
+    // Get service code from database
+    const serviceCodeDoc = await db.collection("service_codes").findOne({
+      code: serviceCode,
+    });
 
-  if (deprecatedCodes.includes(serviceCode)) {
+    if (!serviceCodeDoc) {
+      return {
+        isValid: false,
+        error: `Service code ${serviceCode} not found. Please use a valid service code.`,
+      };
+    }
+
+    if (serviceCodeDoc.status === "deprecated") {
+      return {
+        isValid: false,
+        error: `Service code ${serviceCode} is deprecated${serviceCodeDoc.replacementCode ? `. Use ${serviceCodeDoc.replacementCode} instead` : ""}`,
+        replacementCode: serviceCodeDoc.replacementCode,
+      };
+    }
+
+    if (serviceCodeDoc.status === "inactive") {
+      return {
+        isValid: false,
+        error: `Service code ${serviceCode} is inactive and cannot be used`,
+      };
+    }
+
+    if (serviceCodeDoc.status === "pending") {
+      return {
+        isValid: false,
+        error: `Service code ${serviceCode} is pending approval and cannot be used yet`,
+      };
+    }
+
+    if (!serviceCodeDoc.dohApproved) {
+      return {
+        isValid: false,
+        error: `Service code ${serviceCode} is not DOH approved`,
+      };
+    }
+
+    if (!serviceCodeDoc.damanApproved) {
+      return {
+        isValid: false,
+        error: `Service code ${serviceCode} is not Daman approved`,
+      };
+    }
+
+    return {
+      isValid: true,
+      serviceCode: serviceCodeDoc,
+    };
+  } catch (error) {
+    console.error("Error validating service code:", error);
     return {
       isValid: false,
-      error: `Service code ${serviceCode} is deprecated since June 1, 2024. Use codes 17-25-1 to 17-25-5`,
+      error: `Error validating service code ${serviceCode}`,
     };
   }
-
-  if (!validCodes.includes(serviceCode)) {
-    return {
-      isValid: false,
-      error: `Invalid service code ${serviceCode}. Must be one of: ${validCodes.join(", ")}`,
-    };
-  }
-
-  return { isValid: true };
 };
 
 // MSC-specific validation requirements
@@ -713,35 +1389,35 @@ router.post("/submit", async (req, res) => {
         });
       }
 
-      // Validate service codes against DOH 2025 standards
-      const validServiceCodes = [
-        "17-25-1",
-        "17-25-2",
-        "17-25-3",
-        "17-25-4",
-        "17-25-5",
-      ];
-      const deprecatedCodes = ["17-26-1", "17-26-2", "17-26-3", "17-26-4"];
-
+      // Validate service codes against DOH 2025 standards with dynamic lookup
       if (sanitizedData.serviceCode) {
-        if (deprecatedCodes.includes(sanitizedData.serviceCode)) {
+        const serviceCodeValidation = await validateServiceCode(
+          sanitizedData.serviceCode,
+        );
+
+        if (!serviceCodeValidation.isValid) {
           return res.status(400).json({
-            error: "Deprecated service code detected",
-            details: `Service code ${sanitizedData.serviceCode} is deprecated since June 1, 2024. Use codes 17-25-1 to 17-25-5`,
+            error: "Invalid service code",
+            details: serviceCodeValidation.error,
             complianceStatus: "failed",
             dohStandards: "2025-non-compliant",
-            deprecatedCode: sanitizedData.serviceCode,
+            serviceCode: sanitizedData.serviceCode,
+            replacementCode: serviceCodeValidation.replacementCode,
           });
         }
 
-        if (!validServiceCodes.includes(sanitizedData.serviceCode)) {
-          return res.status(400).json({
-            error: "Invalid service code",
-            details: `Service code must be one of: ${validServiceCodes.join(", ")}`,
-            complianceStatus: "failed",
-            dohStandards: "2025-non-compliant",
-            validCodes: validServiceCodes,
-          });
+        // Update usage count for the service code
+        try {
+          await db.collection("service_codes").updateOne(
+            { code: sanitizedData.serviceCode },
+            {
+              $inc: { usageCount: 1 },
+              $set: { lastUsed: new Date().toISOString() },
+            },
+          );
+        } catch (usageError) {
+          console.error("Error updating service code usage:", usageError);
+          // Don't fail the authorization for usage tracking errors
         }
       }
 

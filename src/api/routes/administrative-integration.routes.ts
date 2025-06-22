@@ -10,6 +10,10 @@ import {
   createMasterStaffIndex,
   createSystemIntegration,
   logEventProcessing,
+  staffSchedulingAPI,
+  timesheetAPI,
+  incidentReportingAPI,
+  communicationAPI,
 } from "../administrative-integration.api";
 import {
   monitorIntegrationHealth,
@@ -17,6 +21,27 @@ import {
   getIntegrationAnalytics,
 } from "../integration-intelligence.api";
 import integrationIntelligenceRoutes from "./integration-intelligence.routes";
+
+// Import healthcare and government integration services
+import {
+  getHealthcareIntegrationStatus,
+  syncPatientWithFHIR,
+  getPatientLabResults,
+  orderLabTest,
+  syncPatientWithEMR,
+  syncPatientWithMalaffi,
+  syncPatientAcrossAllSystems,
+} from "../healthcare-integration.api";
+import {
+  verifyEmiratesIdWithGovernment,
+  verifyInsuranceEligibility,
+  submitPreAuthorizationRequest,
+  submitInsuranceClaim,
+  submitPatientDataToMOH,
+  submitIncidentReportToMOH,
+  registerPatientWithAllGovernmentSystems,
+  submitComprehensiveComplianceReport,
+} from "../government-reporting.api";
 
 const router = express.Router();
 
@@ -744,6 +769,291 @@ router.get("/business-continuity/documentation", async (req, res) => {
   }
 });
 
+// Staff Scheduling API Routes
+router.get("/staff-scheduling/schedules", async (req, res) => {
+  try {
+    const filters = req.query;
+    const schedules = await staffSchedulingAPI.getStaffSchedules(filters);
+    res.json(schedules);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post("/staff-scheduling/schedules", async (req, res) => {
+  try {
+    const scheduleData = req.body;
+    const schedule = await staffSchedulingAPI.createStaffSchedule(scheduleData);
+    res.json(schedule);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.put("/staff-scheduling/schedules/:scheduleId", async (req, res) => {
+  try {
+    const { scheduleId } = req.params;
+    const updates = req.body;
+    const schedule = await staffSchedulingAPI.updateStaffSchedule(
+      scheduleId,
+      updates,
+    );
+    res.json(schedule);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.delete("/staff-scheduling/schedules/:scheduleId", async (req, res) => {
+  try {
+    const { scheduleId } = req.params;
+    await staffSchedulingAPI.deleteStaffSchedule(scheduleId);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.get("/staff-scheduling/analytics", async (req, res) => {
+  try {
+    const { dateFrom, dateTo } = req.query;
+    const analytics = await staffSchedulingAPI.getScheduleAnalytics(
+      dateFrom as string,
+      dateTo as string,
+    );
+    res.json(analytics);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Timesheet Management API Routes
+router.get("/timesheet/entries", async (req, res) => {
+  try {
+    const filters = req.query;
+    const entries = await timesheetAPI.getTimesheetEntries(filters);
+    res.json(entries);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post("/timesheet/entries", async (req, res) => {
+  try {
+    const entryData = req.body;
+    const entry = await timesheetAPI.createTimesheetEntry(entryData);
+    res.json(entry);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.put("/timesheet/entries/:entryId", async (req, res) => {
+  try {
+    const { entryId } = req.params;
+    const updates = req.body;
+    const entry = await timesheetAPI.updateTimesheetEntry(entryId, updates);
+    res.json(entry);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post("/timesheet/entries/:entryId/approve", async (req, res) => {
+  try {
+    const { entryId } = req.params;
+    const { approvedBy, notes } = req.body;
+    const entry = await timesheetAPI.approveTimesheetEntry(
+      entryId,
+      approvedBy,
+      notes,
+    );
+    res.json(entry);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.get("/timesheet/analytics", async (req, res) => {
+  try {
+    const { dateFrom, dateTo } = req.query;
+    const analytics = await timesheetAPI.getTimesheetAnalytics(
+      dateFrom as string,
+      dateTo as string,
+    );
+    res.json(analytics);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Incident Reporting API Routes
+router.get("/incident-reporting/reports", async (req, res) => {
+  try {
+    const filters = req.query;
+    const reports = await incidentReportingAPI.getIncidentReports(filters);
+    res.json(reports);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post("/incident-reporting/reports", async (req, res) => {
+  try {
+    const reportData = req.body;
+    const report = await incidentReportingAPI.createIncidentReport(reportData);
+    res.json(report);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.put("/incident-reporting/reports/:reportId", async (req, res) => {
+  try {
+    const { reportId } = req.params;
+    const updates = req.body;
+    const report = await incidentReportingAPI.updateIncidentReport(
+      reportId,
+      updates,
+    );
+    res.json(report);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post(
+  "/incident-reporting/reports/:reportId/corrective-actions",
+  async (req, res) => {
+    try {
+      const { reportId } = req.params;
+      const actionData = req.body;
+      const report = await incidentReportingAPI.addCorrectiveAction(
+        reportId,
+        actionData,
+      );
+      res.json(report);
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  },
+);
+
+router.get("/incident-reporting/analytics", async (req, res) => {
+  try {
+    const { dateFrom, dateTo } = req.query;
+    const analytics = await incidentReportingAPI.getIncidentAnalytics(
+      dateFrom as string,
+      dateTo as string,
+    );
+    res.json(analytics);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Communication Hub API Routes
+router.get("/communication/channels", async (req, res) => {
+  try {
+    const { userId } = req.query;
+    const channels = await communicationAPI.getCommunicationChannels(
+      userId as string,
+    );
+    res.json(channels);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post("/communication/channels", async (req, res) => {
+  try {
+    const channelData = req.body;
+    const channel =
+      await communicationAPI.createCommunicationChannel(channelData);
+    res.json(channel);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.get("/communication/channels/:channelId/messages", async (req, res) => {
+  try {
+    const { channelId } = req.params;
+    const { limit = 50, offset = 0 } = req.query;
+    const messages = await communicationAPI.getChannelMessages(
+      channelId,
+      parseInt(limit as string),
+      parseInt(offset as string),
+    );
+    res.json(messages);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post("/communication/messages", async (req, res) => {
+  try {
+    const messageData = req.body;
+    const message = await communicationAPI.sendMessage(messageData);
+    res.json(message);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post("/communication/messages/:messageId/read", async (req, res) => {
+  try {
+    const { messageId } = req.params;
+    const { userId } = req.body;
+    await communicationAPI.markMessageAsRead(messageId, userId);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.get("/communication/notifications/preferences", async (req, res) => {
+  try {
+    const { userId } = req.query;
+    const preferences = await communicationAPI.getNotificationPreferences(
+      userId as string,
+    );
+    res.json(preferences);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.put(
+  "/communication/notifications/preferences/:preferenceId",
+  async (req, res) => {
+    try {
+      const { preferenceId } = req.params;
+      const updates = req.body;
+      const preference = await communicationAPI.updateNotificationPreferences(
+        preferenceId,
+        updates,
+      );
+      res.json(preference);
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  },
+);
+
+router.get("/communication/analytics", async (req, res) => {
+  try {
+    const { dateFrom, dateTo } = req.query;
+    const analytics = await communicationAPI.getCommunicationAnalytics(
+      dateFrom as string,
+      dateTo as string,
+    );
+    res.json(analytics);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Mount integration intelligence routes
 router.use("/integration-intelligence", integrationIntelligenceRoutes);
 
@@ -822,6 +1132,253 @@ router.get("/integration-intelligence/dashboard-data", async (req, res) => {
         optimizationOpportunities: analytics.optimizationOpportunities,
         averageHealthScore: analytics.averageHealthScore,
       },
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Healthcare Integration Routes
+router.get("/healthcare/status", async (req, res) => {
+  try {
+    const status = await getHealthcareIntegrationStatus();
+    res.json(status);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post("/healthcare/fhir/sync-patient/:patientId", async (req, res) => {
+  try {
+    const { patientId } = req.params;
+    const result = await syncPatientWithFHIR(patientId);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.get("/healthcare/lab/results/:patientId", async (req, res) => {
+  try {
+    const { patientId } = req.params;
+    const result = await getPatientLabResults(patientId);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post("/healthcare/lab/order", async (req, res) => {
+  try {
+    const orderData = req.body;
+    const result = await orderLabTest(orderData);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post("/healthcare/emr/sync-patient/:patientId", async (req, res) => {
+  try {
+    const { patientId } = req.params;
+    const result = await syncPatientWithEMR(patientId);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post(
+  "/healthcare/malaffi/sync-patient/:emiratesId",
+  async (req, res) => {
+    try {
+      const { emiratesId } = req.params;
+      const result = await syncPatientWithMalaffi(emiratesId);
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  },
+);
+
+router.post("/healthcare/sync-all/:patientId", async (req, res) => {
+  try {
+    const { patientId } = req.params;
+    const result = await syncPatientAcrossAllSystems(patientId);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Government Integration Routes
+router.post("/government/emirates-id/verify", async (req, res) => {
+  try {
+    const { emiratesId } = req.body;
+    const result = await verifyEmiratesIdWithGovernment(emiratesId);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post("/government/insurance/verify-eligibility", async (req, res) => {
+  try {
+    const { providerCode, policyData } = req.body;
+    const result = await verifyInsuranceEligibility(providerCode, policyData);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post("/government/insurance/pre-authorization", async (req, res) => {
+  try {
+    const { providerCode, authData } = req.body;
+    const result = await submitPreAuthorizationRequest(providerCode, authData);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post("/government/insurance/submit-claim", async (req, res) => {
+  try {
+    const { providerCode, claimData } = req.body;
+    const result = await submitInsuranceClaim(providerCode, claimData);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post("/government/moh/submit-patient", async (req, res) => {
+  try {
+    const patientData = req.body;
+    const result = await submitPatientDataToMOH(patientData);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post("/government/moh/submit-incident", async (req, res) => {
+  try {
+    const incidentData = req.body;
+    const result = await submitIncidentReportToMOH(incidentData);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post("/government/register-patient", async (req, res) => {
+  try {
+    const patientData = req.body;
+    const result = await registerPatientWithAllGovernmentSystems(patientData);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post("/government/compliance-report", async (req, res) => {
+  try {
+    const reportData = req.body;
+    const result = await submitComprehensiveComplianceReport(reportData);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Integration Health and Monitoring Routes
+router.get("/integrations/health-check", async (req, res) => {
+  try {
+    const healthcareStatus = await getHealthcareIntegrationStatus();
+    const integrationHealth = await monitorIntegrationHealth();
+
+    const overallHealth = {
+      healthcare: healthcareStatus,
+      integration: integrationHealth,
+      timestamp: new Date().toISOString(),
+      overallStatus: "healthy", // This would be calculated based on all systems
+    };
+
+    res.json(overallHealth);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.get("/integrations/analytics", async (req, res) => {
+  try {
+    const { dateFrom, dateTo } = req.query;
+    const analytics = await getIntegrationAnalytics({
+      dateFrom: dateFrom as string,
+      dateTo: dateTo as string,
+    });
+    res.json(analytics);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Bulk Operations Routes
+router.post("/bulk/sync-patients", async (req, res) => {
+  try {
+    const { patientIds } = req.body;
+    const results = [];
+
+    for (const patientId of patientIds) {
+      try {
+        const result = await syncPatientAcrossAllSystems(patientId);
+        results.push({ patientId, result });
+      } catch (error) {
+        results.push({
+          patientId,
+          result: {
+            success: false,
+            error: error.message,
+          },
+        });
+      }
+    }
+
+    res.json({
+      success: true,
+      totalProcessed: patientIds.length,
+      results,
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post("/bulk/verify-emirates-ids", async (req, res) => {
+  try {
+    const { emiratesIds } = req.body;
+    const results = [];
+
+    for (const emiratesId of emiratesIds) {
+      try {
+        const result = await verifyEmiratesIdWithGovernment(emiratesId);
+        results.push({ emiratesId, result });
+      } catch (error) {
+        results.push({
+          emiratesId,
+          result: {
+            success: false,
+            error: error.message,
+          },
+        });
+      }
+    }
+
+    res.json({
+      success: true,
+      totalProcessed: emiratesIds.length,
+      results,
     });
   } catch (error) {
     res.status(500).json({ error: error.message });

@@ -27,6 +27,9 @@ import {
   Star,
   Download,
   Upload,
+  Brain,
+  Sparkles,
+  Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
@@ -79,10 +82,134 @@ export const AdvancedSearch: React.FC<AdvancedSearchProps> = ({
   const [searchHistory, setSearchHistory] = React.useState<string[]>([]);
   const [favoriteSearches, setFavoriteSearches] = React.useState<string[]>([]);
   const [isAdvancedMode, setIsAdvancedMode] = React.useState(false);
+  const [isSmartMode, setIsSmartMode] = React.useState(false);
+  const [nlpSuggestions, setNlpSuggestions] = React.useState<string[]>([]);
+  const [isProcessingNLP, setIsProcessingNLP] = React.useState(false);
 
   const handleSearch = React.useCallback(() => {
-    onSearch({ query, filters: activeFilters });
-  }, [query, activeFilters, onSearch]);
+    if (isSmartMode && query) {
+      processNaturalLanguageQuery(query);
+    } else {
+      onSearch({ query, filters: activeFilters });
+    }
+  }, [query, activeFilters, onSearch, isSmartMode]);
+
+  const processNaturalLanguageQuery = async (naturalQuery: string) => {
+    setIsProcessingNLP(true);
+    try {
+      // Enhanced NLP processing for medical terminology
+      const processedQuery = await processWithNLP(naturalQuery);
+
+      // Update search state with processed results
+      setQuery(processedQuery.query || naturalQuery);
+      setActiveFilters(processedQuery.filters || {});
+
+      // Execute search with processed data
+      onSearch({
+        query: processedQuery.query || naturalQuery,
+        filters: processedQuery.filters || {},
+      });
+
+      // Add to search history
+      setSearchHistory((prev) => [naturalQuery, ...prev.slice(0, 4)]);
+    } catch (error) {
+      console.error("NLP processing failed:", error);
+      // Fallback to regular search
+      onSearch({ query: naturalQuery, filters: activeFilters });
+    } finally {
+      setIsProcessingNLP(false);
+    }
+  };
+
+  const processWithNLP = async (
+    query: string,
+  ): Promise<{ query: string; filters: Record<string, any> }> => {
+    // Enhanced medical terminology and revenue analytics context
+    const medicalTerms = {
+      diabetic: { condition: "diabetes" },
+      hypertensive: { condition: "hypertension" },
+      urgent: { priority: "urgent" },
+      today: { date: new Date().toISOString().split("T")[0] },
+      "this week": { dateRange: { from: getWeekStart(), to: getWeekEnd() } },
+      pending: { status: "pending" },
+      completed: { status: "completed" },
+      "high risk": { riskLevel: "high" },
+      medication: { category: "medication" },
+      "wound care": { serviceType: "wound_care" },
+      "physical therapy": { serviceType: "physical_therapy" },
+      nursing: { serviceType: "nursing" },
+      // Revenue analytics terms
+      "high revenue": { revenueRange: "1000000+" },
+      "low collection": { collectionRate: "0-70" },
+      "denied claims": { status: "denied" },
+      "overdue payments": { paymentStatus: "overdue" },
+      "daman claims": { payer: "DAMAN" },
+      "insurance claims": { category: "insurance" },
+      "authorization pending": { authStatus: "pending" },
+      "compliance issues": { complianceStatus: "non_compliant" },
+    };
+
+    let processedFilters: Record<string, any> = {};
+    let processedQuery = query.toLowerCase();
+
+    // Extract medical context and convert to filters
+    Object.entries(medicalTerms).forEach(([term, filter]) => {
+      if (processedQuery.includes(term)) {
+        processedFilters = { ...processedFilters, ...filter };
+        processedQuery = processedQuery.replace(term, "").trim();
+      }
+    });
+
+    // Generate contextual suggestions
+    const suggestions = generateMedicalSuggestions(query);
+    setNlpSuggestions(suggestions);
+
+    return {
+      query: processedQuery || query,
+      filters: processedFilters,
+    };
+  };
+
+  const generateMedicalSuggestions = (query: string): string[] => {
+    const suggestions = [
+      "Show me all diabetic patients with urgent visits today",
+      "Find pending medication reviews this week",
+      "List high-risk patients needing wound care",
+      "Show completed physical therapy sessions",
+      "Find patients with overdue assessments",
+      "Show nursing visits scheduled for tomorrow",
+      // Revenue analytics suggestions
+      "Show high revenue claims from this month",
+      "Find denied claims with low collection rates",
+      "List overdue payments from DAMAN",
+      "Show authorization pending claims",
+      "Find compliance issues in recent claims",
+      "Display revenue trends for wound care services",
+    ];
+
+    return suggestions
+      .filter(
+        (s) =>
+          s.toLowerCase().includes(query.toLowerCase()) ||
+          query
+            .toLowerCase()
+            .split(" ")
+            .some((word) => s.toLowerCase().includes(word)),
+      )
+      .slice(0, 3);
+  };
+
+  const getWeekStart = () => {
+    const now = new Date();
+    const start = new Date(now.setDate(now.getDate() - now.getDay()));
+    return start.toISOString();
+  };
+
+  const getWeekEnd = () => {
+    const now = new Date();
+    const end = new Date(now.setDate(now.getDate() - now.getDay() + 6));
+    return end.toISOString();
+  };
 
   const handleFilterChange = (filterId: string, value: any) => {
     setActiveFilters((prev) => {
@@ -333,8 +460,23 @@ export const AdvancedSearch: React.FC<AdvancedSearchProps> = ({
               <T k="common.advanced" fallback="Advanced" />
             </Badge>
           )}
+          {isSmartMode && (
+            <Badge variant="default" className="bg-purple-100 text-purple-800">
+              <Brain className="h-3 w-3 mr-1" />
+              Smart Search
+            </Badge>
+          )}
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            variant={isSmartMode ? "default" : "outline"}
+            size="sm"
+            onClick={() => setIsSmartMode(!isSmartMode)}
+            className={isSmartMode ? "bg-purple-600 hover:bg-purple-700" : ""}
+          >
+            <Brain className="h-4 w-4 mr-1" />
+            {isSmartMode ? "Smart" : "Enable AI"}
+          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -377,10 +519,18 @@ export const AdvancedSearch: React.FC<AdvancedSearchProps> = ({
             )}
           />
           <Input
-            placeholder={t("common.search") || placeholder}
+            placeholder={
+              isSmartMode
+                ? "Ask me anything about your patients..."
+                : t("common.search") || placeholder
+            }
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            className={cn(isRTL ? "pr-10 pl-4" : "pl-10 pr-4", "text-base")}
+            className={cn(
+              isRTL ? "pr-10 pl-4" : "pl-10 pr-4",
+              "text-base",
+              isSmartMode && "border-purple-200 focus:border-purple-400",
+            )}
             dir={isRTL ? "rtl" : "ltr"}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
@@ -388,6 +538,22 @@ export const AdvancedSearch: React.FC<AdvancedSearchProps> = ({
               }
             }}
           />
+          {isSmartMode && (
+            <div
+              className={cn(
+                "absolute top-1/2 transform -translate-y-1/2",
+                isRTL ? "left-12" : "right-12",
+              )}
+            >
+              {isProcessingNLP ? (
+                <div className="animate-spin">
+                  <Zap className="h-4 w-4 text-purple-600" />
+                </div>
+              ) : (
+                <Sparkles className="h-4 w-4 text-purple-600" />
+              )}
+            </div>
+          )}
           {/* Voice Search Button */}
           {("webkitSpeechRecognition" in window ||
             "SpeechRecognition" in window) && (
@@ -425,11 +591,53 @@ export const AdvancedSearch: React.FC<AdvancedSearchProps> = ({
           </Button>
         )}
 
-        <Button onClick={handleSearch} className="px-6">
-          <Search className="h-4 w-4 mr-2" />
+        <Button
+          onClick={handleSearch}
+          className={cn(
+            "px-6",
+            isSmartMode && "bg-purple-600 hover:bg-purple-700",
+          )}
+          disabled={isProcessingNLP}
+        >
+          {isProcessingNLP ? (
+            <div className="animate-spin mr-2">
+              <Zap className="h-4 w-4" />
+            </div>
+          ) : (
+            <Search className="h-4 w-4 mr-2" />
+          )}
           <T k="common.search" />
         </Button>
       </div>
+
+      {/* NLP Suggestions */}
+      {isSmartMode && nlpSuggestions.length > 0 && (
+        <div className="mb-4 p-4 bg-purple-50 rounded-lg border border-purple-200">
+          <div className="flex items-center gap-2 mb-2">
+            <Brain className="h-4 w-4 text-purple-600" />
+            <span className="text-sm font-medium text-purple-900">
+              Smart Suggestions
+            </span>
+          </div>
+          <div className="space-y-1">
+            {nlpSuggestions.map((suggestion, index) => (
+              <Button
+                key={index}
+                variant="ghost"
+                size="sm"
+                className="w-full justify-start text-left h-auto py-2 px-3 text-purple-700 hover:bg-purple-100"
+                onClick={() => {
+                  setQuery(suggestion);
+                  processNaturalLanguageQuery(suggestion);
+                }}
+              >
+                <Sparkles className="h-3 w-3 mr-2 flex-shrink-0" />
+                <span className="text-sm">{suggestion}</span>
+              </Button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Search Suggestions and History */}
       {isAdvancedMode && (

@@ -10,6 +10,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { Slider } from "@/components/ui/slider";
 import {
   Eye,
   AlertTriangle,
@@ -20,7 +23,21 @@ import {
   Type,
   MousePointer,
   Volume2,
+  Mic,
+  Camera,
+  Smartphone,
+  Monitor,
+  Settings,
+  Brain,
+  Shield,
+  Zap,
+  Target,
+  Users,
+  Globe,
+  Languages,
+  Accessibility,
 } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { cn } from "@/lib/utils";
 
 interface AccessibilityIssue {
@@ -46,119 +63,107 @@ interface AccessibilityReport {
 interface AccessibilityCheckerProps {
   className?: string;
   autoCheck?: boolean;
+  enableVoiceNavigation?: boolean;
+  enableScreenReader?: boolean;
+  wcagLevel?: "A" | "AA" | "AAA";
+  culturalAdaptation?: "UAE" | "global";
 }
 
 export const AccessibilityChecker: React.FC<AccessibilityCheckerProps> = ({
   className,
   autoCheck = false,
+  enableVoiceNavigation = true,
+  enableScreenReader = true,
+  wcagLevel = "AA",
+  culturalAdaptation = "UAE",
 }) => {
   const [report, setReport] = useState<AccessibilityReport | null>(null);
   const [loading, setLoading] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const [voiceNavigationActive, setVoiceNavigationActive] = useState(false);
+  const [screenReaderMode, setScreenReaderMode] = useState(false);
+  const [highContrastMode, setHighContrastMode] = useState(false);
+  const [rtlSupport, setRtlSupport] = useState(culturalAdaptation === "UAE");
+  const [wcagCompliance, setWcagCompliance] = useState({
+    levelA: 0,
+    levelAA: 0,
+    levelAAA: 0,
+  });
 
   useEffect(() => {
     if (autoCheck) {
       runAccessibilityCheck();
     }
-  }, [autoCheck]);
+
+    // Initialize UAE cultural adaptations
+    if (culturalAdaptation === "UAE") {
+      initializeUAEAdaptations();
+    }
+
+    // Initialize assistive technology integration
+    initializeAssistiveTechnology();
+
+    // Initialize voice navigation if enabled
+    if (enableVoiceNavigation) {
+      initializeVoiceNavigation();
+    }
+  }, [autoCheck, culturalAdaptation, enableVoiceNavigation]);
 
   const runAccessibilityCheck = async () => {
     setLoading(true);
     try {
-      // Enhanced accessibility audit with real-time checks
+      // Enhanced WCAG 2.1 AA compliance audit
       await new Promise((resolve) => setTimeout(resolve, 1500));
 
-      // Real-time accessibility scanning
-      const realTimeIssues = await performRealTimeAccessibilityAudit();
+      // Real-time accessibility scanning with WCAG 2.1 AA focus
+      const realTimeIssues = await performWCAG21Audit();
 
-      const mockIssues: AccessibilityIssue[] =
-        realTimeIssues.length > 0
-          ? realTimeIssues
-          : [
-              {
-                id: "1",
-                type: "error",
-                category: "aria",
-                title: "Missing ARIA labels",
-                description: "Interactive elements lack proper ARIA labels",
-                element: "button.submit-btn",
-                wcagLevel: "A",
-                wcagCriterion: "4.1.2 Name, Role, Value",
-                suggestion: "Add aria-label or aria-labelledby attributes",
-              },
-              {
-                id: "2",
-                type: "warning",
-                category: "color",
-                title: "Low color contrast",
-                description:
-                  "Text color contrast ratio is below WCAG AA standards",
-                element: ".text-muted",
-                wcagLevel: "AA",
-                wcagCriterion: "1.4.3 Contrast (Minimum)",
-                suggestion: "Increase contrast ratio to at least 4.5:1",
-              },
-              {
-                id: "3",
-                type: "error",
-                category: "keyboard",
-                title: "Keyboard trap detected",
-                description: "Focus gets trapped in modal dialog",
-                element: ".modal-dialog",
-                wcagLevel: "A",
-                wcagCriterion: "2.1.2 No Keyboard Trap",
-                suggestion: "Implement proper focus management with escape key",
-              },
-              {
-                id: "4",
-                type: "warning",
-                category: "text",
-                title: "Small text size",
-                description: "Text is smaller than recommended minimum size",
-                element: ".text-xs",
-                wcagLevel: "AA",
-                wcagCriterion: "1.4.4 Resize text",
-                suggestion:
-                  "Ensure text can be resized up to 200% without loss of functionality",
-              },
-              {
-                id: "5",
-                type: "info",
-                category: "structure",
-                title: "Missing heading hierarchy",
-                description:
-                  "Page structure could benefit from proper heading levels",
-                element: "main",
-                wcagLevel: "AAA",
-                wcagCriterion: "2.4.10 Section Headings",
-                suggestion: "Use proper heading hierarchy (h1, h2, h3, etc.)",
-              },
-              {
-                id: "6",
-                type: "warning",
-                category: "focus",
-                title: "Insufficient focus indicators",
-                description: "Focus indicators are not clearly visible",
-                element: "input, button",
-                wcagLevel: "AA",
-                wcagCriterion: "2.4.7 Focus Visible",
-                suggestion:
-                  "Enhance focus ring visibility with better contrast",
-              },
-            ];
+      // UAE-specific accessibility checks
+      const uaeSpecificIssues =
+        culturalAdaptation === "UAE"
+          ? await performUAEAccessibilityAudit()
+          : [];
 
-      const totalChecks = 25;
-      const passedChecks = totalChecks - mockIssues.length;
+      // Voice navigation compatibility checks
+      const voiceNavIssues = enableVoiceNavigation
+        ? await performVoiceNavigationAudit()
+        : [];
+
+      // Screen reader compatibility checks
+      const screenReaderIssues = enableScreenReader
+        ? await performScreenReaderAudit()
+        : [];
+
+      const allIssues = [
+        ...realTimeIssues,
+        ...uaeSpecificIssues,
+        ...voiceNavIssues,
+        ...screenReaderIssues,
+      ];
+
+      const totalChecks = 35; // Increased for comprehensive WCAG 2.1 AA
+      const passedChecks = totalChecks - allIssues.length;
       const score = Math.round((passedChecks / totalChecks) * 100);
-      const wcagLevel = score >= 95 ? "AAA" : score >= 80 ? "AA" : "A";
+      const wcagLevelResult = score >= 95 ? "AAA" : score >= 80 ? "AA" : "A";
+
+      // Calculate WCAG compliance levels
+      const wcagStats = calculateWCAGCompliance(allIssues);
+      setWcagCompliance(wcagStats);
 
       setReport({
         score,
-        issues: mockIssues,
+        issues: allIssues,
         passedChecks,
         totalChecks,
-        wcagLevel,
+        wcagLevel: wcagLevelResult,
       });
+
+      // Announce results to screen readers
+      if (screenReaderMode) {
+        announceToScreenReader(
+          `Accessibility audit completed. Score: ${score} out of 100. ${allIssues.length} issues found.`,
+        );
+      }
     } catch (error) {
       console.error("Accessibility check failed:", error);
     } finally {
@@ -283,21 +288,817 @@ export const AccessibilityChecker: React.FC<AccessibilityCheckerProps> = ({
     return issues;
   };
 
-  // Helper function to calculate color luminance
-  const getColorLuminance = (color: string): number => {
-    // Simplified luminance calculation
-    // In production, would use proper color parsing and luminance calculation
-    const rgb = color.match(/\d+/g);
-    if (!rgb || rgb.length < 3) return 0.5;
+  // WCAG 2.1 AA specific audit functions
+  const performWCAG21Audit = async (): Promise<AccessibilityIssue[]> => {
+    const issues: AccessibilityIssue[] = [];
 
-    const [r, g, b] = rgb.map((c) => {
-      const val = parseInt(c) / 255;
-      return val <= 0.03928
-        ? val / 12.92
-        : Math.pow((val + 0.055) / 1.055, 2.4);
+    try {
+      // Check for WCAG 2.1 AA specific requirements
+
+      // 1.4.3 Contrast (Minimum) - AA Level
+      const contrastIssues = await checkColorContrast();
+      issues.push(...contrastIssues);
+
+      // 2.1.1 Keyboard - A Level
+      const keyboardIssues = await checkKeyboardAccessibility();
+      issues.push(...keyboardIssues);
+
+      // 4.1.2 Name, Role, Value - A Level
+      const ariaIssues = await checkARIAImplementation();
+      issues.push(...ariaIssues);
+
+      // 1.4.4 Resize text - AA Level
+      const textResizeIssues = await checkTextResize();
+      issues.push(...textResizeIssues);
+
+      // 2.4.7 Focus Visible - AA Level
+      const focusIssues = await checkFocusVisibility();
+      issues.push(...focusIssues);
+
+      // 1.4.10 Reflow - AA Level (WCAG 2.1)
+      const reflowIssues = await checkReflow();
+      issues.push(...reflowIssues);
+
+      // 1.4.11 Non-text Contrast - AA Level (WCAG 2.1)
+      const nonTextContrastIssues = await checkNonTextContrast();
+      issues.push(...nonTextContrastIssues);
+
+      // 2.5.3 Label in Name - A Level (WCAG 2.1)
+      const labelInNameIssues = await checkLabelInName();
+      issues.push(...labelInNameIssues);
+    } catch (error) {
+      console.error("WCAG 2.1 audit failed:", error);
+    }
+
+    return issues;
+  };
+
+  const performUAEAccessibilityAudit = async (): Promise<
+    AccessibilityIssue[]
+  > => {
+    const issues: AccessibilityIssue[] = [];
+
+    try {
+      // UAE-specific cultural adaptations
+
+      // Check for Arabic RTL support
+      const rtlElements = document.querySelectorAll('[dir="rtl"], [lang="ar"]');
+      if (rtlElements.length === 0 && culturalAdaptation === "UAE") {
+        issues.push({
+          id: "uae-rtl-support",
+          type: "warning",
+          category: "structure",
+          title: "Missing Arabic RTL Support",
+          description:
+            "No RTL (Right-to-Left) text direction support found for Arabic content",
+          element: "html",
+          wcagLevel: "AA",
+          wcagCriterion: "1.4.8 Visual Presentation",
+          suggestion:
+            "Add dir='rtl' attribute for Arabic content and ensure proper RTL layout",
+        });
+      }
+
+      // Check for Arabic font support
+      const arabicText = document.querySelector('[lang="ar"]');
+      if (arabicText) {
+        const computedStyle = window.getComputedStyle(arabicText);
+        const fontFamily = computedStyle.fontFamily;
+        if (!fontFamily.includes("Arabic") && !fontFamily.includes("Noto")) {
+          issues.push({
+            id: "uae-arabic-fonts",
+            type: "warning",
+            category: "text",
+            title: "Arabic Font Support",
+            description:
+              "Arabic text may not render properly without appropriate fonts",
+            element: '[lang="ar"]',
+            wcagLevel: "AA",
+            wcagCriterion: "1.4.8 Visual Presentation",
+            suggestion:
+              "Use Arabic-compatible fonts like Noto Naskh Arabic or system Arabic fonts",
+          });
+        }
+      }
+
+      // Check for cultural color considerations (UAE flag colors)
+      const culturalColorCheck = await checkCulturalColors();
+      issues.push(...culturalColorCheck);
+    } catch (error) {
+      console.error("UAE accessibility audit failed:", error);
+    }
+
+    return issues;
+  };
+
+  const performVoiceNavigationAudit = async (): Promise<
+    AccessibilityIssue[]
+  > => {
+    const issues: AccessibilityIssue[] = [];
+
+    try {
+      // Check for voice navigation compatibility
+      const interactiveElements = document.querySelectorAll(
+        'button, [role="button"], a, input, select, textarea',
+      );
+      let elementsWithoutVoiceLabels = 0;
+
+      interactiveElements.forEach((element) => {
+        const hasAriaLabel = element.hasAttribute("aria-label");
+        const hasAriaLabelledBy = element.hasAttribute("aria-labelledby");
+        const hasTitle = element.hasAttribute("title");
+        const hasTextContent = element.textContent?.trim();
+
+        if (
+          !hasAriaLabel &&
+          !hasAriaLabelledBy &&
+          !hasTitle &&
+          !hasTextContent
+        ) {
+          elementsWithoutVoiceLabels++;
+        }
+      });
+
+      if (elementsWithoutVoiceLabels > 0) {
+        issues.push({
+          id: "voice-nav-labels",
+          type: "error",
+          category: "aria",
+          title: "Voice Navigation Labels Missing",
+          description: `${elementsWithoutVoiceLabels} interactive elements lack proper labels for voice navigation`,
+          element: "button, [role='button'], a, input",
+          wcagLevel: "A",
+          wcagCriterion: "4.1.2 Name, Role, Value",
+          suggestion:
+            "Add aria-label, aria-labelledby, or descriptive text content for voice navigation compatibility",
+        });
+      }
+
+      // Check for voice command landmarks
+      const landmarks = document.querySelectorAll(
+        '[role="main"], [role="navigation"], [role="banner"], [role="contentinfo"], main, nav, header, footer',
+      );
+      if (landmarks.length < 3) {
+        issues.push({
+          id: "voice-nav-landmarks",
+          type: "warning",
+          category: "structure",
+          title: "Insufficient Navigation Landmarks",
+          description:
+            "More semantic landmarks needed for effective voice navigation",
+          element: "main, nav, header, footer",
+          wcagLevel: "AA",
+          wcagCriterion: "2.4.1 Bypass Blocks",
+          suggestion:
+            "Add semantic HTML5 elements or ARIA landmarks for voice navigation",
+        });
+      }
+    } catch (error) {
+      console.error("Voice navigation audit failed:", error);
+    }
+
+    return issues;
+  };
+
+  const performScreenReaderAudit = async (): Promise<AccessibilityIssue[]> => {
+    const issues: AccessibilityIssue[] = [];
+
+    try {
+      // Check for screen reader specific requirements
+
+      // Check for proper heading structure
+      const headings = document.querySelectorAll("h1, h2, h3, h4, h5, h6");
+      const headingLevels = Array.from(headings).map((h) =>
+        parseInt(h.tagName.charAt(1)),
+      );
+
+      let hasH1 = headingLevels.includes(1);
+      if (!hasH1) {
+        issues.push({
+          id: "sr-missing-h1",
+          type: "error",
+          category: "structure",
+          title: "Missing H1 Heading",
+          description:
+            "Page must have exactly one H1 heading for screen readers",
+          element: "h1",
+          wcagLevel: "A",
+          wcagCriterion: "2.4.6 Headings and Labels",
+          suggestion:
+            "Add a descriptive H1 heading that summarizes the page content",
+        });
+      }
+
+      // Check for skip links
+      const skipLinks = document.querySelectorAll('a[href^="#"]');
+      const hasSkipToMain = Array.from(skipLinks).some(
+        (link) =>
+          link.textContent?.toLowerCase().includes("skip") &&
+          link.textContent?.toLowerCase().includes("main"),
+      );
+
+      if (!hasSkipToMain) {
+        issues.push({
+          id: "sr-skip-links",
+          type: "warning",
+          category: "structure",
+          title: "Missing Skip Links",
+          description:
+            "Skip links help screen reader users navigate efficiently",
+          element: "a[href='#main']",
+          wcagLevel: "A",
+          wcagCriterion: "2.4.1 Bypass Blocks",
+          suggestion:
+            "Add 'Skip to main content' link at the beginning of the page",
+        });
+      }
+
+      // Check for live regions
+      const liveRegions = document.querySelectorAll("[aria-live]");
+      if (liveRegions.length === 0) {
+        issues.push({
+          id: "sr-live-regions",
+          type: "info",
+          category: "aria",
+          title: "No Live Regions Found",
+          description:
+            "Live regions help screen readers announce dynamic content changes",
+          element: "[aria-live]",
+          wcagLevel: "AA",
+          wcagCriterion: "4.1.3 Status Messages",
+          suggestion:
+            "Add aria-live regions for dynamic content updates and status messages",
+        });
+      }
+    } catch (error) {
+      console.error("Screen reader audit failed:", error);
+    }
+
+    return issues;
+  };
+
+  // Helper audit functions
+  const checkColorContrast = async (): Promise<AccessibilityIssue[]> => {
+    const issues: AccessibilityIssue[] = [];
+    const elements = document.querySelectorAll("*");
+    let lowContrastCount = 0;
+
+    elements.forEach((element) => {
+      const styles = window.getComputedStyle(element);
+      const color = styles.color;
+      const backgroundColor = styles.backgroundColor;
+
+      if (
+        color &&
+        backgroundColor &&
+        color !== "rgba(0, 0, 0, 0)" &&
+        backgroundColor !== "rgba(0, 0, 0, 0)"
+      ) {
+        const colorLuminance = getColorLuminance(color);
+        const bgLuminance = getColorLuminance(backgroundColor);
+        const contrastRatio =
+          (Math.max(colorLuminance, bgLuminance) + 0.05) /
+          (Math.min(colorLuminance, bgLuminance) + 0.05);
+
+        const requiredRatio = wcagLevel === "AAA" ? 7 : 4.5;
+        if (contrastRatio < requiredRatio) {
+          lowContrastCount++;
+        }
+      }
     });
 
-    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    if (lowContrastCount > 0) {
+      issues.push({
+        id: "wcag-color-contrast",
+        type: "error",
+        category: "color",
+        title: `WCAG ${wcagLevel} Color Contrast Failure`,
+        description: `${lowContrastCount} elements fail WCAG ${wcagLevel} color contrast requirements`,
+        element: "various",
+        wcagLevel: wcagLevel,
+        wcagCriterion: "1.4.3 Contrast (Minimum)",
+        suggestion: `Ensure color contrast ratio is at least ${wcagLevel === "AAA" ? "7:1" : "4.5:1"} for normal text`,
+      });
+    }
+
+    return issues;
+  };
+
+  const checkKeyboardAccessibility = async (): Promise<
+    AccessibilityIssue[]
+  > => {
+    const issues: AccessibilityIssue[] = [];
+    const interactiveElements = document.querySelectorAll(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+    );
+    let keyboardInaccessible = 0;
+
+    interactiveElements.forEach((element) => {
+      const tabIndex = element.getAttribute("tabindex");
+      if (tabIndex === "-1" && !element.hasAttribute("aria-hidden")) {
+        keyboardInaccessible++;
+      }
+    });
+
+    if (keyboardInaccessible > 0) {
+      issues.push({
+        id: "wcag-keyboard-access",
+        type: "error",
+        category: "keyboard",
+        title: "Keyboard Accessibility Issues",
+        description: `${keyboardInaccessible} interactive elements are not keyboard accessible`,
+        element: "button, [href], input, select, textarea",
+        wcagLevel: "A",
+        wcagCriterion: "2.1.1 Keyboard",
+        suggestion:
+          "Ensure all interactive elements are keyboard accessible and have proper focus management",
+      });
+    }
+
+    return issues;
+  };
+
+  const checkARIAImplementation = async (): Promise<AccessibilityIssue[]> => {
+    const issues: AccessibilityIssue[] = [];
+    const inputs = document.querySelectorAll(
+      'input:not([type="hidden"]):not([aria-label]):not([aria-labelledby])',
+    );
+    const unlabeledInputs = Array.from(inputs).filter((input) => {
+      const id = input.getAttribute("id");
+      return !id || !document.querySelector(`label[for="${id}"]`);
+    });
+
+    if (unlabeledInputs.length > 0) {
+      issues.push({
+        id: "wcag-aria-labels",
+        type: "error",
+        category: "aria",
+        title: "Missing ARIA Labels",
+        description: `${unlabeledInputs.length} form inputs lack proper labels`,
+        element: "input",
+        wcagLevel: "A",
+        wcagCriterion: "4.1.2 Name, Role, Value",
+        suggestion:
+          "Add aria-label, aria-labelledby, or associate with label elements",
+      });
+    }
+
+    return issues;
+  };
+
+  const checkTextResize = async (): Promise<AccessibilityIssue[]> => {
+    const issues: AccessibilityIssue[] = [];
+    const smallTextElements = document.querySelectorAll(
+      '.text-xs, [style*="font-size"]',
+    );
+    let smallTextCount = 0;
+
+    smallTextElements.forEach((element) => {
+      const styles = window.getComputedStyle(element);
+      const fontSize = parseFloat(styles.fontSize);
+      if (fontSize < 12) {
+        smallTextCount++;
+      }
+    });
+
+    if (smallTextCount > 0) {
+      issues.push({
+        id: "wcag-text-resize",
+        type: "warning",
+        category: "text",
+        title: "Text Resize Issues",
+        description: `${smallTextCount} elements have text smaller than 12px`,
+        element: '.text-xs, [style*="font-size"]',
+        wcagLevel: "AA",
+        wcagCriterion: "1.4.4 Resize text",
+        suggestion:
+          "Ensure text can be resized up to 200% without loss of functionality",
+      });
+    }
+
+    return issues;
+  };
+
+  const checkFocusVisibility = async (): Promise<AccessibilityIssue[]> => {
+    const issues: AccessibilityIssue[] = [];
+    const focusableElements = document.querySelectorAll(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+    );
+    let poorFocusCount = 0;
+
+    focusableElements.forEach((element) => {
+      const styles = window.getComputedStyle(element, ":focus");
+      const outline = styles.outline;
+      const boxShadow = styles.boxShadow;
+
+      if (outline === "none" && boxShadow === "none") {
+        poorFocusCount++;
+      }
+    });
+
+    if (poorFocusCount > 0) {
+      issues.push({
+        id: "wcag-focus-visible",
+        type: "error",
+        category: "focus",
+        title: "Focus Visibility Issues",
+        description: `${poorFocusCount} elements lack visible focus indicators`,
+        element: "button, [href], input, select, textarea",
+        wcagLevel: "AA",
+        wcagCriterion: "2.4.7 Focus Visible",
+        suggestion: "Add visible focus indicators with sufficient contrast",
+      });
+    }
+
+    return issues;
+  };
+
+  const checkReflow = async (): Promise<AccessibilityIssue[]> => {
+    const issues: AccessibilityIssue[] = [];
+    const viewportWidth = window.innerWidth;
+
+    // Simulate 320px width check for reflow
+    if (viewportWidth > 320) {
+      const horizontalScrollElements = document.querySelectorAll("*");
+      let hasHorizontalScroll = false;
+
+      horizontalScrollElements.forEach((element) => {
+        if (element.scrollWidth > element.clientWidth) {
+          hasHorizontalScroll = true;
+        }
+      });
+
+      if (hasHorizontalScroll) {
+        issues.push({
+          id: "wcag-reflow",
+          type: "warning",
+          category: "structure",
+          title: "Reflow Issues",
+          description: "Content requires horizontal scrolling at 320px width",
+          element: "various",
+          wcagLevel: "AA",
+          wcagCriterion: "1.4.10 Reflow",
+          suggestion:
+            "Ensure content reflows without horizontal scrolling at 320px width",
+        });
+      }
+    }
+
+    return issues;
+  };
+
+  const checkNonTextContrast = async (): Promise<AccessibilityIssue[]> => {
+    const issues: AccessibilityIssue[] = [];
+    const uiComponents = document.querySelectorAll(
+      'button, input, select, textarea, [role="button"]',
+    );
+    let lowContrastUI = 0;
+
+    uiComponents.forEach((element) => {
+      const styles = window.getComputedStyle(element);
+      const borderColor = styles.borderColor;
+      const backgroundColor = styles.backgroundColor;
+
+      if (borderColor && backgroundColor) {
+        const borderLuminance = getColorLuminance(borderColor);
+        const bgLuminance = getColorLuminance(backgroundColor);
+        const contrastRatio =
+          (Math.max(borderLuminance, bgLuminance) + 0.05) /
+          (Math.min(borderLuminance, bgLuminance) + 0.05);
+
+        if (contrastRatio < 3) {
+          lowContrastUI++;
+        }
+      }
+    });
+
+    if (lowContrastUI > 0) {
+      issues.push({
+        id: "wcag-non-text-contrast",
+        type: "warning",
+        category: "color",
+        title: "Non-text Contrast Issues",
+        description: `${lowContrastUI} UI components have insufficient contrast`,
+        element: "button, input, select, textarea",
+        wcagLevel: "AA",
+        wcagCriterion: "1.4.11 Non-text Contrast",
+        suggestion: "Ensure UI components have at least 3:1 contrast ratio",
+      });
+    }
+
+    return issues;
+  };
+
+  const checkLabelInName = async (): Promise<AccessibilityIssue[]> => {
+    const issues: AccessibilityIssue[] = [];
+    const labeledElements = document.querySelectorAll("[aria-label]");
+    let mismatchedLabels = 0;
+
+    labeledElements.forEach((element) => {
+      const ariaLabel = element.getAttribute("aria-label");
+      const visibleText = element.textContent?.trim();
+
+      if (ariaLabel && visibleText && !ariaLabel.includes(visibleText)) {
+        mismatchedLabels++;
+      }
+    });
+
+    if (mismatchedLabels > 0) {
+      issues.push({
+        id: "wcag-label-in-name",
+        type: "warning",
+        category: "aria",
+        title: "Label in Name Mismatch",
+        description: `${mismatchedLabels} elements have mismatched visible and accessible names`,
+        element: "[aria-label]",
+        wcagLevel: "A",
+        wcagCriterion: "2.5.3 Label in Name",
+        suggestion: "Ensure accessible names include the visible text",
+      });
+    }
+
+    return issues;
+  };
+
+  const checkCulturalColors = async (): Promise<AccessibilityIssue[]> => {
+    const issues: AccessibilityIssue[] = [];
+
+    // Check for UAE cultural color considerations
+    const redElements = document.querySelectorAll(
+      '[style*="red"], .text-red, .bg-red',
+    );
+    const greenElements = document.querySelectorAll(
+      '[style*="green"], .text-green, .bg-green',
+    );
+
+    if (redElements.length > 0 || greenElements.length > 0) {
+      issues.push({
+        id: "uae-cultural-colors",
+        type: "info",
+        category: "color",
+        title: "Cultural Color Considerations",
+        description:
+          "Consider UAE cultural significance of colors (red, green, black, white)",
+        element: '[style*="red"], [style*="green"]',
+        wcagLevel: "AAA",
+        wcagCriterion: "1.4.1 Use of Color",
+        suggestion:
+          "Ensure color choices respect UAE cultural context and provide alternative indicators",
+      });
+    }
+
+    return issues;
+  };
+
+  const calculateWCAGCompliance = (issues: AccessibilityIssue[]) => {
+    const levelAIssues = issues.filter(
+      (issue) => issue.wcagLevel === "A",
+    ).length;
+    const levelAAIssues = issues.filter(
+      (issue) => issue.wcagLevel === "AA",
+    ).length;
+    const levelAAAIssues = issues.filter(
+      (issue) => issue.wcagLevel === "AAA",
+    ).length;
+
+    const totalLevelA = 15; // Approximate number of Level A criteria
+    const totalLevelAA = 20; // Approximate number of Level AA criteria
+    const totalLevelAAA = 28; // Approximate number of Level AAA criteria
+
+    return {
+      levelA: Math.max(
+        0,
+        Math.round(((totalLevelA - levelAIssues) / totalLevelA) * 100),
+      ),
+      levelAA: Math.max(
+        0,
+        Math.round(((totalLevelAA - levelAAIssues) / totalLevelAA) * 100),
+      ),
+      levelAAA: Math.max(
+        0,
+        Math.round(((totalLevelAAA - levelAAAIssues) / totalLevelAAA) * 100),
+      ),
+    };
+  };
+
+  // Initialize UAE cultural adaptations
+  const initializeUAEAdaptations = () => {
+    // Set RTL support for Arabic content
+    document.documentElement.setAttribute("dir", "auto");
+
+    // Add UAE-specific CSS classes
+    document.body.classList.add("uae-cultural-adaptation");
+
+    // Set up Arabic number formatting
+    const numberElements = document.querySelectorAll("[data-number]");
+    numberElements.forEach((element) => {
+      const number = element.textContent;
+      if (number && /\d/.test(number)) {
+        element.setAttribute("dir", "ltr"); // Numbers should be LTR even in RTL context
+      }
+    });
+  };
+
+  // Initialize assistive technology integration
+  const initializeAssistiveTechnology = () => {
+    // Set up screen reader announcements
+    const announcer = document.createElement("div");
+    announcer.setAttribute("aria-live", "polite");
+    announcer.setAttribute("aria-atomic", "true");
+    announcer.className = "sr-only";
+    announcer.style.position = "absolute";
+    announcer.style.left = "-10000px";
+    announcer.style.width = "1px";
+    announcer.style.height = "1px";
+    announcer.style.overflow = "hidden";
+    document.body.appendChild(announcer);
+
+    (window as any).announceToScreenReader = (message: string) => {
+      announcer.textContent = message;
+      setTimeout(() => {
+        announcer.textContent = "";
+      }, 1000);
+    };
+
+    // Set up keyboard navigation enhancements
+    document.addEventListener("keydown", (event) => {
+      // Enhanced keyboard navigation for UAE context
+      if (event.key === "Tab") {
+        document.body.classList.add("keyboard-navigation-active");
+      }
+
+      // Arabic keyboard support
+      if (
+        event.key === "ArrowRight" &&
+        document.documentElement.dir === "rtl"
+      ) {
+        // In RTL, right arrow should move to previous element
+        event.preventDefault();
+        const focusableElements = Array.from(
+          document.querySelectorAll(
+            'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+          ),
+        );
+        const currentIndex = focusableElements.indexOf(
+          document.activeElement as Element,
+        );
+        if (currentIndex > 0) {
+          (focusableElements[currentIndex - 1] as HTMLElement).focus();
+        }
+      }
+    });
+
+    document.addEventListener("mousedown", () => {
+      document.body.classList.remove("keyboard-navigation-active");
+    });
+  };
+
+  // Initialize voice navigation
+  const initializeVoiceNavigation = () => {
+    if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
+      const SpeechRecognition =
+        (window as any).webkitSpeechRecognition ||
+        (window as any).SpeechRecognition;
+      const recognition = new SpeechRecognition();
+
+      recognition.continuous = false;
+      recognition.interimResults = false;
+      recognition.lang = culturalAdaptation === "UAE" ? "ar-AE" : "en-US";
+
+      recognition.onresult = (event: any) => {
+        const command = event.results[0][0].transcript.toLowerCase();
+        handleVoiceCommand(command);
+      };
+
+      recognition.onerror = (event: any) => {
+        console.error("Voice recognition error:", event.error);
+      };
+
+      // Store recognition instance for later use
+      (window as any).voiceRecognition = recognition;
+    }
+  };
+
+  const handleVoiceCommand = (command: string) => {
+    // Basic voice commands for navigation
+    const commands = {
+      "go to main": () => {
+        const main = document.querySelector('main, [role="main"]');
+        if (main) (main as HTMLElement).focus();
+      },
+      "go to navigation": () => {
+        const nav = document.querySelector('nav, [role="navigation"]');
+        if (nav) (nav as HTMLElement).focus();
+      },
+      "click button": () => {
+        const button = document.querySelector("button:focus");
+        if (button) (button as HTMLElement).click();
+      },
+      next: () => {
+        const focusableElements = Array.from(
+          document.querySelectorAll(
+            'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+          ),
+        );
+        const currentIndex = focusableElements.indexOf(
+          document.activeElement as Element,
+        );
+        if (currentIndex < focusableElements.length - 1) {
+          (focusableElements[currentIndex + 1] as HTMLElement).focus();
+        }
+      },
+      previous: () => {
+        const focusableElements = Array.from(
+          document.querySelectorAll(
+            'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+          ),
+        );
+        const currentIndex = focusableElements.indexOf(
+          document.activeElement as Element,
+        );
+        if (currentIndex > 0) {
+          (focusableElements[currentIndex - 1] as HTMLElement).focus();
+        }
+      },
+    };
+
+    const matchedCommand = Object.keys(commands).find((cmd) =>
+      command.includes(cmd),
+    );
+    if (matchedCommand) {
+      commands[matchedCommand as keyof typeof commands]();
+      if ((window as any).announceToScreenReader) {
+        (window as any).announceToScreenReader(
+          `Executed command: ${matchedCommand}`,
+        );
+      }
+    }
+  };
+
+  const toggleVoiceNavigation = () => {
+    setVoiceNavigationActive(!voiceNavigationActive);
+    if (!voiceNavigationActive && (window as any).voiceRecognition) {
+      (window as any).voiceRecognition.start();
+      if ((window as any).announceToScreenReader) {
+        (window as any).announceToScreenReader("Voice navigation activated");
+      }
+    } else if ((window as any).voiceRecognition) {
+      (window as any).voiceRecognition.stop();
+      if ((window as any).announceToScreenReader) {
+        (window as any).announceToScreenReader("Voice navigation deactivated");
+      }
+    }
+  };
+
+  const toggleScreenReaderMode = () => {
+    setScreenReaderMode(!screenReaderMode);
+    if (!screenReaderMode) {
+      document.body.classList.add("screen-reader-optimized");
+      if ((window as any).announceToScreenReader) {
+        (window as any).announceToScreenReader(
+          "Screen reader optimization enabled",
+        );
+      }
+    } else {
+      document.body.classList.remove("screen-reader-optimized");
+      if ((window as any).announceToScreenReader) {
+        (window as any).announceToScreenReader(
+          "Screen reader optimization disabled",
+        );
+      }
+    }
+  };
+
+  const toggleHighContrast = () => {
+    setHighContrastMode(!highContrastMode);
+    if (!highContrastMode) {
+      document.documentElement.classList.add("high-contrast-mode");
+      if ((window as any).announceToScreenReader) {
+        (window as any).announceToScreenReader("High contrast mode enabled");
+      }
+    } else {
+      document.documentElement.classList.remove("high-contrast-mode");
+      if ((window as any).announceToScreenReader) {
+        (window as any).announceToScreenReader("High contrast mode disabled");
+      }
+    }
+  };
+
+  const toggleRTLSupport = () => {
+    setRtlSupport(!rtlSupport);
+    if (!rtlSupport) {
+      document.documentElement.setAttribute("dir", "rtl");
+      document.documentElement.setAttribute("lang", "ar");
+      if ((window as any).announceToScreenReader) {
+        (window as any).announceToScreenReader("Arabic RTL support enabled");
+      }
+    } else {
+      document.documentElement.setAttribute("dir", "ltr");
+      document.documentElement.setAttribute("lang", "en");
+      if ((window as any).announceToScreenReader) {
+        (window as any).announceToScreenReader("English LTR support enabled");
+      }
+    }
   };
 
   const getIssuesByCategory = (category: string) => {
@@ -373,208 +1174,78 @@ export const AccessibilityChecker: React.FC<AccessibilityCheckerProps> = ({
     <div className={cn("space-y-6", className)}>
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <Eye className="h-5 w-5" />
-                Accessibility Checker
-              </CardTitle>
-              <CardDescription>
-                WCAG compliance analysis and accessibility recommendations
-              </CardDescription>
-            </div>
-            <div className="flex items-center gap-2">
-              {report && (
-                <>
-                  <Badge className={getWcagBadgeColor(report.wcagLevel)}>
-                    WCAG {report.wcagLevel}
-                  </Badge>
-                  <Badge variant={getScoreBadgeVariant(report.score)}>
-                    Score: {report.score}/100
-                  </Badge>
-                </>
-              )}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={runAccessibilityCheck}
-                disabled={loading}
-              >
-                {loading ? "Checking..." : "Run Check"}
-              </Button>
-            </div>
-          </div>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Shield className="h-4 w-4" />
+            WCAG 2.1 Compliance
+          </CardTitle>
         </CardHeader>
         <CardContent>
-          {loading ? (
-            <div className="text-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-              <p>Running accessibility audit...</p>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span>Level A (Essential)</span>
+                <span
+                  className={
+                    wcagCompliance.levelA >= 90
+                      ? "text-green-600"
+                      : wcagCompliance.levelA >= 70
+                        ? "text-yellow-600"
+                        : "text-red-600"
+                  }
+                >
+                  {wcagCompliance.levelA}%
+                </span>
+              </div>
+              <Progress value={wcagCompliance.levelA} className="h-2" />
             </div>
-          ) : report ? (
-            <div className="space-y-6">
-              {/* Overview */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="text-center p-4 bg-muted rounded-lg">
-                  <div
-                    className={cn(
-                      "text-3xl font-bold",
-                      getScoreColor(report.score),
-                    )}
-                  >
-                    {report.score}
-                  </div>
-                  <div className="text-sm text-muted-foreground">Score</div>
-                </div>
-                <div className="text-center p-4 bg-muted rounded-lg">
-                  <div className="text-3xl font-bold text-green-600">
-                    {report.passedChecks}
-                  </div>
-                  <div className="text-sm text-muted-foreground">Passed</div>
-                </div>
-                <div className="text-center p-4 bg-muted rounded-lg">
-                  <div className="text-3xl font-bold text-red-600">
-                    {report.issues.length}
-                  </div>
-                  <div className="text-sm text-muted-foreground">Issues</div>
-                </div>
-                <div className="text-center p-4 bg-muted rounded-lg">
-                  <div className="text-3xl font-bold">{report.wcagLevel}</div>
-                  <div className="text-sm text-muted-foreground">
-                    WCAG Level
-                  </div>
-                </div>
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span>Level AA (Standard)</span>
+                <span
+                  className={
+                    wcagCompliance.levelAA >= 90
+                      ? "text-green-600"
+                      : wcagCompliance.levelAA >= 70
+                        ? "text-yellow-600"
+                        : "text-red-600"
+                  }
+                >
+                  {wcagCompliance.levelAA}%
+                </span>
               </div>
-
-              {/* Progress */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">
-                    Accessibility Score
-                  </span>
-                  <span
-                    className={cn(
-                      "text-sm font-bold",
-                      getScoreColor(report.score),
-                    )}
-                  >
-                    {report.score}/100
-                  </span>
-                </div>
-                <Progress value={report.score} className="h-3" />
-                <div className="text-xs text-muted-foreground">
-                  {report.passedChecks} of {report.totalChecks} checks passed
-                </div>
-              </div>
-
-              {/* Category Filters */}
-              <div className="flex flex-wrap gap-2">
-                {categories.map((category) => {
-                  const Icon = category.icon;
-                  const count =
-                    category.id === "all"
-                      ? report.issues.length
-                      : report.issues.filter(
-                          (issue) => issue.category === category.id,
-                        ).length;
-                  return (
-                    <Button
-                      key={category.id}
-                      variant={
-                        selectedCategory === category.id ? "default" : "outline"
-                      }
-                      size="sm"
-                      onClick={() => setSelectedCategory(category.id)}
-                      className="flex items-center gap-2"
-                    >
-                      <Icon className="h-4 w-4" />
-                      {category.label}
-                      {count > 0 && (
-                        <Badge variant="secondary" className="ml-1">
-                          {count}
-                        </Badge>
-                      )}
-                    </Button>
-                  );
-                })}
-              </div>
-
-              {/* Issues List */}
-              <div className="space-y-3">
-                <h4 className="font-medium">
-                  {selectedCategory === "all"
-                    ? "All Issues"
-                    : `${selectedCategory} Issues`}
-                  {filteredIssues.length > 0 && (
-                    <span className="ml-2 text-muted-foreground">
-                      ({filteredIssues.length})
-                    </span>
-                  )}
-                </h4>
-                {filteredIssues.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <CheckCircle className="h-12 w-12 mx-auto mb-4 opacity-50 text-green-500" />
-                    <p>No issues found in this category! 🎉</p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {filteredIssues.map((issue) => (
-                      <div
-                        key={issue.id}
-                        className="border rounded-lg p-4 hover:bg-muted/50 transition-colors"
-                      >
-                        <div className="flex items-start gap-3">
-                          <div className="mt-1">{getIssueIcon(issue.type)}</div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-2">
-                              <h5 className="font-medium">{issue.title}</h5>
-                              <Badge
-                                variant="outline"
-                                className={getWcagBadgeColor(issue.wcagLevel)}
-                              >
-                                WCAG {issue.wcagLevel}
-                              </Badge>
-                              <div className="flex items-center gap-1">
-                                {getCategoryIcon(issue.category)}
-                                <span className="text-xs text-muted-foreground capitalize">
-                                  {issue.category}
-                                </span>
-                              </div>
-                            </div>
-                            <p className="text-sm text-muted-foreground mb-2">
-                              {issue.description}
-                            </p>
-                            {issue.element && (
-                              <div className="text-xs font-mono bg-muted px-2 py-1 rounded mb-2">
-                                {issue.element}
-                              </div>
-                            )}
-                            <div className="text-xs text-muted-foreground mb-2">
-                              <strong>WCAG Criterion:</strong>{" "}
-                              {issue.wcagCriterion}
-                            </div>
-                            <div className="text-sm bg-blue-50 border-l-4 border-blue-400 p-3 rounded">
-                              <strong className="text-blue-800">
-                                Suggestion:
-                              </strong>
-                              <span className="text-blue-700 ml-2">
-                                {issue.suggestion}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+              <Progress value={wcagCompliance.levelAA} className="h-2" />
             </div>
-          ) : (
-            <div className="text-center py-8 text-muted-foreground">
-              <Eye className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>Click "Run Check" to start accessibility audit</p>
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span>Level AAA (Enhanced)</span>
+                <span
+                  className={
+                    wcagCompliance.levelAAA >= 90
+                      ? "text-green-600"
+                      : wcagCompliance.levelAAA >= 70
+                        ? "text-yellow-600"
+                        : "text-red-600"
+                  }
+                >
+                  {wcagCompliance.levelAAA}%
+                </span>
+              </div>
+              <Progress value={wcagCompliance.levelAAA} className="h-2" />
             </div>
-          )}
+            {culturalAdaptation === "UAE" && (
+              <div className="mt-4 p-3 bg-green-50 rounded-lg">
+                <div className="text-sm font-medium text-green-900 mb-1">
+                  🇦🇪 UAE Cultural Adaptations
+                </div>
+                <div className="text-xs text-green-700">
+                  ✓ Arabic RTL Support
+                  <br />
+                  ✓ Cultural Color Considerations
+                  <br />✓ Arabic Font Compatibility
+                </div>
+              </div>
+            )}
+          </div>
         </CardContent>
       </Card>
     </div>

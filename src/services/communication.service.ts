@@ -1,10 +1,105 @@
 /**
- * Real-time Communication Service
- * Handles messaging, emergency alerts, and team collaboration
+ * Integrated Communication Hub Service
+ * Unified messaging system with real-time notifications and emergency alerts
+ * Supports cross-module communication and workflow integration
  */
 
 import { AuditLogger } from "./security.service";
 import { serviceWorkerService } from "./service-worker.service";
+import { EventEmitter } from "eventemitter3";
+
+// Import messaging service for event-driven communication
+let messagingService: any = null;
+
+// Lazy load messaging service to avoid circular dependencies
+const getMessagingService = async () => {
+  if (!messagingService) {
+    const { enhancedMessagingService } = await import("./messaging.service");
+    messagingService = enhancedMessagingService;
+    await messagingService.initialize();
+  }
+  return messagingService;
+};
+
+// Unified Communication Hub Interfaces
+export interface UnifiedMessage {
+  id: string;
+  type: "text" | "voice" | "emergency" | "alert" | "system" | "workflow";
+  priority: "low" | "medium" | "high" | "critical";
+  source: {
+    module: string;
+    userId?: string;
+    service?: string;
+  };
+  destination: {
+    channels: string[];
+    users?: string[];
+    modules?: string[];
+    broadcast?: boolean;
+  };
+  content: {
+    title: string;
+    message: string;
+    data?: any;
+    attachments?: any[];
+  };
+  routing: {
+    immediate: boolean;
+    persistent: boolean;
+    acknowledgmentRequired: boolean;
+    escalationRules?: EscalationRule[];
+  };
+  metadata: {
+    correlationId?: string;
+    workflowId?: string;
+    traceId?: string;
+    timestamp: string;
+    expiresAt?: string;
+  };
+}
+
+export interface EscalationRule {
+  condition: "no_response" | "negative_response" | "timeout";
+  timeoutMinutes: number;
+  escalateTo: string[];
+  action: "notify" | "alert" | "emergency";
+}
+
+export interface CommunicationChannel {
+  id: string;
+  name: string;
+  type: "direct" | "group" | "broadcast" | "emergency" | "workflow";
+  module?: string;
+  participants: string[];
+  settings: {
+    encryption: boolean;
+    retention: number; // days
+    notifications: boolean;
+    emergencyOverride: boolean;
+  };
+  metadata: {
+    createdAt: string;
+    lastActivity: string;
+    messageCount: number;
+  };
+}
+
+export interface NotificationRule {
+  id: string;
+  name: string;
+  trigger: {
+    modules: string[];
+    eventTypes: string[];
+    conditions: any[];
+  };
+  action: {
+    channels: string[];
+    template: string;
+    priority: "low" | "medium" | "high" | "critical";
+    escalation?: EscalationRule[];
+  };
+  enabled: boolean;
+}
 
 export interface Message {
   id: string;
@@ -96,19 +191,211 @@ export interface NotificationChannel {
   };
 }
 
-class CommunicationService {
+class IntegratedCommunicationHub extends EventEmitter {
   private messages: Map<string, Message[]> = new Map();
   private channels: Map<string, Channel> = new Map();
   private emergencyAlerts: Map<string, EmergencyAlert> = new Map();
-  private userNotificationChannels: Map<string, NotificationChannel[]> =
-    new Map();
+  private userNotificationChannels: Map<string, NotificationChannel[]> = new Map();
   private websocketConnections: Map<string, WebSocket> = new Map();
   private emergencyContacts: Map<string, string[]> = new Map();
   private escalationWorkflows: Map<string, any> = new Map();
+  
+  // Unified Communication Hub Properties
+  private unifiedMessages: Map<string, UnifiedMessage> = new Map();
+  private communicationChannels: Map<string, CommunicationChannel> = new Map();
+  private notificationRules: Map<string, NotificationRule> = new Map();
+  private moduleSubscriptions: Map<string, Set<string>> = new Map();
+  private realTimeConnections: Map<string, any> = new Map();
+  private messageQueue: any[] = [];
+  private isProcessingQueue = false;
+  private hubMetrics = {
+    messagesProcessed: 0,
+    notificationsSent: 0,
+    emergencyAlertsTriggered: 0,
+    crossModuleEvents: 0,
+    lastActivity: new Date().toISOString()
+  };
 
   constructor() {
+    super();
     this.initializeDefaultChannels();
     this.setupEmergencyProtocols();
+    this.initializeUnifiedHub();
+    this.startMessageProcessing();
+  }
+
+  /**
+   * Initialize Unified Communication Hub
+   */
+  private initializeUnifiedHub(): void {
+    // Setup cross-module communication channels
+    this.setupCrossModuleChannels();
+    
+    // Initialize notification rules
+    this.setupDefaultNotificationRules();
+    
+    // Setup real-time event handlers
+    this.setupRealTimeHandlers();
+    
+    // Initialize messaging service integration
+    this.initializeMessagingIntegration();
+  }
+
+  /**
+   * Setup cross-module communication channels
+   */
+  private setupCrossModuleChannels(): void {
+    const crossModuleChannels: CommunicationChannel[] = [
+      {
+        id: "patient-clinical-bridge",
+        name: "Patient-Clinical Communication",
+        type: "workflow",
+        module: "patient-clinical",
+        participants: [],
+        settings: {
+          encryption: true,
+          retention: 30,
+          notifications: true,
+          emergencyOverride: true
+        },
+        metadata: {
+          createdAt: new Date().toISOString(),
+          lastActivity: new Date().toISOString(),
+          messageCount: 0
+        }
+      },
+      {
+        id: "compliance-alerts",
+        name: "Compliance Alerts Channel",
+        type: "broadcast",
+        module: "compliance",
+        participants: [],
+        settings: {
+          encryption: true,
+          retention: 90,
+          notifications: true,
+          emergencyOverride: true
+        },
+        metadata: {
+          createdAt: new Date().toISOString(),
+          lastActivity: new Date().toISOString(),
+          messageCount: 0
+        }
+      },
+      {
+        id: "workflow-notifications",
+        name: "Workflow Notifications",
+        type: "workflow",
+        participants: [],
+        settings: {
+          encryption: false,
+          retention: 7,
+          notifications: true,
+          emergencyOverride: false
+        },
+        metadata: {
+          createdAt: new Date().toISOString(),
+          lastActivity: new Date().toISOString(),
+          messageCount: 0
+        }
+      }
+    ];
+
+    crossModuleChannels.forEach(channel => {
+      this.communicationChannels.set(channel.id, channel);
+    });
+  }
+
+  /**
+   * Setup default notification rules
+   */
+  private setupDefaultNotificationRules(): void {
+    const defaultRules: NotificationRule[] = [
+      {
+        id: "patient-episode-started",
+        name: "Patient Episode Started",
+        trigger: {
+          modules: ["patient"],
+          eventTypes: ["episode.started"],
+          conditions: []
+        },
+        action: {
+          channels: ["patient-clinical-bridge", "workflow-notifications"],
+          template: "episode_started",
+          priority: "high"
+        },
+        enabled: true
+      },
+      {
+        id: "compliance-violation",
+        name: "Compliance Violation Alert",
+        trigger: {
+          modules: ["compliance", "clinical"],
+          eventTypes: ["violation.detected", "audit.failed"],
+          conditions: []
+        },
+        action: {
+          channels: ["compliance-alerts", "emergency"],
+          template: "compliance_violation",
+          priority: "critical",
+          escalation: [{
+            condition: "no_response",
+            timeoutMinutes: 15,
+            escalateTo: ["supervisor", "compliance_officer"],
+            action: "emergency"
+          }]
+        },
+        enabled: true
+      },
+      {
+        id: "clinical-form-completed",
+        name: "Clinical Form Completed",
+        trigger: {
+          modules: ["clinical"],
+          eventTypes: ["form.completed", "assessment.submitted"],
+          conditions: []
+        },
+        action: {
+          channels: ["patient-clinical-bridge", "workflow-notifications"],
+          template: "form_completed",
+          priority: "medium"
+        },
+        enabled: true
+      }
+    ];
+
+    defaultRules.forEach(rule => {
+      this.notificationRules.set(rule.id, rule);
+    });
+  }
+
+  /**
+   * Setup real-time event handlers
+   */
+  private setupRealTimeHandlers(): void {
+    // Listen for cross-module events
+    this.on('module.event', this.handleModuleEvent.bind(this));
+    this.on('workflow.event', this.handleWorkflowEvent.bind(this));
+    this.on('emergency.event', this.handleEmergencyEvent.bind(this));
+  }
+
+  /**
+   * Initialize messaging service integration
+   */
+  private async initializeMessagingIntegration(): Promise<void> {
+    try {
+      const messaging = await getMessagingService();
+      
+      // Subscribe to relevant message patterns
+      messaging.subscribe('patient.*', this.handlePatientMessage.bind(this));
+      messaging.subscribe('clinical.*', this.handleClinicalMessage.bind(this));
+      messaging.subscribe('compliance.*', this.handleComplianceMessage.bind(this));
+      messaging.subscribe('workflow.*', this.handleWorkflowMessage.bind(this));
+      messaging.subscribe('emergency.*', this.handleEmergencyMessage.bind(this));
+      
+    } catch (error) {
+      console.error('Failed to initialize messaging integration:', error);
+    }
   }
 
   /**
@@ -201,7 +488,216 @@ class CommunicationService {
   }
 
   /**
-   * Send a message
+   * Send unified message across modules and channels
+   */
+  async sendUnifiedMessage(messageData: Omit<UnifiedMessage, "id" | "metadata">): Promise<string> {
+    try {
+      const messageId = this.generateMessageId();
+      const unifiedMessage: UnifiedMessage = {
+        ...messageData,
+        id: messageId,
+        metadata: {
+          correlationId: messageData.metadata?.correlationId || this.generateCorrelationId(),
+          workflowId: messageData.metadata?.workflowId,
+          traceId: messageData.metadata?.traceId || this.generateTraceId(),
+          timestamp: new Date().toISOString(),
+          expiresAt: messageData.metadata?.expiresAt
+        }
+      };
+
+      // Store unified message
+      this.unifiedMessages.set(messageId, unifiedMessage);
+
+      // Add to processing queue
+      this.messageQueue.push(unifiedMessage);
+
+      // Process immediately if high priority
+      if (unifiedMessage.priority === 'critical' || unifiedMessage.priority === 'high') {
+        await this.processUnifiedMessage(unifiedMessage);
+      }
+
+      // Update metrics
+      this.hubMetrics.messagesProcessed++;
+      this.hubMetrics.lastActivity = new Date().toISOString();
+
+      // Emit event for real-time updates
+      this.emit('message.sent', {
+        messageId,
+        type: unifiedMessage.type,
+        priority: unifiedMessage.priority,
+        source: unifiedMessage.source,
+        destination: unifiedMessage.destination
+      });
+
+      // Publish to messaging service for cross-service communication
+      await this.publishToMessagingService(unifiedMessage);
+
+      return messageId;
+    } catch (error) {
+      console.error('Failed to send unified message:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Process unified message
+   */
+  private async processUnifiedMessage(message: UnifiedMessage): Promise<void> {
+    try {
+      // Route to appropriate channels
+      for (const channelId of message.destination.channels) {
+        await this.routeToChannel(channelId, message);
+      }
+
+      // Send to specific users if specified
+      if (message.destination.users && message.destination.users.length > 0) {
+        await this.sendToUsers(message.destination.users, message);
+      }
+
+      // Broadcast to modules if specified
+      if (message.destination.modules && message.destination.modules.length > 0) {
+        await this.broadcastToModules(message.destination.modules, message);
+      }
+
+      // Handle broadcast messages
+      if (message.destination.broadcast) {
+        await this.broadcastMessage(message);
+      }
+
+      // Setup escalation if required
+      if (message.routing.escalationRules && message.routing.escalationRules.length > 0) {
+        this.setupEscalation(message);
+      }
+
+      // Log for audit
+      AuditLogger.logSecurityEvent({
+        type: "communication_event",
+        userId: message.source.userId,
+        resource: `unified_message_${message.id}`,
+        details: {
+          messageType: message.type,
+          priority: message.priority,
+          channels: message.destination.channels.length,
+          users: message.destination.users?.length || 0,
+          modules: message.destination.modules?.length || 0
+        },
+        severity: message.priority === 'critical' ? 'high' : 'low'
+      });
+
+    } catch (error) {
+      console.error('Failed to process unified message:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Route message to specific channel
+   */
+  private async routeToChannel(channelId: string, message: UnifiedMessage): Promise<void> {
+    const channel = this.communicationChannels.get(channelId) || this.channels.get(channelId);
+    if (!channel) {
+      console.warn(`Channel not found: ${channelId}`);
+      return;
+    }
+
+    // Update channel metadata
+    if ('metadata' in channel) {
+      channel.metadata.lastActivity = new Date().toISOString();
+      channel.metadata.messageCount++;
+    }
+
+    // Send to channel participants
+    const participants = channel.participants || [];
+    if (participants.length > 0) {
+      await this.sendToUsers(participants, message);
+    }
+
+    // Emit channel event
+    this.emit('channel.message', {
+      channelId,
+      messageId: message.id,
+      participantCount: participants.length
+    });
+  }
+
+  /**
+   * Send message to specific users
+   */
+  private async sendToUsers(userIds: string[], message: UnifiedMessage): Promise<void> {
+    for (const userId of userIds) {
+      try {
+        // Get user notification preferences
+        const userChannels = this.userNotificationChannels.get(userId) || [];
+        
+        // Send via appropriate channels based on priority and preferences
+        for (const channel of userChannels) {
+          if (this.shouldSendToChannel(channel, message.priority)) {
+            await this.sendToNotificationChannel(channel, message, userId);
+          }
+        }
+
+        // Send real-time notification if user is connected
+        const connection = this.realTimeConnections.get(userId);
+        if (connection) {
+          this.sendRealTimeNotification(connection, message);
+        }
+
+      } catch (error) {
+        console.error(`Failed to send message to user ${userId}:`, error);
+      }
+    }
+  }
+
+  /**
+   * Broadcast to specific modules
+   */
+  private async broadcastToModules(modules: string[], message: UnifiedMessage): Promise<void> {
+    for (const module of modules) {
+      try {
+        const subscribers = this.moduleSubscriptions.get(module) || new Set();
+        
+        // Notify all subscribers of this module
+        for (const subscriberId of subscribers) {
+          this.emit('module.notification', {
+            module,
+            subscriberId,
+            message: {
+              id: message.id,
+              type: message.type,
+              content: message.content,
+              priority: message.priority,
+              metadata: message.metadata
+            }
+          });
+        }
+
+        // Publish to messaging service for module-specific routing
+        const messaging = await getMessagingService();
+        await messaging.publish(
+          `${module}.events`,
+          `communication.${message.type}`,
+          {
+            messageId: message.id,
+            content: message.content,
+            source: message.source,
+            priority: message.priority
+          },
+          {
+            priority: message.priority,
+            correlationId: message.metadata.correlationId
+          }
+        );
+
+        this.hubMetrics.crossModuleEvents++;
+
+      } catch (error) {
+        console.error(`Failed to broadcast to module ${module}:`, error);
+      }
+    }
+  }
+
+  /**
+   * Send a message (legacy method for backward compatibility)
    */
   async sendMessage(
     messageData: Omit<Message, "id" | "timestamp" | "status">,
@@ -223,6 +719,9 @@ class CommunicationService {
 
       // Send real-time notifications
       await this.broadcastMessage(message);
+
+      // Publish to messaging service for event-driven processing
+      await this.publishMessageEvent(message);
 
       // Handle emergency messages
       if (message.type === "emergency" || message.priority === "critical") {
@@ -247,6 +746,444 @@ class CommunicationService {
     } catch (error) {
       console.error("Failed to send message:", error);
       throw error;
+    }
+  }
+
+  /**
+   * Start message processing queue
+   */
+  private startMessageProcessing(): void {
+    setInterval(async () => {
+      if (!this.isProcessingQueue && this.messageQueue.length > 0) {
+        this.isProcessingQueue = true;
+        
+        try {
+          while (this.messageQueue.length > 0) {
+            const message = this.messageQueue.shift();
+            if (message) {
+              await this.processUnifiedMessage(message);
+            }
+          }
+        } catch (error) {
+          console.error('Error processing message queue:', error);
+        } finally {
+          this.isProcessingQueue = false;
+        }
+      }
+    }, 1000); // Process every second
+  }
+
+  /**
+   * Handle module events
+   */
+  private async handleModuleEvent(event: any): Promise<void> {
+    try {
+      // Find matching notification rules
+      const matchingRules = Array.from(this.notificationRules.values())
+        .filter(rule => 
+          rule.enabled &&
+          rule.trigger.modules.includes(event.module) &&
+          rule.trigger.eventTypes.includes(event.type)
+        );
+
+      // Process each matching rule
+      for (const rule of matchingRules) {
+        await this.processNotificationRule(rule, event);
+      }
+
+    } catch (error) {
+      console.error('Failed to handle module event:', error);
+    }
+  }
+
+  /**
+   * Process notification rule
+   */
+  private async processNotificationRule(rule: NotificationRule, event: any): Promise<void> {
+    const unifiedMessage: Omit<UnifiedMessage, "id" | "metadata"> = {
+      type: "alert",
+      priority: rule.action.priority,
+      source: {
+        module: event.module,
+        userId: event.userId,
+        service: "communication-hub"
+      },
+      destination: {
+        channels: rule.action.channels,
+        broadcast: false
+      },
+      content: {
+        title: `${rule.name}`,
+        message: this.generateMessageFromTemplate(rule.action.template, event),
+        data: event.data
+      },
+      routing: {
+        immediate: rule.action.priority === 'critical',
+        persistent: true,
+        acknowledgmentRequired: rule.action.priority === 'critical',
+        escalationRules: rule.action.escalation
+      },
+      metadata: {
+        correlationId: event.correlationId,
+        workflowId: event.workflowId
+      }
+    };
+
+    await this.sendUnifiedMessage(unifiedMessage);
+  }
+
+  /**
+   * Generate message from template
+   */
+  private generateMessageFromTemplate(template: string, event: any): string {
+    const templates = {
+      episode_started: `New patient episode started for ${event.data?.patientName || 'patient'}. Episode ID: ${event.data?.episodeId}`,
+      compliance_violation: `Compliance violation detected: ${event.data?.violationType || 'Unknown'}. Immediate attention required.`,
+      form_completed: `Clinical form completed: ${event.data?.formType || 'Unknown form'}. Review required.`,
+      emergency_alert: `🚨 EMERGENCY: ${event.data?.alertType || 'General emergency'}. Location: ${event.data?.location || 'Unknown'}`,
+      workflow_notification: `Workflow update: ${event.data?.workflowName || 'Unknown workflow'}. Status: ${event.data?.status || 'Updated'}`
+    };
+
+    return templates[template as keyof typeof templates] || `Notification: ${event.type} from ${event.module}`;
+  }
+
+  /**
+   * Handle workflow events
+   */
+  private async handleWorkflowEvent(event: any): Promise<void> {
+    const unifiedMessage: Omit<UnifiedMessage, "id" | "metadata"> = {
+      type: "workflow",
+      priority: "medium",
+      source: {
+        module: "workflow",
+        service: "workflow-engine"
+      },
+      destination: {
+        channels: ["workflow-notifications"],
+        broadcast: false
+      },
+      content: {
+        title: "Workflow Update",
+        message: this.generateMessageFromTemplate("workflow_notification", event),
+        data: event.data
+      },
+      routing: {
+        immediate: false,
+        persistent: true,
+        acknowledgmentRequired: false
+      },
+      metadata: {
+        workflowId: event.workflowId
+      }
+    };
+
+    await this.sendUnifiedMessage(unifiedMessage);
+  }
+
+  /**
+   * Handle emergency events
+   */
+  private async handleEmergencyEvent(event: any): Promise<void> {
+    const unifiedMessage: Omit<UnifiedMessage, "id" | "metadata"> = {
+      type: "emergency",
+      priority: "critical",
+      source: {
+        module: event.module || "emergency",
+        userId: event.userId,
+        service: "emergency-system"
+      },
+      destination: {
+        channels: ["emergency"],
+        broadcast: true
+      },
+      content: {
+        title: "🚨 EMERGENCY ALERT",
+        message: this.generateMessageFromTemplate("emergency_alert", event),
+        data: event.data
+      },
+      routing: {
+        immediate: true,
+        persistent: true,
+        acknowledgmentRequired: true,
+        escalationRules: [{
+          condition: "no_response",
+          timeoutMinutes: 2,
+          escalateTo: ["emergency_services", "supervisor"],
+          action: "emergency"
+        }]
+      },
+      metadata: {
+        correlationId: event.correlationId
+      }
+    };
+
+    await this.sendUnifiedMessage(unifiedMessage);
+    this.hubMetrics.emergencyAlertsTriggered++;
+  }
+
+  /**
+   * Handle patient messages from messaging service
+   */
+  private async handlePatientMessage(message: any): Promise<void> {
+    this.emit('module.event', {
+      module: 'patient',
+      type: message.type.replace('patient.', ''),
+      data: message.payload,
+      correlationId: message.correlationId,
+      userId: message.metadata?.userId
+    });
+  }
+
+  /**
+   * Handle clinical messages from messaging service
+   */
+  private async handleClinicalMessage(message: any): Promise<void> {
+    this.emit('module.event', {
+      module: 'clinical',
+      type: message.type.replace('clinical.', ''),
+      data: message.payload,
+      correlationId: message.correlationId,
+      userId: message.metadata?.userId
+    });
+  }
+
+  /**
+   * Handle compliance messages from messaging service
+   */
+  private async handleComplianceMessage(message: any): Promise<void> {
+    this.emit('module.event', {
+      module: 'compliance',
+      type: message.type.replace('compliance.', ''),
+      data: message.payload,
+      correlationId: message.correlationId,
+      userId: message.metadata?.userId
+    });
+  }
+
+  /**
+   * Handle workflow messages from messaging service
+   */
+  private async handleWorkflowMessage(message: any): Promise<void> {
+    this.emit('workflow.event', {
+      workflowId: message.payload.workflowId,
+      type: message.type.replace('workflow.', ''),
+      data: message.payload,
+      correlationId: message.correlationId
+    });
+  }
+
+  /**
+   * Handle emergency messages from messaging service
+   */
+  private async handleEmergencyMessage(message: any): Promise<void> {
+    this.emit('emergency.event', {
+      module: message.payload.module || 'emergency',
+      type: message.type.replace('emergency.', ''),
+      data: message.payload,
+      correlationId: message.correlationId,
+      userId: message.metadata?.userId
+    });
+  }
+
+  /**
+   * Publish to messaging service
+   */
+  private async publishToMessagingService(message: UnifiedMessage): Promise<void> {
+    try {
+      const messaging = await getMessagingService();
+      
+      await messaging.publish(
+        'communication.events',
+        `unified.${message.type}`,
+        {
+          messageId: message.id,
+          content: message.content,
+          source: message.source,
+          destination: message.destination,
+          priority: message.priority
+        },
+        {
+          priority: message.priority,
+          correlationId: message.metadata.correlationId,
+          metadata: {
+            traceId: message.metadata.traceId,
+            workflowId: message.metadata.workflowId
+          }
+        }
+      );
+    } catch (error) {
+      console.error('Failed to publish to messaging service:', error);
+    }
+  }
+
+  /**
+   * Send to notification channel
+   */
+  private async sendToNotificationChannel(
+    channel: NotificationChannel,
+    message: UnifiedMessage,
+    userId: string
+  ): Promise<void> {
+    const notificationData = {
+      title: message.content.title,
+      message: message.content.message,
+      priority: message.priority,
+      metadata: {
+        messageId: message.id,
+        userId,
+        source: message.source,
+        timestamp: message.metadata.timestamp
+      }
+    };
+
+    switch (channel.type) {
+      case 'push':
+        await this.sendPushNotification(channel, notificationData);
+        break;
+      case 'email':
+        await this.sendEmailNotification(channel, notificationData);
+        break;
+      case 'sms':
+        await this.sendSMSNotification(channel, notificationData);
+        break;
+      case 'in_app':
+        await this.sendInAppNotification(userId, notificationData);
+        break;
+    }
+
+    this.hubMetrics.notificationsSent++;
+  }
+
+  /**
+   * Send real-time notification
+   */
+  private sendRealTimeNotification(connection: any, message: UnifiedMessage): void {
+    try {
+      const notification = {
+        type: 'unified_message',
+        data: {
+          id: message.id,
+          type: message.type,
+          priority: message.priority,
+          content: message.content,
+          timestamp: message.metadata.timestamp,
+          requiresAcknowledgment: message.routing.acknowledgmentRequired
+        }
+      };
+
+      // Send via WebSocket or other real-time connection
+      if (connection.send) {
+        connection.send(JSON.stringify(notification));
+      }
+    } catch (error) {
+      console.error('Failed to send real-time notification:', error);
+    }
+  }
+
+  /**
+   * Send in-app notification
+   */
+  private async sendInAppNotification(userId: string, data: any): Promise<void> {
+    this.emit('in_app_notification', {
+      userId,
+      notification: data
+    });
+  }
+
+  /**
+   * Setup escalation for message
+   */
+  private setupEscalation(message: UnifiedMessage): void {
+    if (!message.routing.escalationRules) return;
+
+    message.routing.escalationRules.forEach(rule => {
+      setTimeout(async () => {
+        // Check if message was acknowledged
+        const currentMessage = this.unifiedMessages.get(message.id);
+        if (!currentMessage || this.isMessageAcknowledged(message.id)) {
+          return;
+        }
+
+        // Escalate message
+        const escalatedMessage: Omit<UnifiedMessage, "id" | "metadata"> = {
+          ...message,
+          type: "alert",
+          priority: "critical",
+          content: {
+            title: `🔺 ESCALATED: ${message.content.title}`,
+            message: `ESCALATION: ${message.content.message}\n\nOriginal message was not acknowledged within ${rule.timeoutMinutes} minutes.`,
+            data: message.content.data
+          },
+          destination: {
+            ...message.destination,
+            users: rule.escalateTo
+          },
+          routing: {
+            ...message.routing,
+            immediate: true
+          },
+          metadata: {
+            correlationId: message.metadata.correlationId,
+            workflowId: message.metadata.workflowId
+          }
+        };
+
+        await this.sendUnifiedMessage(escalatedMessage);
+      }, rule.timeoutMinutes * 60 * 1000);
+    });
+  }
+
+  /**
+   * Check if message was acknowledged
+   */
+  private isMessageAcknowledged(messageId: string): boolean {
+    // Implementation would check acknowledgment status
+    // For now, return false to allow escalation testing
+    return false;
+  }
+
+  /**
+   * Generate helper methods
+   */
+  private generateCorrelationId(): string {
+    return `corr_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  }
+
+  private generateTraceId(): string {
+    return `trace_${Date.now()}_${Math.random().toString(36).substr(2, 12)}`;
+  }
+
+  /**
+   * Publish message event to messaging service
+   */
+  private async publishMessageEvent(message: Message): Promise<void> {
+    try {
+      const messaging = await getMessagingService();
+
+      await messaging.publish(
+        "communication.events",
+        "message.sent",
+        {
+          messageId: message.id,
+          senderId: message.senderId,
+          recipientIds: message.recipientIds,
+          type: message.type,
+          priority: message.priority,
+          channelId: message.channelId,
+          encrypted: message.encrypted,
+          timestamp: message.timestamp,
+        },
+        {
+          priority: message.priority === "critical" ? "critical" : "medium",
+          correlationId: message.id,
+          metadata: {
+            traceId: message.id,
+            messageType: message.type,
+          },
+        },
+      );
+    } catch (error) {
+      console.error("Failed to publish message event:", error);
     }
   }
 
@@ -312,6 +1249,9 @@ class CommunicationService {
         this.setupAutoEscalation(alertId, alert.autoEscalationTime);
       }
 
+      // Publish emergency alert event
+      await this.publishEmergencyAlertEvent(alert);
+
       // Log emergency alert
       AuditLogger.logSecurityEvent({
         type: "system_event",
@@ -330,6 +1270,44 @@ class CommunicationService {
     } catch (error) {
       console.error("Failed to broadcast emergency alert:", error);
       throw error;
+    }
+  }
+
+  /**
+   * Publish emergency alert event to messaging service
+   */
+  private async publishEmergencyAlertEvent(
+    alert: EmergencyAlert,
+  ): Promise<void> {
+    try {
+      const messaging = await getMessagingService();
+
+      await messaging.publish(
+        "emergency.events",
+        "alert.broadcast",
+        {
+          alertId: alert.id,
+          type: alert.type,
+          severity: alert.severity,
+          title: alert.title,
+          location: alert.location,
+          triggeredBy: alert.triggeredBy,
+          recipients: alert.recipients,
+          escalationLevel: alert.escalationLevel,
+          timestamp: alert.timestamp,
+        },
+        {
+          priority: "critical",
+          correlationId: alert.id,
+          metadata: {
+            traceId: alert.id,
+            emergencyType: alert.type,
+            severity: alert.severity,
+          },
+        },
+      );
+    } catch (error) {
+      console.error("Failed to publish emergency alert event:", error);
     }
   }
 
@@ -1044,6 +2022,199 @@ class CommunicationService {
   }
 }
 
+  /**
+   * Subscribe module to communication hub
+   */
+  subscribeModule(moduleId: string, subscriberId: string): void {
+    if (!this.moduleSubscriptions.has(moduleId)) {
+      this.moduleSubscriptions.set(moduleId, new Set());
+    }
+    this.moduleSubscriptions.get(moduleId)!.add(subscriberId);
+
+    this.emit('module.subscribed', { moduleId, subscriberId });
+  }
+
+  /**
+   * Unsubscribe module from communication hub
+   */
+  unsubscribeModule(moduleId: string, subscriberId: string): void {
+    const subscribers = this.moduleSubscriptions.get(moduleId);
+    if (subscribers) {
+      subscribers.delete(subscriberId);
+      if (subscribers.size === 0) {
+        this.moduleSubscriptions.delete(moduleId);
+      }
+    }
+
+    this.emit('module.unsubscribed', { moduleId, subscriberId });
+  }
+
+  /**
+   * Register real-time connection
+   */
+  registerRealTimeConnection(userId: string, connection: any): void {
+    this.realTimeConnections.set(userId, connection);
+    
+    // Setup connection event handlers
+    connection.on('disconnect', () => {
+      this.realTimeConnections.delete(userId);
+    });
+
+    this.emit('connection.registered', { userId });
+  }
+
+  /**
+   * Get communication hub metrics
+   */
+  getHubMetrics(): any {
+    return {
+      ...this.hubMetrics,
+      activeConnections: this.realTimeConnections.size,
+      moduleSubscriptions: this.moduleSubscriptions.size,
+      communicationChannels: this.communicationChannels.size,
+      notificationRules: this.notificationRules.size,
+      queuedMessages: this.messageQueue.length,
+      unifiedMessages: this.unifiedMessages.size
+    };
+  }
+
+  /**
+   * Get unified messages
+   */
+  getUnifiedMessages(filters?: {
+    type?: string;
+    priority?: string;
+    module?: string;
+    limit?: number;
+  }): UnifiedMessage[] {
+    let messages = Array.from(this.unifiedMessages.values());
+
+    if (filters) {
+      if (filters.type) {
+        messages = messages.filter(m => m.type === filters.type);
+      }
+      if (filters.priority) {
+        messages = messages.filter(m => m.priority === filters.priority);
+      }
+      if (filters.module) {
+        messages = messages.filter(m => m.source.module === filters.module);
+      }
+      if (filters.limit) {
+        messages = messages.slice(-filters.limit);
+      }
+    }
+
+    return messages.sort((a, b) => 
+      new Date(b.metadata.timestamp).getTime() - new Date(a.metadata.timestamp).getTime()
+    );
+  }
+
+  /**
+   * Get communication channels
+   */
+  getCommunicationChannels(): CommunicationChannel[] {
+    return Array.from(this.communicationChannels.values());
+  }
+
+  /**
+   * Create notification rule
+   */
+  createNotificationRule(rule: NotificationRule): void {
+    this.notificationRules.set(rule.id, rule);
+    this.emit('notification.rule.created', { ruleId: rule.id, ruleName: rule.name });
+  }
+
+  /**
+   * Update notification rule
+   */
+  updateNotificationRule(ruleId: string, updates: Partial<NotificationRule>): void {
+    const rule = this.notificationRules.get(ruleId);
+    if (rule) {
+      Object.assign(rule, updates);
+      this.notificationRules.set(ruleId, rule);
+      this.emit('notification.rule.updated', { ruleId, updates });
+    }
+  }
+
+  /**
+   * Delete notification rule
+   */
+  deleteNotificationRule(ruleId: string): void {
+    if (this.notificationRules.delete(ruleId)) {
+      this.emit('notification.rule.deleted', { ruleId });
+    }
+  }
+
+  /**
+   * Get notification rules
+   */
+  getNotificationRules(): NotificationRule[] {
+    return Array.from(this.notificationRules.values());
+  }
+
+  /**
+   * Trigger cross-module event
+   */
+  triggerCrossModuleEvent(event: {
+    module: string;
+    type: string;
+    data: any;
+    userId?: string;
+    correlationId?: string;
+    workflowId?: string;
+  }): void {
+    this.emit('module.event', event);
+  }
+
+  /**
+   * Trigger workflow event
+   */
+  triggerWorkflowEvent(event: {
+    workflowId: string;
+    type: string;
+    data: any;
+    correlationId?: string;
+  }): void {
+    this.emit('workflow.event', event);
+  }
+
+  /**
+   * Trigger emergency event
+   */
+  triggerEmergencyEvent(event: {
+    module?: string;
+    type: string;
+    data: any;
+    userId?: string;
+    correlationId?: string;
+  }): void {
+    this.emit('emergency.event', event);
+  }
+
+  /**
+   * Get hub status
+   */
+  getHubStatus(): {
+    status: string;
+    metrics: any;
+    health: {
+      messagingService: boolean;
+      realTimeConnections: number;
+      queueHealth: string;
+    };
+  } {
+    return {
+      status: 'active',
+      metrics: this.getHubMetrics(),
+      health: {
+        messagingService: messagingService !== null,
+        realTimeConnections: this.realTimeConnections.size,
+        queueHealth: this.messageQueue.length < 100 ? 'healthy' : 'congested'
+      }
+    };
+  }
+}
+
 // Export singleton instance
-export const communicationService = new CommunicationService();
+export const communicationService = new IntegratedCommunicationHub();
 export default communicationService;

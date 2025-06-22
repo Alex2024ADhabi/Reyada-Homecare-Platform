@@ -6,7 +6,7 @@ metadata:
   labels:
     app: reyada-frontend
 spec:
-  replicas: 3
+  replicas: 6
   selector:
     matchLabels:
       app: reyada-frontend
@@ -28,11 +28,11 @@ spec:
         - containerPort: 80
         resources:
           requests:
-            cpu: "100m"
-            memory: "128Mi"
+            cpu: "250m"
+            memory: "256Mi"
           limits:
-            cpu: "500m"
-            memory: "512Mi"
+            cpu: "1000m"
+            memory: "2Gi"
         livenessProbe:
           httpGet:
             path: /

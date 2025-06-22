@@ -18,11 +18,11 @@ export const CSRF_CONFIG = {
 export const CSP_CONFIG = {
   directives: [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://api.tempo.new",
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "script-src 'self' https://cdn.jsdelivr.net https://api.tempo.new 'nonce-{NONCE}' 'strict-dynamic'",
+    "style-src 'self' https://fonts.googleapis.com 'nonce-{NONCE}'",
     "img-src 'self' data: blob: https://images.unsplash.com https://api.dicebear.com",
     "font-src 'self' data: https://fonts.gstatic.com",
-    "connect-src 'self' ws: wss: https://api.reyada-homecare.ae wss://ws.reyada-homecare.ae https://api.tempo.new",
+    "connect-src 'self' wss://ws.reyada-homecare.ae https://api.reyada-homecare.ae https://api.tempo.new https://api.doh.gov.ae https://api.daman.ae https://api.malaffi.ae",
     "media-src 'self' blob:",
     "worker-src 'self' blob:",
     "frame-src 'none'",
@@ -31,9 +31,25 @@ export const CSP_CONFIG = {
     "form-action 'self'",
     "frame-ancestors 'none'",
     "upgrade-insecure-requests",
+    "require-trusted-types-for 'script'",
+    "trusted-types default",
+    "block-all-mixed-content",
   ],
   reportUri: "/api/csp-report",
   reportOnly: false,
+  violationReporting: {
+    enabled: true,
+    endpoint: "/api/csp-violations",
+    sampleRate: 1.0,
+    includeSubdomains: true,
+  },
+  enhancedSecurity: {
+    strictDynamic: true,
+    nonceRequired: true,
+    unsafeInlineBlocked: true,
+    unsafeEvalBlocked: true,
+    trustedTypesEnforced: true,
+  },
 } as const;
 
 export const DATA_PROTECTION_CONFIG = {
@@ -42,42 +58,248 @@ export const DATA_PROTECTION_CONFIG = {
       "name",
       "firstName",
       "lastName",
+      "middleName",
+      "fullName",
       "email",
       "phone",
+      "mobileNumber",
+      "homePhone",
+      "workPhone",
       "address",
+      "homeAddress",
+      "workAddress",
+      "mailingAddress",
       "emiratesId",
       "nationalId",
       "passport",
+      "passportNumber",
+      "visaNumber",
+      "residenceVisa",
       "dateOfBirth",
       "birthDate",
+      "age",
+      "gender",
+      "nationality",
+      "maritalStatus",
+      "emergencyContact",
+      "nextOfKin",
+      "guardianInfo",
+      "employerInfo",
+      "occupation",
+      "socialSecurityNumber",
+      "taxId",
+      "bankAccount",
+      "creditCard",
+      "financialInfo",
+      "biometricData",
+      "fingerprint",
+      "faceId",
+      "voicePrint",
+      "signature",
+      "digitalSignature",
+      "ipAddress",
+      "deviceId",
+      "locationData",
+      "gpsCoordinates",
+      "photoId",
+      "driverLicense",
+      "vehicleInfo",
+      "educationInfo",
+      "employmentHistory",
+      "criminalRecord",
+      "backgroundCheck",
     ],
     encryptionRequired: true,
     auditRequired: true,
+    dataMinimization: true,
+    consentRequired: true,
+    retentionPeriod: 2555, // 7 years
+    anonymizationRequired: true,
   },
   phi: {
     fields: [
       "medicalRecord",
+      "medicalRecordNumber",
+      "patientId",
       "diagnosis",
+      "primaryDiagnosis",
+      "secondaryDiagnosis",
+      "differentialDiagnosis",
       "treatment",
+      "treatmentPlan",
+      "carePlan",
       "medication",
+      "prescriptions",
+      "drugAllergies",
       "allergies",
+      "allergyHistory",
       "symptoms",
+      "clinicalSymptoms",
       "vitals",
+      "vitalSigns",
+      "bloodPressure",
+      "heartRate",
+      "temperature",
+      "respiratoryRate",
+      "oxygenSaturation",
+      "weight",
+      "height",
+      "bmi",
       "labResults",
+      "laboratoryData",
+      "pathologyReports",
       "imaging",
+      "radiologyReports",
+      "xrayResults",
+      "mriResults",
+      "ctScanResults",
+      "ultrasoundResults",
       "clinicalNotes",
+      "progressNotes",
+      "nursingNotes",
+      "physicianNotes",
+      "consultationNotes",
+      "dischargeNotes",
       "patientHistory",
+      "medicalHistory",
+      "familyHistory",
+      "socialHistory",
+      "surgicalHistory",
+      "immunizationHistory",
+      "vaccinationRecords",
       "insuranceNumber",
       "membershipNumber",
+      "policyNumber",
+      "claimNumber",
+      "authorizationNumber",
+      "priorAuthorizationNumber",
+      "referralNumber",
+      "appointmentHistory",
+      "visitHistory",
+      "admissionRecords",
+      "dischargeRecords",
+      "emergencyContacts",
+      "healthcareProxy",
+      "advanceDirectives",
+      "consentForms",
+      "mentalHealthRecords",
+      "psychiatricHistory",
+      "psychologyReports",
+      "substanceAbuseHistory",
+      "rehabilitationRecords",
+      "physicalTherapyNotes",
+      "occupationalTherapyNotes",
+      "speechTherapyNotes",
+      "geneticInformation",
+      "genomicData",
+      "dnaAnalysis",
+      "reproductiveHealth",
+      "pregnancyRecords",
+      "fertilityTreatment",
+      "hivStatus",
+      "aidsRecords",
+      "sexuallyTransmittedDiseases",
+      "communicableDiseases",
+      "quarantineRecords",
+      "publicHealthReports",
+      "workersCompensation",
+      "disabilityRecords",
+      "veteransHealthRecords",
+      "schoolHealthRecords",
+      "employmentPhysicals",
+      "fitnessForDuty",
+      "drugScreeningResults",
+      "alcoholTesting",
+      "biometricHealthData",
+      "wearableDeviceData",
+      "remoteMonitoringData",
+      "telehealthRecords",
+      "homeHealthcareNotes",
+      "longTermCareRecords",
+      "hospiceRecords",
+      "palliativeCareNotes",
+      "organDonorStatus",
+      "tissueTyping",
+      "bloodType",
+      "rhFactor",
+      "bloodBankRecords",
+      "transfusionHistory",
+      "clinicalTrialData",
+      "researchParticipation",
+      "qualityMetrics",
+      "outcomesMeasures",
+      "patientSafetyIncidents",
+      "adverseEvents",
+      "medicationErrors",
+      "fallRiskAssessments",
+      "infectionControlData",
+      "isolationPrecautions",
+      "contactTracingData",
+      "epidemiologicalData",
     ],
     encryptionRequired: true,
     auditRequired: true,
     accessControlRequired: true,
+    dataMinimization: true,
+    consentRequired: true,
+    retentionPeriod: 3650, // 10 years for clinical data
+    anonymizationRequired: true,
+    deIdentificationRequired: true,
+    hipaaCompliant: true,
+    dohCompliant: true,
+    gdprCompliant: true,
   },
   retention: {
     defaultPeriod: 2555, // 7 years in days
-    auditLogPeriod: 365, // 1 year in days
-    errorLogPeriod: 90, // 3 months in days
+    clinicalDataPeriod: 3650, // 10 years for clinical records
+    auditLogPeriod: 2555, // 7 years for audit logs
+    errorLogPeriod: 365, // 1 year for error logs
+    securityLogPeriod: 2555, // 7 years for security logs
+    complianceLogPeriod: 2555, // 7 years for compliance logs
+    backupRetentionPeriod: 2555, // 7 years for backups
+    archiveRetentionPeriod: 7300, // 20 years for archived data
+  },
+  dataClassification: {
+    public: {
+      level: 0,
+      encryption: false,
+      accessControl: "public",
+      auditRequired: false,
+    },
+    internal: {
+      level: 1,
+      encryption: true,
+      accessControl: "authenticated",
+      auditRequired: true,
+    },
+    confidential: {
+      level: 2,
+      encryption: true,
+      accessControl: "role-based",
+      auditRequired: true,
+    },
+    restricted: {
+      level: 3,
+      encryption: true,
+      accessControl: "need-to-know",
+      auditRequired: true,
+    },
+    topSecret: {
+      level: 4,
+      encryption: true,
+      accessControl: "compartmentalized",
+      auditRequired: true,
+    },
+  },
+  privacyControls: {
+    dataMinimization: true,
+    purposeLimitation: true,
+    storageMinimization: true,
+    accuracyMaintenance: true,
+    integrityProtection: true,
+    confidentialityAssurance: true,
+    availabilityGuarantee: true,
+    accountabilityDemonstration: true,
   },
 } as const;
 
@@ -146,14 +368,100 @@ export const AUDIT_CONFIG = {
 export const SECURITY_HEADERS = {
   "X-Content-Type-Options": "nosniff",
   "X-Frame-Options": "DENY",
-  "X-XSS-Protection": "1; mode=block",
+  "X-XSS-Protection": "0",
   "Referrer-Policy": "strict-origin-when-cross-origin",
   "Permissions-Policy":
-    "geolocation=(), microphone=(), camera=(), payment=(), usb=(), bluetooth=(), magnetometer=(), gyroscope=(), accelerometer=()",
-  "Strict-Transport-Security": "max-age=31536000; includeSubDomains; preload",
+    "geolocation=(), microphone=(), camera=(), payment=(), usb=(), bluetooth=(), magnetometer=(), gyroscope=(), accelerometer=(), fullscreen=(), picture-in-picture=(), autoplay=(), encrypted-media=(), midi=(), notifications=(), push=(), sync-xhr=(), display-capture=(), speaker-selection=(), web-share=(), clipboard-read=(), clipboard-write=()",
+  "Strict-Transport-Security": "max-age=63072000; includeSubDomains; preload",
   "Cross-Origin-Embedder-Policy": "require-corp",
   "Cross-Origin-Opener-Policy": "same-origin",
   "Cross-Origin-Resource-Policy": "same-origin",
+  "X-Permitted-Cross-Domain-Policies": "none",
+  "X-DNS-Prefetch-Control": "off",
+  "Expect-CT": "max-age=86400, enforce, report-uri='/api/ct-report'",
+  "Feature-Policy":
+    "geolocation 'none'; microphone 'none'; camera 'none'; payment 'none'; usb 'none'; bluetooth 'none'; web-share 'none'; clipboard-read 'none'; clipboard-write 'none'",
+  "Cache-Control": "no-store, no-cache, must-revalidate, private",
+  Pragma: "no-cache",
+  "X-Download-Options": "noopen",
+  "X-Robots-Tag": "noindex, nofollow, nosnippet, noarchive",
+  Server: "Reyada-Homecare/2.0",
+  "X-Powered-By": "",
+  "X-Request-ID": "${REQUEST_ID}",
+  "X-Response-Time": "${RESPONSE_TIME}ms",
+  "X-Rate-Limit-Limit": "${RATE_LIMIT}",
+  "X-Rate-Limit-Remaining": "${RATE_LIMIT_REMAINING}",
+  "X-Rate-Limit-Reset": "${RATE_LIMIT_RESET}",
+  "Content-Security-Policy": "${CSP_HEADER}",
+  "X-Auth-Token-Expiry": "${TOKEN_EXPIRY}",
+  "X-Session-Timeout": "${SESSION_TIMEOUT}",
+  "X-MFA-Required": "${MFA_REQUIRED}",
+  "X-Device-Trust-Status": "${DEVICE_TRUST_STATUS}",
+} as const;
+
+// Enhanced Authentication Security Configuration
+export const AUTH_SECURITY_CONFIG = {
+  sessionSecurity: {
+    httpOnly: true,
+    secure: true,
+    sameSite: "strict" as const,
+    maxAge: 1800000, // 30 minutes
+    domain: undefined, // Let browser determine
+    path: "/",
+    regenerateOnAuth: true,
+    invalidateOnLogout: true,
+  },
+  tokenSecurity: {
+    algorithm: "RS256",
+    issuer: "reyada-homecare-platform",
+    audience: "reyada-healthcare-users",
+    expiresIn: "30m",
+    refreshExpiresIn: "7d",
+    clockTolerance: 30,
+    keyRotationInterval: 86400000, // 24 hours
+    encryptPayload: true,
+    includeDeviceFingerprint: true,
+  },
+  mfaSecurity: {
+    codeLength: 6,
+    codeExpiry: 300000, // 5 minutes
+    maxAttempts: 3,
+    backupCodesCount: 10,
+    deviceTrustDuration: 2592000000, // 30 days
+    adaptiveAuthEnabled: true,
+    riskBasedAuthEnabled: true,
+  },
+  passwordSecurity: {
+    minLength: 12,
+    maxLength: 128,
+    requireUppercase: true,
+    requireLowercase: true,
+    requireNumbers: true,
+    requireSpecialChars: true,
+    preventCommonPasswords: true,
+    preventPersonalInfo: true,
+    historyCount: 5,
+    expiryDays: 90,
+    warningDays: 14,
+    strengthMinScore: 60,
+  },
+  accountSecurity: {
+    maxFailedAttempts: 5,
+    lockoutDuration: 1800000, // 30 minutes
+    progressiveLockout: true,
+    captchaThreshold: 3,
+    suspiciousActivityDetection: true,
+    geoLocationTracking: true,
+    deviceFingerprintingEnabled: true,
+  },
+  biometricSecurity: {
+    enabled: true,
+    fallbackToPassword: true,
+    requireUserVerification: true,
+    attestationRequired: "direct",
+    timeout: 60000,
+    allowCredentials: [],
+  },
 } as const;
 
 export const COMPLIANCE_CONFIG = {
@@ -535,6 +843,472 @@ export const COMPLIANCE_CONFIG = {
     encryptionAtRest: true,
     encryptionInTransit: true,
     regularAudits: true,
+  },
+} as const;
+
+// Zero Trust Architecture Configuration
+export const ZERO_TRUST_CONFIG = {
+  architecture: {
+    enabled: true,
+    principleOfLeastPrivilege: true,
+    continuousVerification: true,
+    microsegmentation: true,
+    deviceTrust: {
+      enabled: true,
+      certificateBasedAuth: true,
+      deviceFingerprinting: true,
+      complianceChecking: true,
+    },
+    networkSecurity: {
+      softwareDefinedPerimeter: true,
+      encryptedCommunication: true,
+      networkSegmentation: true,
+      trafficInspection: true,
+    },
+  },
+  identityVerification: {
+    multiFactorAuthentication: {
+      required: true,
+      methods: ["totp", "sms", "biometric", "hardware_token"],
+      adaptiveAuth: true,
+      riskBasedAuth: true,
+    },
+    continuousAuthentication: {
+      enabled: true,
+      behavioralAnalysis: true,
+      contextualFactors: true,
+      sessionMonitoring: true,
+    },
+    privilegedAccessManagement: {
+      justInTimeAccess: true,
+      privilegedSessionMonitoring: true,
+      accessCertification: true,
+      emergencyAccess: true,
+    },
+  },
+  dataProtection: {
+    endToEndEncryption: true,
+    dataClassification: true,
+    rightsManagement: true,
+    dataLossPreventionIntegration: true,
+  },
+} as const;
+
+// Advanced Threat Detection Configuration
+export const THREAT_DETECTION_CONFIG = {
+  aiPoweredMonitoring: {
+    enabled: true,
+    machineLearningModels: {
+      anomalyDetection: {
+        enabled: true,
+        algorithms: ["isolation_forest", "one_class_svm", "lstm_autoencoder"],
+        trainingDataRetention: 90, // days
+        modelRetrainingInterval: 7, // days
+        confidenceThreshold: 0.85,
+      },
+      behavioralAnalysis: {
+        enabled: true,
+        userBehaviorProfiling: true,
+        entityBehaviorAnalytics: true,
+        networkTrafficAnalysis: true,
+        applicationUsagePatterns: true,
+      },
+      threatIntelligence: {
+        enabled: true,
+        feedSources: [
+          "mitre_attack",
+          "cti_feeds",
+          "vulnerability_databases",
+          "reputation_services",
+        ],
+        correlationEngine: true,
+        threatHunting: true,
+      },
+    },
+    realTimeMonitoring: {
+      enabled: true,
+      eventCorrelation: true,
+      alertGeneration: true,
+      automaticResponse: true,
+      forensicDataCollection: true,
+    },
+  },
+  securityOrchestration: {
+    soarIntegration: true,
+    playbookAutomation: true,
+    incidentEnrichment: true,
+    responseCoordination: true,
+  },
+  threatCategories: {
+    malwareDetection: {
+      enabled: true,
+      sandboxAnalysis: true,
+      signatureBasedDetection: true,
+      heuristicAnalysis: true,
+      behavioralDetection: true,
+    },
+    intrusionDetection: {
+      enabled: true,
+      networkBasedIds: true,
+      hostBasedIds: true,
+      signatureBasedDetection: true,
+      anomalyBasedDetection: true,
+    },
+    dataExfiltration: {
+      enabled: true,
+      dnsMonitoring: true,
+      networkTrafficAnalysis: true,
+      fileIntegrityMonitoring: true,
+      dataMovementTracking: true,
+    },
+    insiderThreats: {
+      enabled: true,
+      privilegedUserMonitoring: true,
+      abnormalAccessPatterns: true,
+      dataAccessAnomalies: true,
+      behavioralIndicators: true,
+    },
+  },
+} as const;
+
+// Data Loss Prevention Configuration
+export const DATA_LOSS_PREVENTION_CONFIG = {
+  enabled: true,
+  dataClassification: {
+    automaticClassification: true,
+    contentInspection: {
+      enabled: true,
+      techniques: [
+        "regex",
+        "machine_learning",
+        "fingerprinting",
+        "exact_match",
+      ],
+      supportedFormats: [
+        "text",
+        "pdf",
+        "docx",
+        "xlsx",
+        "pptx",
+        "images",
+        "databases",
+      ],
+    },
+    sensitivityLabels: {
+      public: { level: 0, restrictions: [] },
+      internal: { level: 1, restrictions: ["external_sharing"] },
+      confidential: {
+        level: 2,
+        restrictions: ["external_sharing", "printing"],
+      },
+      restricted: {
+        level: 3,
+        restrictions: ["external_sharing", "printing", "copying"],
+      },
+      topSecret: {
+        level: 4,
+        restrictions: [
+          "external_sharing",
+          "printing",
+          "copying",
+          "screenshots",
+        ],
+      },
+    },
+  },
+  policyEnforcement: {
+    realTimeMonitoring: true,
+    endpointProtection: {
+      enabled: true,
+      fileOperationMonitoring: true,
+      applicationControl: true,
+      deviceControl: true,
+      webBrowserProtection: true,
+    },
+    networkProtection: {
+      enabled: true,
+      emailSecurity: true,
+      webTrafficInspection: true,
+      cloudAppSecurity: true,
+      ftpMonitoring: true,
+    },
+    cloudProtection: {
+      enabled: true,
+      cloudStorageMonitoring: true,
+      saasApplications: true,
+      apiProtection: true,
+    },
+  },
+  responseActions: {
+    block: { enabled: true, severity: "high" },
+    quarantine: { enabled: true, severity: "medium" },
+    encrypt: { enabled: true, severity: "low" },
+    watermark: { enabled: true, severity: "low" },
+    notify: { enabled: true, severity: "all" },
+    audit: { enabled: true, severity: "all" },
+  },
+  incidentManagement: {
+    automaticIncidentCreation: true,
+    escalationRules: true,
+    forensicDataCollection: true,
+    complianceReporting: true,
+  },
+} as const;
+
+// Security Incident Response Configuration
+export const INCIDENT_RESPONSE_CONFIG = {
+  enabled: true,
+  automatedResponse: {
+    enabled: true,
+    responsePlaybooks: {
+      malwareDetection: {
+        enabled: true,
+        actions: [
+          "isolate_endpoint",
+          "block_network_traffic",
+          "collect_forensic_data",
+          "notify_security_team",
+          "update_threat_intelligence",
+        ],
+        severity: "high",
+        timeToResponse: 60, // seconds
+      },
+      dataExfiltration: {
+        enabled: true,
+        actions: [
+          "block_data_transfer",
+          "revoke_user_access",
+          "encrypt_sensitive_data",
+          "notify_compliance_team",
+          "initiate_legal_hold",
+        ],
+        severity: "critical",
+        timeToResponse: 30, // seconds
+      },
+      unauthorizedAccess: {
+        enabled: true,
+        actions: [
+          "disable_user_account",
+          "force_password_reset",
+          "review_access_logs",
+          "notify_user_manager",
+          "escalate_to_security",
+        ],
+        severity: "medium",
+        timeToResponse: 120, // seconds
+      },
+      systemCompromise: {
+        enabled: true,
+        actions: [
+          "isolate_affected_systems",
+          "activate_backup_systems",
+          "collect_memory_dumps",
+          "notify_executive_team",
+          "engage_external_experts",
+        ],
+        severity: "critical",
+        timeToResponse: 15, // seconds
+      },
+    },
+    escalationMatrix: {
+      level1: {
+        timeThreshold: 300, // 5 minutes
+        recipients: ["security_analyst", "soc_team"],
+        actions: ["automated_containment"],
+      },
+      level2: {
+        timeThreshold: 900, // 15 minutes
+        recipients: ["security_manager", "it_manager"],
+        actions: ["manual_investigation", "stakeholder_notification"],
+      },
+      level3: {
+        timeThreshold: 1800, // 30 minutes
+        recipients: ["ciso", "executive_team"],
+        actions: ["crisis_management", "external_communication"],
+      },
+    },
+  },
+  incidentClassification: {
+    severity: {
+      low: {
+        sla: 24, // hours
+        autoResponse: false,
+        escalation: false,
+      },
+      medium: {
+        sla: 4, // hours
+        autoResponse: true,
+        escalation: true,
+      },
+      high: {
+        sla: 1, // hour
+        autoResponse: true,
+        escalation: true,
+      },
+      critical: {
+        sla: 0.25, // 15 minutes
+        autoResponse: true,
+        escalation: true,
+      },
+    },
+    categories: [
+      "malware",
+      "phishing",
+      "data_breach",
+      "unauthorized_access",
+      "system_compromise",
+      "denial_of_service",
+      "insider_threat",
+      "compliance_violation",
+    ],
+  },
+  forensicCapabilities: {
+    enabled: true,
+    dataCollection: {
+      networkTraffic: true,
+      systemLogs: true,
+      memoryDumps: true,
+      diskImages: true,
+      applicationLogs: true,
+    },
+    analysisTools: {
+      timelineAnalysis: true,
+      malwareAnalysis: true,
+      networkForensics: true,
+      mobileForensics: true,
+      cloudForensics: true,
+    },
+    chainOfCustody: {
+      enabled: true,
+      digitalSigning: true,
+      auditTrail: true,
+      legalCompliance: true,
+    },
+  },
+} as const;
+
+// Penetration Testing Automation Configuration
+export const PENETRATION_TESTING_CONFIG = {
+  enabled: true,
+  automatedTesting: {
+    enabled: true,
+    schedule: {
+      frequency: "weekly",
+      dayOfWeek: "sunday",
+      time: "02:00", // UTC
+      duration: 4, // hours
+    },
+    testingScopes: {
+      webApplications: {
+        enabled: true,
+        tools: ["owasp_zap", "burp_suite", "nikto", "sqlmap"],
+        testTypes: [
+          "sql_injection",
+          "xss",
+          "csrf",
+          "authentication_bypass",
+          "authorization_flaws",
+          "input_validation",
+          "session_management",
+        ],
+      },
+      networkInfrastructure: {
+        enabled: true,
+        tools: ["nmap", "nessus", "openvas", "masscan"],
+        testTypes: [
+          "port_scanning",
+          "vulnerability_scanning",
+          "service_enumeration",
+          "ssl_tls_testing",
+          "firewall_testing",
+        ],
+      },
+      apiSecurity: {
+        enabled: true,
+        tools: ["postman", "insomnia", "api_security_scanner"],
+        testTypes: [
+          "authentication_testing",
+          "authorization_testing",
+          "input_validation",
+          "rate_limiting",
+          "data_exposure",
+        ],
+      },
+      cloudSecurity: {
+        enabled: true,
+        tools: ["scout_suite", "prowler", "cloud_custodian"],
+        testTypes: [
+          "misconfiguration_detection",
+          "access_control_testing",
+          "encryption_validation",
+          "logging_monitoring",
+        ],
+      },
+    },
+  },
+  continuousTesting: {
+    enabled: true,
+    integrationPoints: {
+      cicdPipeline: true,
+      codeCommit: true,
+      deployment: true,
+      configurationChanges: true,
+    },
+    testingTypes: {
+      staticAnalysis: {
+        enabled: true,
+        tools: ["sonarqube", "checkmarx", "veracode"],
+        languages: ["javascript", "typescript", "python", "java"],
+      },
+      dynamicAnalysis: {
+        enabled: true,
+        tools: ["owasp_zap", "burp_suite"],
+        environments: ["staging", "pre_production"],
+      },
+      interactiveAnalysis: {
+        enabled: true,
+        tools: ["contrast_security", "hdiv"],
+        realTimeMonitoring: true,
+      },
+    },
+  },
+  reportingAndMetrics: {
+    enabled: true,
+    reportFormats: ["pdf", "html", "json", "xml"],
+    distributionLists: {
+      executive: ["ciso", "cto", "ceo"],
+      technical: ["security_team", "development_team", "devops_team"],
+      compliance: ["compliance_officer", "risk_manager"],
+    },
+    metrics: {
+      vulnerabilityTrends: true,
+      riskScoring: true,
+      remediationTracking: true,
+      complianceMapping: true,
+    },
+    integration: {
+      ticketingSystem: true,
+      vulnerabilityManagement: true,
+      riskManagement: true,
+      complianceReporting: true,
+    },
+  },
+  redTeamExercises: {
+    enabled: true,
+    frequency: "quarterly",
+    scenarios: [
+      "advanced_persistent_threat",
+      "insider_threat",
+      "supply_chain_attack",
+      "social_engineering",
+      "physical_security_breach",
+    ],
+    objectives: [
+      "test_detection_capabilities",
+      "validate_response_procedures",
+      "assess_security_awareness",
+      "evaluate_controls_effectiveness",
+    ],
   },
 } as const;
 

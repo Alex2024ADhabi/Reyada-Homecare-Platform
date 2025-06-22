@@ -7,6 +7,7 @@ import {
   PatientService,
   EpisodeService,
 } from "@/api/supabase.api";
+import { HomecareAPI } from "@/api/homecare.api";
 import { useErrorHandler } from "@/services/error-handler.service";
 import {
   Card,
@@ -125,10 +126,13 @@ import PatientAssessment from "./PatientAssessment";
 import StartOfService from "./StartOfService";
 import PlanOfCare from "./PlanOfCare";
 import DamanSubmissionForm from "./DamanSubmissionForm";
+import RoundsManagement from "./RoundsManagement";
 import { naturalLanguageProcessingService } from "@/services/natural-language-processing.service";
 import { MobileResponsiveLayout } from "@/components/ui/mobile-responsive";
 import { EnhancedToast } from "@/components/ui/enhanced-toast";
 import { toast } from "@/hooks/useToast";
+import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
+import VoiceInput from "@/components/ui/voice-input";
 
 interface ClinicalDocumentationProps {
   patientId?: string;
@@ -510,6 +514,51 @@ const ClinicalDocumentation = ({
     satisfactionScore: 4.7,
     usabilityScore: 92,
   });
+
+  // Healthcare Integration States
+  const [fhirData, setFhirData] = useState<any>(null);
+  const [labResults, setLabResults] = useState<any[]>([]);
+  const [medicationData, setMedicationData] = useState<any>(null);
+  const [hospitalAdmissions, setHospitalAdmissions] = useState<any[]>([]);
+  const [telehealthSessions, setTelehealthSessions] = useState<any[]>([]);
+  const [healthcareIntegrationStatus, setHealthcareIntegrationStatus] =
+    useState({
+      fhir: { enabled: false, status: "disconnected", lastSync: null },
+      laboratory: { enabled: false, status: "disconnected", lastSync: null },
+      pharmacy: { enabled: false, status: "disconnected", lastSync: null },
+      hospital: { enabled: false, status: "disconnected", lastSync: null },
+      telehealth: { enabled: false, status: "disconnected", lastSync: null },
+    });
+  const [isLoadingHealthcareData, setIsLoadingHealthcareData] = useState(false);
+
+  // Advanced Clinical Documentation Features
+  const [clinicalTemplates, setClinicalTemplates] = useState<any[]>([]);
+  const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
+  const [smartValidationEnabled, setSmartValidationEnabled] = useState(true);
+  const [automatedCodingEnabled, setAutomatedCodingEnabled] = useState(true);
+  const [auditTrail, setAuditTrail] = useState<any[]>([]);
+  const [icdCptSuggestions, setIcdCptSuggestions] = useState<any[]>([]);
+  const [voiceInputEnabled, setVoiceInputEnabled] = useState(true);
+  const [medicalVocabularyMode, setMedicalVocabularyMode] = useState(true);
+  const [realTimeValidationResults, setRealTimeValidationResults] = useState<
+    any[]
+  >([]);
+  const [documentationHistory, setDocumentationHistory] = useState<any[]>([]);
+
+  // Enhanced Voice Recognition with Medical Terminology
+  const {
+    text: voiceText,
+    isListening,
+    startListening,
+    stopListening,
+    hasRecognitionSupport,
+    error: voiceError,
+  } = useSpeechRecognition({
+    language: "en-US",
+    continuous: true,
+    interimResults: true,
+    maxAlternatives: 3,
+  });
   const [showWorkflowToast, setShowWorkflowToast] = useState(false);
   const [automationStats, setAutomationStats] = useState({
     formsAutomated: 0,
@@ -565,10 +614,37 @@ const ClinicalDocumentation = ({
     setupIntegrations();
     loadFormTemplates();
     initializeCollaboration();
+    initializeAdvancedClinicalFeatures();
+    loadHealthcareIntegrationData();
 
     const initTime = performance.now() - startTime;
     setPerformanceMetrics((prev) => ({ ...prev, renderTime: initTime }));
   }, [patientId, episodeId]);
+
+  // Initialize Advanced Clinical Documentation Features
+  const initializeAdvancedClinicalFeatures = useCallback(async () => {
+    try {
+      // Load clinical templates
+      await loadClinicalTemplates();
+
+      // Initialize audit trail
+      await initializeAuditTrail();
+
+      // Setup real-time validation
+      if (smartValidationEnabled) {
+        setupRealTimeValidation();
+      }
+
+      // Initialize automated coding
+      if (automatedCodingEnabled) {
+        setupAutomatedCoding();
+      }
+
+      console.log("Advanced clinical documentation features initialized");
+    } catch (error) {
+      console.error("Failed to initialize advanced clinical features:", error);
+    }
+  }, [smartValidationEnabled, automatedCodingEnabled]);
 
   // Load patient data from multiple sources
   const loadPatientData = useCallback(async () => {
@@ -662,6 +738,166 @@ const ClinicalDocumentation = ({
     } catch (error) {
       console.error("Failed to load form templates:", error);
     }
+  }, []);
+
+  // Load Clinical Templates Library
+  const loadClinicalTemplates = useCallback(async () => {
+    try {
+      const templates = [
+        {
+          id: "diabetes-assessment",
+          name: "Diabetes Management Assessment",
+          category: "chronic-conditions",
+          description: "Comprehensive diabetes care assessment template",
+          fields: {
+            blood_glucose: {
+              type: "number",
+              required: true,
+              validation: { min: 70, max: 400 },
+            },
+            hba1c: {
+              type: "number",
+              required: true,
+              validation: { min: 4, max: 15 },
+            },
+            medication_adherence: {
+              type: "select",
+              options: ["Excellent", "Good", "Fair", "Poor"],
+            },
+            foot_examination: { type: "textarea", medicalTerms: true },
+            dietary_compliance: {
+              type: "select",
+              options: ["Compliant", "Partially Compliant", "Non-Compliant"],
+            },
+          },
+          icdCodes: ["E11.9", "E11.65", "E11.40"],
+          cptCodes: ["99213", "99214"],
+        },
+        {
+          id: "wound-assessment",
+          name: "Wound Care Assessment",
+          category: "wound-care",
+          description: "Detailed wound assessment and care planning",
+          fields: {
+            wound_location: { type: "text", required: true },
+            wound_size: {
+              type: "object",
+              fields: { length: "number", width: "number", depth: "number" },
+            },
+            wound_stage: {
+              type: "select",
+              options: [
+                "Stage 1",
+                "Stage 2",
+                "Stage 3",
+                "Stage 4",
+                "Unstageable",
+                "DTI",
+              ],
+            },
+            drainage: {
+              type: "select",
+              options: ["None", "Minimal", "Moderate", "Heavy"],
+            },
+            wound_bed: { type: "textarea", medicalTerms: true },
+            treatment_plan: { type: "textarea", required: true },
+          },
+          icdCodes: ["L89.90", "L89.91", "L89.92"],
+          cptCodes: ["97597", "97598", "11042"],
+        },
+        {
+          id: "cardiac-assessment",
+          name: "Cardiac Assessment",
+          category: "cardiovascular",
+          description: "Comprehensive cardiac evaluation template",
+          fields: {
+            heart_rate: {
+              type: "number",
+              required: true,
+              validation: { min: 40, max: 200 },
+            },
+            blood_pressure: {
+              type: "object",
+              fields: { systolic: "number", diastolic: "number" },
+            },
+            rhythm: {
+              type: "select",
+              options: ["Regular", "Irregular", "Atrial Fibrillation", "Other"],
+            },
+            chest_pain: { type: "textarea", medicalTerms: true },
+            edema: {
+              type: "select",
+              options: ["None", "Trace", "1+", "2+", "3+", "4+"],
+            },
+            activity_tolerance: { type: "textarea", required: true },
+          },
+          icdCodes: ["I25.9", "I50.9", "I48.91"],
+          cptCodes: ["93000", "93005", "99213"],
+        },
+        {
+          id: "respiratory-assessment",
+          name: "Respiratory Assessment",
+          category: "respiratory",
+          description: "Comprehensive respiratory evaluation",
+          fields: {
+            respiratory_rate: {
+              type: "number",
+              required: true,
+              validation: { min: 8, max: 40 },
+            },
+            oxygen_saturation: {
+              type: "number",
+              required: true,
+              validation: { min: 70, max: 100 },
+            },
+            breath_sounds: { type: "textarea", medicalTerms: true },
+            dyspnea: {
+              type: "select",
+              options: ["None", "Mild", "Moderate", "Severe"],
+            },
+            cough: { type: "textarea", medicalTerms: true },
+            oxygen_therapy: { type: "textarea" },
+          },
+          icdCodes: ["J44.1", "J18.9", "R06.02"],
+          cptCodes: ["94010", "94060", "99213"],
+        },
+      ];
+      setClinicalTemplates(templates);
+    } catch (error) {
+      console.error("Failed to load clinical templates:", error);
+    }
+  }, []);
+
+  // Initialize Audit Trail
+  const initializeAuditTrail = useCallback(async () => {
+    try {
+      const initialAuditEntry = {
+        id: Date.now().toString(),
+        timestamp: new Date().toISOString(),
+        action: "session_started",
+        user: currentUser?.email || "anonymous",
+        patientId,
+        episodeId,
+        details: "Clinical documentation session initiated",
+        ipAddress: "masked",
+        userAgent: navigator.userAgent,
+      };
+      setAuditTrail([initialAuditEntry]);
+    } catch (error) {
+      console.error("Failed to initialize audit trail:", error);
+    }
+  }, [currentUser, patientId, episodeId]);
+
+  // Setup Real-time Validation
+  const setupRealTimeValidation = useCallback(() => {
+    // This would set up real-time validation listeners
+    console.log("Real-time validation enabled");
+  }, []);
+
+  // Setup Automated Coding
+  const setupAutomatedCoding = useCallback(() => {
+    // This would initialize the automated ICD/CPT coding system
+    console.log("Automated coding system enabled");
   }, []);
 
   // Initialize collaboration features
@@ -1488,82 +1724,433 @@ const ClinicalDocumentation = ({
   };
 
   const handleVoiceInput = async () => {
-    if (!voiceInputActive) {
-      // Start enhanced voice input with medical terminology
+    if (isListening) {
+      stopListening();
+      setVoiceInputActive(false);
+    } else {
+      startListening();
       setVoiceInputActive(true);
+
+      // Log audit trail
+      addAuditTrailEntry(
+        "voice_input_started",
+        "Voice input session initiated",
+      );
+    }
+  };
+
+  // Enhanced Voice Transcription Handler
+  const handleVoiceTranscription = useCallback(
+    async (text: string, metadata: any) => {
       try {
-        // Initialize mobile communication service for enhanced voice recognition
-        const { mobileCommunicationService } = await import(
-          "@/services/mobile-communication.service"
+        // Process medical terminology
+        const processedText = await processMedicalVoiceInput(text);
+
+        // Update form data with voice input
+        setVoiceTranscript(processedText);
+
+        // Generate automated coding suggestions
+        if (automatedCodingEnabled) {
+          const codingSuggestions =
+            await generateAutomatedCoding(processedText);
+          setIcdCptSuggestions(codingSuggestions);
+        }
+
+        // Perform real-time validation
+        if (smartValidationEnabled) {
+          const validationResults =
+            await performRealTimeValidation(processedText);
+          setRealTimeValidationResults(validationResults);
+        }
+
+        // Log audit trail
+        addAuditTrailEntry(
+          "voice_transcription_completed",
+          `Voice input processed: ${text.length} characters`,
+          {
+            confidence: metadata.confidence,
+            medicalTermsDetected: metadata.medicalTermsDetected?.length || 0,
+          },
+        );
+      } catch (error) {
+        console.error("Voice transcription processing failed:", error);
+      }
+    },
+    [automatedCodingEnabled, smartValidationEnabled],
+  );
+
+  // Process Medical Voice Input
+  const processMedicalVoiceInput = async (text: string): Promise<string> => {
+    try {
+      // Enhanced medical terminology processing
+      let processedText = text;
+
+      // Medical abbreviation expansion
+      const medicalAbbreviations = {
+        bp: "blood pressure",
+        hr: "heart rate",
+        rr: "respiratory rate",
+        temp: "temperature",
+        "o2 sat": "oxygen saturation",
+        sob: "shortness of breath",
+        cp: "chest pain",
+        doe: "dyspnea on exertion",
+        pnd: "paroxysmal nocturnal dyspnea",
+        jvd: "jugular venous distension",
+      };
+
+      Object.entries(medicalAbbreviations).forEach(([abbr, expansion]) => {
+        const regex = new RegExp(`\\b${abbr}\\b`, "gi");
+        processedText = processedText.replace(regex, expansion);
+      });
+
+      // Medical term standardization
+      const medicalTermCorrections = {
+        "high blood pressure": "hypertension",
+        "low blood pressure": "hypotension",
+        "fast heart rate": "tachycardia",
+        "slow heart rate": "bradycardia",
+        "short of breath": "dyspnea",
+        "difficulty breathing": "dyspnea",
+        "chest pain": "chest pain",
+        "heart attack": "myocardial infarction",
+        stroke: "cerebrovascular accident",
+      };
+
+      Object.entries(medicalTermCorrections).forEach(([term, correction]) => {
+        const regex = new RegExp(`\\b${term}\\b`, "gi");
+        processedText = processedText.replace(regex, correction);
+      });
+
+      return processedText;
+    } catch (error) {
+      console.error("Medical voice input processing failed:", error);
+      return text;
+    }
+  };
+
+  // Generate Automated ICD/CPT Coding
+  const generateAutomatedCoding = async (text: string): Promise<any[]> => {
+    try {
+      const suggestions = [];
+
+      // ICD-10 suggestions based on text analysis
+      const icdMappings = {
+        hypertension: [
+          {
+            code: "I10",
+            description: "Essential hypertension",
+            confidence: 0.9,
+          },
+        ],
+        diabetes: [
+          {
+            code: "E11.9",
+            description: "Type 2 diabetes mellitus without complications",
+            confidence: 0.85,
+          },
+        ],
+        "chest pain": [
+          {
+            code: "R06.02",
+            description: "Shortness of breath",
+            confidence: 0.8,
+          },
+        ],
+        dyspnea: [
+          {
+            code: "R06.00",
+            description: "Dyspnea, unspecified",
+            confidence: 0.9,
+          },
+        ],
+        wound: [
+          {
+            code: "L89.90",
+            description:
+              "Pressure ulcer of unspecified site, unspecified stage",
+            confidence: 0.75,
+          },
+        ],
+      };
+
+      // CPT suggestions based on procedures mentioned
+      const cptMappings = {
+        assessment: [
+          {
+            code: "99213",
+            description: "Office visit, established patient, low complexity",
+            confidence: 0.8,
+          },
+        ],
+        "wound care": [
+          {
+            code: "97597",
+            description: "Debridement, open wound",
+            confidence: 0.85,
+          },
+        ],
+        "medication review": [
+          {
+            code: "99605",
+            description: "Medication therapy management",
+            confidence: 0.9,
+          },
+        ],
+      };
+
+      const lowerText = text.toLowerCase();
+
+      // Check for ICD matches
+      Object.entries(icdMappings).forEach(([term, codes]) => {
+        if (lowerText.includes(term)) {
+          suggestions.push(
+            ...codes.map((code) => ({ ...code, type: "ICD-10" })),
+          );
+        }
+      });
+
+      // Check for CPT matches
+      Object.entries(cptMappings).forEach(([term, codes]) => {
+        if (lowerText.includes(term)) {
+          suggestions.push(...codes.map((code) => ({ ...code, type: "CPT" })));
+        }
+      });
+
+      return suggestions;
+    } catch (error) {
+      console.error("Automated coding generation failed:", error);
+      return [];
+    }
+  };
+
+  // Perform Real-time Validation
+  const performRealTimeValidation = async (text: string): Promise<any[]> => {
+    try {
+      const validationResults = [];
+
+      // Check for required medical information
+      const requiredElements = {
+        "vital signs":
+          /\b(blood pressure|heart rate|temperature|respiratory rate|oxygen saturation)\b/i,
+        assessment: /\b(assessment|diagnosis|condition|findings)\b/i,
+        plan: /\b(plan|treatment|intervention|medication)\b/i,
+      };
+
+      Object.entries(requiredElements).forEach(([element, regex]) => {
+        if (!regex.test(text)) {
+          validationResults.push({
+            type: "missing_element",
+            severity: "warning",
+            message: `Consider including ${element} in documentation`,
+            suggestion: `Add ${element} details to improve documentation completeness`,
+          });
+        }
+      });
+
+      // Check for medical terminology accuracy
+      const medicalTerms =
+        text.match(/\b[a-z]+tion\b|\b[a-z]+sis\b|\b[a-z]+emia\b/gi) || [];
+      medicalTerms.forEach((term) => {
+        // This would typically check against a medical dictionary
+        validationResults.push({
+          type: "terminology_check",
+          severity: "info",
+          message: `Medical term detected: ${term}`,
+          suggestion: "Verify spelling and context of medical terminology",
+        });
+      });
+
+      return validationResults;
+    } catch (error) {
+      console.error("Real-time validation failed:", error);
+      return [];
+    }
+  };
+
+  // Add Audit Trail Entry
+  const addAuditTrailEntry = useCallback(
+    (action: string, details: string, metadata?: any) => {
+      const entry = {
+        id: Date.now().toString(),
+        timestamp: new Date().toISOString(),
+        action,
+        user: currentUser?.email || "anonymous",
+        patientId,
+        episodeId,
+        details,
+        metadata,
+        ipAddress: "masked",
+        userAgent: navigator.userAgent.substring(0, 100),
+      };
+
+      setAuditTrail((prev) => [...prev, entry]);
+    },
+    [currentUser, patientId, episodeId],
+  );
+
+  // Apply Clinical Template
+  const applyClinicalTemplate = useCallback(
+    (templateId: string) => {
+      const template = clinicalTemplates.find((t) => t.id === templateId);
+      if (template) {
+        setSelectedTemplate(templateId);
+
+        // Pre-populate form with template structure
+        const templateData = {};
+        Object.entries(template.fields).forEach(
+          ([fieldName, fieldConfig]: [string, any]) => {
+            if (fieldConfig.type === "select" && fieldConfig.options) {
+              templateData[fieldName] = fieldConfig.options[0];
+            } else if (fieldConfig.type === "number") {
+              templateData[fieldName] = fieldConfig.validation?.min || 0;
+            } else {
+              templateData[fieldName] = "";
+            }
+          },
         );
 
-        // Determine medical specialty based on active form
-        const medicalSpecialty =
-          activeForm === "physio"
-            ? "physiotherapy"
-            : activeForm === "occupational"
-              ? "occupational"
-              : activeForm === "speech"
-                ? "speech"
-                : activeForm === "respiratory"
-                  ? "respiratory"
-                  : activeForm === "nursing-notes"
-                    ? "nursing"
-                    : "general";
+        setFormData((prev) => ({ ...prev, ...templateData }));
 
-        // Start enhanced voice recognition
-        const voiceResult =
-          await mobileCommunicationService.startEnhancedVoiceRecognition({
-            language: "en",
-            medicalTerminology: true,
-            continuousRecognition: true,
-            interimResults: true,
-            maxAlternatives: 3,
-            medicalSpecialty,
-            offlineMode: isOffline,
-            realTimeTranscription: true,
-            speakerIdentification: false,
-          });
+        // Set coding suggestions from template
+        const codingSuggestions = [];
+        if (template.icdCodes) {
+          codingSuggestions.push(
+            ...template.icdCodes.map((code) => ({
+              code,
+              type: "ICD-10",
+              confidence: 0.95,
+              source: "template",
+            })),
+          );
+        }
+        if (template.cptCodes) {
+          codingSuggestions.push(
+            ...template.cptCodes.map((code) => ({
+              code,
+              type: "CPT",
+              confidence: 0.95,
+              source: "template",
+            })),
+          );
+        }
+        setIcdCptSuggestions(codingSuggestions);
 
-        if (voiceResult?.success) {
-          // Set up voice recognition callback
-          if (mobileCommunicationService.onVoiceRecognitionResult) {
-            mobileCommunicationService.onVoiceRecognitionResult((result) => {
-              if (result?.transcript) {
-                setVoiceTranscript(result.transcript);
+        // Log audit trail
+        addAuditTrailEntry(
+          "template_applied",
+          `Applied clinical template: ${template.name}`,
+          {
+            templateId,
+            templateName: template.name,
+            category: template.category,
+          },
+        );
+      }
+    },
+    [clinicalTemplates, addAuditTrailEntry],
+  );
 
-                // Process transcript for clinical insights if final
-                if (result.isFinal) {
-                  processVoiceTranscript(result.transcript);
-                }
-              }
+  // Smart Form Validation
+  const performSmartValidation = useCallback(
+    async (fieldName: string, value: any) => {
+      if (!smartValidationEnabled) return;
+
+      try {
+        const validationResults = [];
+
+        // Get template validation rules
+        const template = clinicalTemplates.find(
+          (t) => t.id === selectedTemplate,
+        );
+        if (template && template.fields[fieldName]) {
+          const fieldConfig = template.fields[fieldName];
+
+          // Numeric validation
+          if (fieldConfig.type === "number" && fieldConfig.validation) {
+            const numValue = parseFloat(value);
+            if (
+              fieldConfig.validation.min &&
+              numValue < fieldConfig.validation.min
+            ) {
+              validationResults.push({
+                field: fieldName,
+                type: "range_error",
+                severity: "error",
+                message: `Value must be at least ${fieldConfig.validation.min}`,
+              });
+            }
+            if (
+              fieldConfig.validation.max &&
+              numValue > fieldConfig.validation.max
+            ) {
+              validationResults.push({
+                field: fieldName,
+                type: "range_error",
+                severity: "error",
+                message: `Value must not exceed ${fieldConfig.validation.max}`,
+              });
+            }
+          }
+
+          // Required field validation
+          if (
+            fieldConfig.required &&
+            (!value || value.toString().trim() === "")
+          ) {
+            validationResults.push({
+              field: fieldName,
+              type: "required_field",
+              severity: "error",
+              message: `${fieldName} is required`,
             });
           }
-        } else {
-          console.error(
-            "Failed to start voice recognition:",
-            voiceResult?.error || "Unknown error",
-          );
-          setVoiceInputActive(false);
+
+          // Medical terminology validation
+          if (fieldConfig.medicalTerms && typeof value === "string") {
+            const medicalTermValidation =
+              await validateMedicalTerminology(value);
+            validationResults.push(...medicalTermValidation);
+          }
         }
+
+        // Update real-time validation results
+        setRealTimeValidationResults((prev) => {
+          const filtered = prev.filter((result) => result.field !== fieldName);
+          return [...filtered, ...validationResults];
+        });
       } catch (error) {
-        console.error("Enhanced voice input failed:", error);
-        setVoiceInputActive(false);
+        console.error("Smart validation failed:", error);
       }
-    } else {
-      // Stop voice input
-      try {
-        const { mobileCommunicationService } = await import(
-          "@/services/mobile-communication.service"
-        );
-        if (mobileCommunicationService?.stopVoiceRecognition) {
-          mobileCommunicationService.stopVoiceRecognition();
-        }
-      } catch (error) {
-        console.error("Failed to stop voice recognition:", error);
+    },
+    [smartValidationEnabled, selectedTemplate, clinicalTemplates],
+  );
+
+  // Validate Medical Terminology
+  const validateMedicalTerminology = async (text: string): Promise<any[]> => {
+    const results = [];
+
+    // Check for common medical term misspellings
+    const commonMisspellings = {
+      diabetis: "diabetes",
+      hypertention: "hypertension",
+      pnemonia: "pneumonia",
+      asma: "asthma",
+      arthritus: "arthritis",
+    };
+
+    Object.entries(commonMisspellings).forEach(([misspelling, correction]) => {
+      if (text.toLowerCase().includes(misspelling)) {
+        results.push({
+          type: "spelling_suggestion",
+          severity: "warning",
+          message: `Did you mean "${correction}" instead of "${misspelling}"?`,
+          suggestion: correction,
+        });
       }
-      setVoiceInputActive(false);
-    }
+    });
+
+    return results;
   };
 
   const processVoiceTranscript = async (transcript: string) => {
@@ -2987,6 +3574,48 @@ const ClinicalDocumentation = ({
                 </div>
               </div>
 
+              {/* Clinical Templates Quick Access */}
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => applyClinicalTemplate("diabetes-assessment")}
+                  className="text-xs"
+                >
+                  <FileText className="h-3 w-3 mr-1" />
+                  Diabetes Template
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => applyClinicalTemplate("wound-assessment")}
+                  className="text-xs"
+                >
+                  <Stethoscope className="h-3 w-3 mr-1" />
+                  Wound Care Template
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => applyClinicalTemplate("cardiac-assessment")}
+                  className="text-xs"
+                >
+                  <Heart className="h-3 w-3 mr-1" />
+                  Cardiac Template
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    applyClinicalTemplate("respiratory-assessment")
+                  }
+                  className="text-xs"
+                >
+                  <Wind className="h-3 w-3 mr-1" />
+                  Respiratory Template
+                </Button>
+              </div>
+
               {/* Quick Actions */}
               <div className="flex flex-wrap gap-2">
                 <Button
@@ -3031,7 +3660,7 @@ const ClinicalDocumentation = ({
 
           {/* Enhanced Main Tabs */}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-6">
-            <TabsList className="grid w-full md:w-[1000px] grid-cols-5">
+            <TabsList className="grid w-full md:w-[1400px] grid-cols-8">
               <TabsTrigger value="forms">
                 <FileText className="h-4 w-4 mr-2" />
                 Clinical Forms
@@ -3047,6 +3676,18 @@ const ClinicalDocumentation = ({
               <TabsTrigger value="plan-of-care">
                 <FileSpreadsheet className="h-4 w-4 mr-2" />
                 Plan of Care
+              </TabsTrigger>
+              <TabsTrigger value="rounds">
+                <Stethoscope className="h-4 w-4 mr-2" />
+                Bedside Rounds
+              </TabsTrigger>
+              <TabsTrigger value="healthcare-integration">
+                <Database className="h-4 w-4 mr-2" />
+                Healthcare Data
+              </TabsTrigger>
+              <TabsTrigger value="telehealth">
+                <Globe className="h-4 w-4 mr-2" />
+                Telehealth
               </TabsTrigger>
               {enableAdvancedFeatures && (
                 <TabsTrigger value="analytics">
@@ -3702,6 +4343,187 @@ const ClinicalDocumentation = ({
                   )}
                 </CardContent>
                 <CardFooter className="flex flex-col space-y-4 border-t pt-4">
+                  {/* Advanced Clinical Documentation Features */}
+                  <div className="space-y-4">
+                    {/* Voice Input Section */}
+                    {voiceInputEnabled && hasRecognitionSupport && (
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="font-medium text-blue-900 flex items-center gap-2">
+                            <Mic className="h-4 w-4" />
+                            Enhanced Voice Input with Medical Terminology
+                          </h4>
+                          <div className="flex items-center gap-2">
+                            <Badge
+                              variant={
+                                medicalVocabularyMode ? "default" : "outline"
+                              }
+                            >
+                              Medical Mode
+                            </Badge>
+                            <Switch
+                              checked={medicalVocabularyMode}
+                              onCheckedChange={setMedicalVocabularyMode}
+                            />
+                          </div>
+                        </div>
+
+                        <VoiceInput
+                          onTranscriptionComplete={handleVoiceTranscription}
+                          onTranscriptionUpdate={(text) =>
+                            setVoiceTranscript(text)
+                          }
+                          medicalMode={medicalVocabularyMode}
+                          language="en-US"
+                          maxDuration={300}
+                          className="mb-4"
+                        />
+
+                        {voiceTranscript && (
+                          <div className="mt-3">
+                            <Label className="text-sm font-medium">
+                              Voice Transcript:
+                            </Label>
+                            <Textarea
+                              value={voiceTranscript}
+                              onChange={(e) => {
+                                setVoiceTranscript(e.target.value);
+                                performSmartValidation(
+                                  "voice_transcript",
+                                  e.target.value,
+                                );
+                              }}
+                              className="mt-1 min-h-20"
+                              placeholder="Voice transcription will appear here..."
+                            />
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Clinical Template Library */}
+                    {clinicalTemplates.length > 0 && (
+                      <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                        <h4 className="font-medium text-green-900 mb-3 flex items-center gap-2">
+                          <FileText className="h-4 w-4" />
+                          Clinical Template Library
+                        </h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {clinicalTemplates.map((template) => (
+                            <Card
+                              key={template.id}
+                              className="cursor-pointer hover:shadow-md transition-shadow"
+                              onClick={() => applyClinicalTemplate(template.id)}
+                            >
+                              <CardContent className="p-3">
+                                <div className="flex items-center justify-between">
+                                  <div>
+                                    <h5 className="font-medium text-sm">
+                                      {template.name}
+                                    </h5>
+                                    <p className="text-xs text-gray-600">
+                                      {template.description}
+                                    </p>
+                                    <Badge
+                                      variant="outline"
+                                      className="text-xs mt-1"
+                                    >
+                                      {template.category}
+                                    </Badge>
+                                  </div>
+                                  {selectedTemplate === template.id && (
+                                    <Check className="h-4 w-4 text-green-600" />
+                                  )}
+                                </div>
+                              </CardContent>
+                            </Card>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Smart Form Validation Results */}
+                    {smartValidationEnabled &&
+                      realTimeValidationResults.length > 0 && (
+                        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                          <h4 className="font-medium text-yellow-900 mb-3 flex items-center gap-2">
+                            <AlertCircle className="h-4 w-4" />
+                            Smart Validation Results
+                          </h4>
+                          <div className="space-y-2">
+                            {realTimeValidationResults.map((result, index) => (
+                              <Alert
+                                key={index}
+                                className={`${result.severity === "error" ? "border-red-200 bg-red-50" : result.severity === "warning" ? "border-yellow-200 bg-yellow-50" : "border-blue-200 bg-blue-50"}`}
+                              >
+                                <AlertDescription className="text-sm">
+                                  <div className="flex items-center justify-between">
+                                    <span>{result.message}</span>
+                                    <Badge
+                                      variant="outline"
+                                      className="text-xs"
+                                    >
+                                      {result.severity}
+                                    </Badge>
+                                  </div>
+                                  {result.suggestion && (
+                                    <p className="text-xs text-gray-600 mt-1">
+                                      {result.suggestion}
+                                    </p>
+                                  )}
+                                </AlertDescription>
+                              </Alert>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                    {/* Automated ICD/CPT Coding Suggestions */}
+                    {automatedCodingEnabled && icdCptSuggestions.length > 0 && (
+                      <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                        <h4 className="font-medium text-purple-900 mb-3 flex items-center gap-2">
+                          <Brain className="h-4 w-4" />
+                          Automated Coding Suggestions
+                        </h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {icdCptSuggestions.map((suggestion, index) => (
+                            <div
+                              key={index}
+                              className="bg-white p-3 rounded border"
+                            >
+                              <div className="flex items-center justify-between mb-2">
+                                <Badge
+                                  variant={
+                                    suggestion.type === "ICD-10"
+                                      ? "default"
+                                      : "secondary"
+                                  }
+                                >
+                                  {suggestion.type}
+                                </Badge>
+                                <Badge variant="outline" className="text-xs">
+                                  {Math.round(suggestion.confidence * 100)}%
+                                  confidence
+                                </Badge>
+                              </div>
+                              <p className="font-medium text-sm">
+                                {suggestion.code}
+                              </p>
+                              <p className="text-xs text-gray-600">
+                                {suggestion.description}
+                              </p>
+                              {suggestion.source && (
+                                <p className="text-xs text-gray-500 mt-1">
+                                  Source: {suggestion.source}
+                                </p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
                   {/* Workflow Automation Controls */}
                   {workflowAutomation && (
                     <Alert className="bg-purple-50 border-purple-200">
@@ -3988,6 +4810,46 @@ const ClinicalDocumentation = ({
                   </Card>
                 )}
 
+                {/* Clinical Audit Trail */}
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base flex items-center">
+                      <Shield className="h-4 w-4 mr-2" />
+                      Clinical Audit Trail
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2 max-h-40 overflow-y-auto">
+                      {auditTrail.slice(-5).map((entry) => (
+                        <div
+                          key={entry.id}
+                          className="text-xs bg-gray-50 p-2 rounded"
+                        >
+                          <div className="flex justify-between items-start">
+                            <span className="font-medium">
+                              {entry.action.replace("_", " ")}
+                            </span>
+                            <span className="text-gray-500">
+                              {new Date(entry.timestamp).toLocaleTimeString()}
+                            </span>
+                          </div>
+                          <p className="text-gray-600 mt-1">{entry.details}</p>
+                          {entry.metadata && (
+                            <p className="text-gray-500 mt-1">
+                              {JSON.stringify(entry.metadata)}
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                      {auditTrail.length === 0 && (
+                        <p className="text-sm text-gray-500 text-center py-4">
+                          No audit trail entries yet
+                        </p>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+
                 {/* Voice Transcript */}
                 {voiceTranscript && (
                   <Card>
@@ -4014,6 +4876,49 @@ const ClinicalDocumentation = ({
                     </CardContent>
                   </Card>
                 )}
+
+                {/* Advanced Features Toggle */}
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base">
+                      Advanced Features
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm">
+                        Voice Input with Medical Terminology
+                      </Label>
+                      <Switch
+                        checked={voiceInputEnabled}
+                        onCheckedChange={setVoiceInputEnabled}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm">Smart Form Validation</Label>
+                      <Switch
+                        checked={smartValidationEnabled}
+                        onCheckedChange={setSmartValidationEnabled}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm">
+                        Automated ICD/CPT Coding
+                      </Label>
+                      <Switch
+                        checked={automatedCodingEnabled}
+                        onCheckedChange={setAutomatedCodingEnabled}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm">Medical Vocabulary Mode</Label>
+                      <Switch
+                        checked={medicalVocabularyMode}
+                        onCheckedChange={setMedicalVocabularyMode}
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
 
                 {/* Required Fields */}
                 <Card>
@@ -4072,6 +4977,35 @@ const ClinicalDocumentation = ({
               patientId={patientId}
               episodeId={episodeId}
               isOffline={isOffline}
+            />
+          ) : activeTab === "rounds" ? (
+            <RoundsManagement
+              patientId={patientId}
+              episodeId={episodeId}
+              isOffline={isOffline}
+              onRoundComplete={(roundData) => {
+                console.log("Round completed:", roundData);
+                handleSuccess("Bedside round completed successfully");
+              }}
+            />
+          ) : activeTab === "healthcare-integration" ? (
+            <HealthcareIntegrationView
+              patientId={patientId}
+              fhirData={fhirData}
+              labResults={labResults}
+              medicationData={medicationData}
+              hospitalAdmissions={hospitalAdmissions}
+              integrationStatus={healthcareIntegrationStatus}
+              isLoading={isLoadingHealthcareData}
+              onRefresh={loadHealthcareIntegrationData}
+            />
+          ) : activeTab === "telehealth" ? (
+            <TelehealthView
+              patientId={patientId}
+              telehealthSessions={telehealthSessions}
+              integrationStatus={healthcareIntegrationStatus.telehealth}
+              isLoading={isLoadingHealthcareData}
+              onRefresh={loadHealthcareIntegrationData}
             />
           ) : activeTab === "analytics" && enableAdvancedFeatures ? (
             <ClinicalAnalyticsView
@@ -4388,6 +5322,995 @@ const ClinicalAnalyticsView: React.FC<{
               <p className="text-sm text-purple-700">Data Accuracy</p>
             </div>
           </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+
+// Healthcare Integration View Component
+const HealthcareIntegrationView: React.FC<{
+  patientId: string;
+  fhirData: any;
+  labResults: any[];
+  medicationData: any;
+  hospitalAdmissions: any[];
+  integrationStatus: any;
+  isLoading: boolean;
+  onRefresh: () => void;
+}> = ({
+  patientId,
+  fhirData,
+  labResults,
+  medicationData,
+  hospitalAdmissions,
+  integrationStatus,
+  isLoading,
+  onRefresh,
+}) => {
+  const [activeIntegrationTab, setActiveIntegrationTab] = useState("fhir");
+
+  return (
+    <div className="space-y-6">
+      {/* Integration Status Overview */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium">FHIR Integration</p>
+                <p className="text-xs text-muted-foreground">Patient Data</p>
+              </div>
+              <Badge
+                variant={
+                  integrationStatus.fhir.status === "connected"
+                    ? "default"
+                    : "destructive"
+                }
+                className="text-xs"
+              >
+                {integrationStatus.fhir.status}
+              </Badge>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium">Laboratory</p>
+                <p className="text-xs text-muted-foreground">
+                  {labResults.length} Results
+                </p>
+              </div>
+              <Badge
+                variant={
+                  integrationStatus.laboratory.status === "connected"
+                    ? "default"
+                    : "destructive"
+                }
+                className="text-xs"
+              >
+                {integrationStatus.laboratory.status}
+              </Badge>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium">Pharmacy</p>
+                <p className="text-xs text-muted-foreground">Medications</p>
+              </div>
+              <Badge
+                variant={
+                  integrationStatus.pharmacy.status === "connected"
+                    ? "default"
+                    : "destructive"
+                }
+                className="text-xs"
+              >
+                {integrationStatus.pharmacy.status}
+              </Badge>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium">Hospital</p>
+                <p className="text-xs text-muted-foreground">
+                  {hospitalAdmissions.length} Admissions
+                </p>
+              </div>
+              <Badge
+                variant={
+                  integrationStatus.hospital.status === "connected"
+                    ? "default"
+                    : "destructive"
+                }
+                className="text-xs"
+              >
+                {integrationStatus.hospital.status}
+              </Badge>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Integration Tabs */}
+      <Tabs
+        value={activeIntegrationTab}
+        onValueChange={setActiveIntegrationTab}
+      >
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="fhir">
+            <Database className="h-4 w-4 mr-2" />
+            FHIR Data
+          </TabsTrigger>
+          <TabsTrigger value="laboratory">
+            <Thermometer className="h-4 w-4 mr-2" />
+            Lab Results
+          </TabsTrigger>
+          <TabsTrigger value="pharmacy">
+            <Pill className="h-4 w-4 mr-2" />
+            Medications
+          </TabsTrigger>
+          <TabsTrigger value="hospital">
+            <Heart className="h-4 w-4 mr-2" />
+            Hospital Data
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="fhir" className="mt-6">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle>FHIR Patient Data</CardTitle>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onRefresh}
+                  disabled={isLoading}
+                >
+                  <RefreshCw
+                    className={`h-4 w-4 mr-2 ${isLoading ? "animate-spin" : ""}`}
+                  />
+                  Refresh
+                </Button>
+              </div>
+              <CardDescription>
+                Standardized patient data from FHIR R4 resources
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {fhirData ? (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-sm font-medium">Patient ID</Label>
+                      <p className="text-sm text-muted-foreground">
+                        {fhirData.id}
+                      </p>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium">
+                        Active Status
+                      </Label>
+                      <Badge
+                        variant={fhirData.active ? "default" : "secondary"}
+                      >
+                        {fhirData.active ? "Active" : "Inactive"}
+                      </Badge>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium">Name</Label>
+                      <p className="text-sm text-muted-foreground">
+                        {fhirData.name?.[0]?.given?.join(" ")}{" "}
+                        {fhirData.name?.[0]?.family}
+                      </p>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium">Gender</Label>
+                      <p className="text-sm text-muted-foreground capitalize">
+                        {fhirData.gender}
+                      </p>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium">Birth Date</Label>
+                      <p className="text-sm text-muted-foreground">
+                        {fhirData.birthDate}
+                      </p>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium">Identifiers</Label>
+                      <div className="space-y-1">
+                        {fhirData.identifier?.map((id: any, index: number) => (
+                          <p
+                            key={index}
+                            className="text-sm text-muted-foreground"
+                          >
+                            {id.type?.coding?.[0]?.display || "ID"}: {id.value}
+                          </p>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {fhirData.telecom && (
+                    <div>
+                      <Label className="text-sm font-medium">
+                        Contact Information
+                      </Label>
+                      <div className="space-y-1 mt-1">
+                        {fhirData.telecom.map((contact: any, index: number) => (
+                          <p
+                            key={index}
+                            className="text-sm text-muted-foreground"
+                          >
+                            {contact.system}: {contact.value} ({contact.use})
+                          </p>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {fhirData.address && (
+                    <div>
+                      <Label className="text-sm font-medium">Address</Label>
+                      <div className="space-y-1 mt-1">
+                        {fhirData.address.map((addr: any, index: number) => (
+                          <p
+                            key={index}
+                            className="text-sm text-muted-foreground"
+                          >
+                            {addr.line?.join(", ")}, {addr.city}, {addr.state}{" "}
+                            {addr.postalCode}, {addr.country}
+                          </p>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <Database className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <p className="text-muted-foreground">
+                    No FHIR data available
+                  </p>
+                  <Button
+                    variant="outline"
+                    className="mt-2"
+                    onClick={onRefresh}
+                  >
+                    Load FHIR Data
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="laboratory" className="mt-6">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle>Laboratory Results</CardTitle>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onRefresh}
+                  disabled={isLoading}
+                >
+                  <RefreshCw
+                    className={`h-4 w-4 mr-2 ${isLoading ? "animate-spin" : ""}`}
+                  />
+                  Refresh
+                </Button>
+              </div>
+              <CardDescription>
+                Recent laboratory test results and reports
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {labResults.length > 0 ? (
+                <div className="space-y-4">
+                  {labResults.map((result, index) => (
+                    <Card key={index} className="border-l-4 border-l-blue-500">
+                      <CardContent className="p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <h4 className="font-medium">{result.testType}</h4>
+                          <Badge
+                            variant={
+                              result.status === "final"
+                                ? "default"
+                                : "secondary"
+                            }
+                          >
+                            {result.status}
+                          </Badge>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                          <div>
+                            <Label className="text-xs font-medium">
+                              Order Date
+                            </Label>
+                            <p className="text-muted-foreground">
+                              {new Date(result.orderDate).toLocaleDateString()}
+                            </p>
+                          </div>
+                          <div>
+                            <Label className="text-xs font-medium">
+                              Collection Date
+                            </Label>
+                            <p className="text-muted-foreground">
+                              {new Date(
+                                result.collectionDate,
+                              ).toLocaleDateString()}
+                            </p>
+                          </div>
+                          <div>
+                            <Label className="text-xs font-medium">
+                              Result Date
+                            </Label>
+                            <p className="text-muted-foreground">
+                              {new Date(result.resultDate).toLocaleDateString()}
+                            </p>
+                          </div>
+                        </div>
+
+                        {result.results && result.results.length > 0 && (
+                          <div className="mt-4">
+                            <Label className="text-sm font-medium">
+                              Test Results
+                            </Label>
+                            <div className="mt-2 space-y-2">
+                              {result.results.map(
+                                (test: any, testIndex: number) => (
+                                  <div
+                                    key={testIndex}
+                                    className="flex items-center justify-between p-2 bg-gray-50 rounded"
+                                  >
+                                    <span className="text-sm">
+                                      {test.parameter}
+                                    </span>
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-sm font-medium">
+                                        {test.value} {test.unit}
+                                      </span>
+                                      <Badge
+                                        variant={
+                                          test.status === "normal"
+                                            ? "secondary"
+                                            : test.status === "critical"
+                                              ? "destructive"
+                                              : "default"
+                                        }
+                                        className="text-xs"
+                                      >
+                                        {test.status}
+                                      </Badge>
+                                    </div>
+                                  </div>
+                                ),
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        {result.criticalValues &&
+                          result.criticalValues.length > 0 && (
+                            <Alert className="mt-4" variant="destructive">
+                              <AlertTriangle className="h-4 w-4" />
+                              <AlertDescription>
+                                Critical values detected:{" "}
+                                {result.criticalValues.join(", ")}
+                              </AlertDescription>
+                            </Alert>
+                          )}
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <Thermometer className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <p className="text-muted-foreground">
+                    No laboratory results available
+                  </p>
+                  <Button
+                    variant="outline"
+                    className="mt-2"
+                    onClick={onRefresh}
+                  >
+                    Load Lab Results
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="pharmacy" className="mt-6">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle>Medication Management</CardTitle>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onRefresh}
+                  disabled={isLoading}
+                >
+                  <RefreshCw
+                    className={`h-4 w-4 mr-2 ${isLoading ? "animate-spin" : ""}`}
+                  />
+                  Refresh
+                </Button>
+              </div>
+              <CardDescription>
+                Current medications, adherence, and pharmacy data
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {medicationData ? (
+                <div className="space-y-6">
+                  {/* Adherence Score */}
+                  <div className="bg-blue-50 p-4 rounded-lg">
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="font-medium">Medication Adherence</h4>
+                      <Badge
+                        variant={
+                          medicationData.adherenceScore >= 80
+                            ? "default"
+                            : "destructive"
+                        }
+                      >
+                        {medicationData.adherenceScore}%
+                      </Badge>
+                    </div>
+                    <Progress
+                      value={medicationData.adherenceScore}
+                      className="h-2"
+                    />
+                  </div>
+
+                  {/* Current Medications */}
+                  <div>
+                    <h4 className="font-medium mb-3">Current Medications</h4>
+                    <div className="space-y-3">
+                      {medicationData.currentMedications?.map(
+                        (med: any, index: number) => (
+                          <Card
+                            key={index}
+                            className="border-l-4 border-l-green-500"
+                          >
+                            <CardContent className="p-4">
+                              <div className="flex items-center justify-between mb-2">
+                                <h5 className="font-medium">{med.name}</h5>
+                                <Badge
+                                  variant={
+                                    med.status === "active"
+                                      ? "default"
+                                      : "secondary"
+                                  }
+                                >
+                                  {med.status}
+                                </Badge>
+                              </div>
+                              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
+                                <div>
+                                  <Label className="text-xs font-medium">
+                                    Strength
+                                  </Label>
+                                  <p className="text-muted-foreground">
+                                    {med.strength}
+                                  </p>
+                                </div>
+                                <div>
+                                  <Label className="text-xs font-medium">
+                                    Frequency
+                                  </Label>
+                                  <p className="text-muted-foreground">
+                                    {med.frequency}
+                                  </p>
+                                </div>
+                                <div>
+                                  <Label className="text-xs font-medium">
+                                    Route
+                                  </Label>
+                                  <p className="text-muted-foreground">
+                                    {med.route}
+                                  </p>
+                                </div>
+                                <div>
+                                  <Label className="text-xs font-medium">
+                                    Refills
+                                  </Label>
+                                  <p className="text-muted-foreground">
+                                    {med.remainingRefills} remaining
+                                  </p>
+                                </div>
+                              </div>
+
+                              {med.adherence && (
+                                <div className="mt-3 p-2 bg-gray-50 rounded">
+                                  <div className="flex items-center justify-between text-sm">
+                                    <span>
+                                      Adherence Score: {med.adherence.score}%
+                                    </span>
+                                    <span>
+                                      Missed Doses: {med.adherence.missedDoses}
+                                    </span>
+                                    <span>
+                                      Last Taken:{" "}
+                                      {new Date(
+                                        med.adherence.lastTaken,
+                                      ).toLocaleDateString()}
+                                    </span>
+                                  </div>
+                                </div>
+                              )}
+                            </CardContent>
+                          </Card>
+                        ),
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Drug Interactions */}
+                  {medicationData.interactions &&
+                    medicationData.interactions.length > 0 && (
+                      <div>
+                        <h4 className="font-medium mb-3">Drug Interactions</h4>
+                        <div className="space-y-2">
+                          {medicationData.interactions.map(
+                            (interaction: any, index: number) => (
+                              <Alert
+                                key={index}
+                                variant={
+                                  interaction.severity === "Major"
+                                    ? "destructive"
+                                    : "default"
+                                }
+                              >
+                                <AlertTriangle className="h-4 w-4" />
+                                <AlertDescription>
+                                  <div className="flex items-center justify-between">
+                                    <span>{interaction.description}</span>
+                                    <Badge variant="outline">
+                                      {interaction.severity}
+                                    </Badge>
+                                  </div>
+                                  <p className="text-xs mt-1">
+                                    {interaction.recommendation}
+                                  </p>
+                                </AlertDescription>
+                              </Alert>
+                            ),
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                  {/* Allergies */}
+                  {medicationData.allergies &&
+                    medicationData.allergies.length > 0 && (
+                      <div>
+                        <h4 className="font-medium mb-3">Known Allergies</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {medicationData.allergies.map(
+                            (allergy: any, index: number) => (
+                              <div
+                                key={index}
+                                className="p-3 bg-red-50 border border-red-200 rounded"
+                              >
+                                <div className="flex items-center justify-between">
+                                  <span className="font-medium">
+                                    {allergy.allergen}
+                                  </span>
+                                  <Badge variant="destructive">
+                                    {allergy.severity}
+                                  </Badge>
+                                </div>
+                                <p className="text-sm text-muted-foreground mt-1">
+                                  {allergy.reaction}
+                                </p>
+                              </div>
+                            ),
+                          )}
+                        </div>
+                      </div>
+                    )}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <Pill className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <p className="text-muted-foreground">
+                    No medication data available
+                  </p>
+                  <Button
+                    variant="outline"
+                    className="mt-2"
+                    onClick={onRefresh}
+                  >
+                    Load Medication Data
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="hospital" className="mt-6">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle>Hospital Admissions</CardTitle>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onRefresh}
+                  disabled={isLoading}
+                >
+                  <RefreshCw
+                    className={`h-4 w-4 mr-2 ${isLoading ? "animate-spin" : ""}`}
+                  />
+                  Refresh
+                </Button>
+              </div>
+              <CardDescription>
+                Hospital admission history and discharge planning
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {hospitalAdmissions.length > 0 ? (
+                <div className="space-y-4">
+                  {hospitalAdmissions.map((admission, index) => (
+                    <Card key={index} className="border-l-4 border-l-red-500">
+                      <CardContent className="p-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="font-medium">
+                            {admission.hospital.name}
+                          </h4>
+                          <Badge
+                            variant={
+                              admission.dischargeDate ? "secondary" : "default"
+                            }
+                          >
+                            {admission.dischargeDate ? "Discharged" : "Active"}
+                          </Badge>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm mb-4">
+                          <div>
+                            <Label className="text-xs font-medium">
+                              Admission Date
+                            </Label>
+                            <p className="text-muted-foreground">
+                              {new Date(
+                                admission.admissionDate,
+                              ).toLocaleDateString()}
+                            </p>
+                          </div>
+                          <div>
+                            <Label className="text-xs font-medium">
+                              Department
+                            </Label>
+                            <p className="text-muted-foreground">
+                              {admission.department}
+                            </p>
+                          </div>
+                          <div>
+                            <Label className="text-xs font-medium">
+                              Admission Type
+                            </Label>
+                            <p className="text-muted-foreground">
+                              {admission.admissionType}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="space-y-3">
+                          <div>
+                            <Label className="text-sm font-medium">
+                              Primary Diagnosis
+                            </Label>
+                            <p className="text-sm text-muted-foreground">
+                              {admission.primaryDiagnosis.code} -{" "}
+                              {admission.primaryDiagnosis.description}
+                            </p>
+                          </div>
+
+                          {admission.attendingPhysician && (
+                            <div>
+                              <Label className="text-sm font-medium">
+                                Attending Physician
+                              </Label>
+                              <p className="text-sm text-muted-foreground">
+                                {admission.attendingPhysician.name} -{" "}
+                                {admission.attendingPhysician.department}
+                              </p>
+                            </div>
+                          )}
+
+                          {admission.procedures &&
+                            admission.procedures.length > 0 && (
+                              <div>
+                                <Label className="text-sm font-medium">
+                                  Procedures
+                                </Label>
+                                <div className="space-y-1 mt-1">
+                                  {admission.procedures.map(
+                                    (proc: any, procIndex: number) => (
+                                      <p
+                                        key={procIndex}
+                                        className="text-sm text-muted-foreground"
+                                      >
+                                        {proc.code} - {proc.description} (
+                                        {new Date(
+                                          proc.date,
+                                        ).toLocaleDateString()}
+                                        )
+                                      </p>
+                                    ),
+                                  )}
+                                </div>
+                              </div>
+                            )}
+
+                          {admission.transitionToCare &&
+                            admission.transitionToCare.homecareReferral && (
+                              <Alert>
+                                <Heart className="h-4 w-4" />
+                                <AlertDescription>
+                                  <div className="space-y-1">
+                                    <p className="font-medium">
+                                      Homecare Referral
+                                    </p>
+                                    <p className="text-sm">
+                                      Services:{" "}
+                                      {admission.transitionToCare.services.join(
+                                        ", ",
+                                      )}
+                                    </p>
+                                    <p className="text-sm">
+                                      Duration:{" "}
+                                      {admission.transitionToCare.duration}
+                                    </p>
+                                  </div>
+                                </AlertDescription>
+                              </Alert>
+                            )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <Heart className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <p className="text-muted-foreground">
+                    No hospital admissions found
+                  </p>
+                  <Button
+                    variant="outline"
+                    className="mt-2"
+                    onClick={onRefresh}
+                  >
+                    Load Hospital Data
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+};
+
+// Telehealth View Component
+const TelehealthView: React.FC<{
+  patientId: string;
+  telehealthSessions: any[];
+  integrationStatus: any;
+  isLoading: boolean;
+  onRefresh: () => void;
+}> = ({
+  patientId,
+  telehealthSessions,
+  integrationStatus,
+  isLoading,
+  onRefresh,
+}) => {
+  return (
+    <div className="space-y-6">
+      {/* Telehealth Status */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle>Telehealth Integration</CardTitle>
+            <div className="flex items-center gap-2">
+              <Badge
+                variant={
+                  integrationStatus.status === "connected"
+                    ? "default"
+                    : "destructive"
+                }
+              >
+                {integrationStatus.status}
+              </Badge>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onRefresh}
+                disabled={isLoading}
+              >
+                <RefreshCw
+                  className={`h-4 w-4 mr-2 ${isLoading ? "animate-spin" : ""}`}
+                />
+                Refresh
+              </Button>
+            </div>
+          </div>
+          <CardDescription>
+            Virtual care sessions and telehealth platform integration
+          </CardDescription>
+        </CardHeader>
+      </Card>
+
+      {/* Telehealth Sessions */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Recent Telehealth Sessions</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {telehealthSessions.length > 0 ? (
+            <div className="space-y-4">
+              {telehealthSessions.map((session, index) => (
+                <Card key={index} className="border-l-4 border-l-purple-500">
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="font-medium">{session.appointmentType}</h4>
+                      <Badge
+                        variant={
+                          session.status === "completed"
+                            ? "default"
+                            : session.status === "scheduled"
+                              ? "secondary"
+                              : "destructive"
+                        }
+                      >
+                        {session.status}
+                      </Badge>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm mb-4">
+                      <div>
+                        <Label className="text-xs font-medium">
+                          Scheduled Time
+                        </Label>
+                        <p className="text-muted-foreground">
+                          {new Date(session.scheduledTime).toLocaleString()}
+                        </p>
+                      </div>
+                      <div>
+                        <Label className="text-xs font-medium">Platform</Label>
+                        <p className="text-muted-foreground">
+                          {session.platform.name} v{session.platform.version}
+                        </p>
+                      </div>
+                    </div>
+
+                    {session.participants && (
+                      <div className="mb-4">
+                        <Label className="text-sm font-medium">
+                          Participants
+                        </Label>
+                        <div className="space-y-1 mt-1">
+                          {session.participants.map(
+                            (participant: any, partIndex: number) => (
+                              <div
+                                key={partIndex}
+                                className="flex items-center justify-between text-sm"
+                              >
+                                <span>
+                                  {participant.name} ({participant.role})
+                                </span>
+                                <Badge variant="outline" className="text-xs">
+                                  {participant.joinStatus}
+                                </Badge>
+                              </div>
+                            ),
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {session.clinicalFeatures && (
+                      <div className="bg-gray-50 p-3 rounded">
+                        <Label className="text-sm font-medium">
+                          Clinical Features Available
+                        </Label>
+                        <div className="grid grid-cols-2 gap-2 mt-2 text-sm">
+                          <div className="flex items-center gap-2">
+                            <div
+                              className={`w-2 h-2 rounded-full ${session.clinicalFeatures.vitalSigns.enabled ? "bg-green-500" : "bg-gray-300"}`}
+                            ></div>
+                            <span>Vital Signs Monitoring</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div
+                              className={`w-2 h-2 rounded-full ${session.clinicalFeatures.digitalStethoscope ? "bg-green-500" : "bg-gray-300"}`}
+                            ></div>
+                            <span>Digital Stethoscope</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div
+                              className={`w-2 h-2 rounded-full ${session.clinicalFeatures.skinExamination ? "bg-green-500" : "bg-gray-300"}`}
+                            ></div>
+                            <span>Skin Examination</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div
+                              className={`w-2 h-2 rounded-full ${session.clinicalFeatures.prescriptionManagement ? "bg-green-500" : "bg-gray-300"}`}
+                            ></div>
+                            <span>Prescription Management</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {session.compliance && (
+                      <div className="mt-3">
+                        <Label className="text-sm font-medium">
+                          Compliance Status
+                        </Label>
+                        <div className="flex items-center gap-4 mt-1 text-sm">
+                          <div className="flex items-center gap-1">
+                            <Shield className="h-3 w-3" />
+                            <span>
+                              HIPAA:{" "}
+                              {session.compliance.hipaaCompliant ? "✓" : "✗"}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Shield className="h-3 w-3" />
+                            <span>
+                              DOH: {session.compliance.dohApproved ? "✓" : "✗"}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Lock className="h-3 w-3" />
+                            <span>
+                              Encryption:{" "}
+                              {session.compliance.encryptionStandard}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <Globe className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+              <p className="text-muted-foreground">
+                No telehealth sessions found
+              </p>
+              <Button variant="outline" className="mt-2" onClick={onRefresh}>
+                Load Telehealth Data
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

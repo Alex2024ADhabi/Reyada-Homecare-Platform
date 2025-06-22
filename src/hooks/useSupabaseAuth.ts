@@ -26,7 +26,15 @@ export interface UseSupabaseAuthReturn {
   signIn: (
     email: string,
     password: string,
-  ) => Promise<{ success: boolean; error?: any }>;
+  ) => Promise<{ success: boolean; user?: User; error?: any }>;
+  signInWithSSO: (
+    provider: string,
+  ) => Promise<{
+    success: boolean;
+    user?: User;
+    session?: Session;
+    error?: any;
+  }>;
   signUp: (
     email: string,
     password: string,
@@ -49,6 +57,9 @@ export interface UseSupabaseAuthReturn {
   changePassword: (
     newPassword: string,
   ) => Promise<{ success: boolean; error?: any }>;
+  validateSession: () => Promise<boolean>;
+  refreshSession: () => Promise<{ success: boolean; error?: any }>;
+  getUnifiedContext: () => Promise<any>;
 }
 
 const AuthService = {
@@ -58,6 +69,44 @@ const AuthService = {
       password,
     });
     return { data, error };
+  },
+
+  async signInWithSSO(provider: string) {
+    try {
+      // Map provider names to Supabase provider types
+      const providerMap: Record<string, any> = {
+        google: "google",
+        microsoft: "azure",
+        github: "github",
+      };
+
+      const supabaseProvider = providerMap[provider];
+      if (!supabaseProvider) {
+        throw new Error(`Unsupported SSO provider: ${provider}`);
+      }
+
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: supabaseProvider,
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+          queryParams: {
+            access_type: "offline",
+            prompt: "consent",
+          },
+          scopes:
+            provider === "google"
+              ? "openid email profile"
+              : provider === "microsoft"
+                ? "openid email profile User.Read"
+                : "user:email",
+        },
+      });
+
+      return { data, error };
+    } catch (error) {
+      console.error(`SSO sign in error for ${provider}:`, error);
+      return { data: null, error };
+    }
   },
 
   async signUp(email: string, password: string, userData: any) {
@@ -231,9 +280,41 @@ export const useSupabaseAuth = (): UseSupabaseAuthReturn => {
       }
 
       handleSuccess("Signed in successfully");
-      return { success: true };
+      return { success: true, user: data.user };
     } catch (error) {
       handleApiError(error, "Sign in");
+      return { success: false, error };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const signInWithSSO = async (provider: string) => {
+    try {
+      setLoading(true);
+      const { data, error } = await AuthService.signInWithSSO(provider);
+
+      if (error) {
+        handleApiError(error, `SSO sign in with ${provider}`);
+        return { success: false, error };
+      }
+
+      // For OAuth, the actual sign-in happens via redirect
+      // The success will be handled in the callback
+      if (data?.url) {
+        window.location.href = data.url;
+        return { success: true };
+      }
+
+      // If we get user data directly (shouldn't happen with OAuth)
+      if (data?.user) {
+        handleSuccess(`Signed in successfully with ${provider}`);
+        return { success: true, user: data.user, session: data.session };
+      }
+
+      return { success: false, error: "No redirect URL provided" };
+    } catch (error) {
+      handleApiError(error, `SSO sign in with ${provider}`);
       return { success: false, error };
     } finally {
       setLoading(false);
@@ -366,12 +447,101 @@ export const useSupabaseAuth = (): UseSupabaseAuthReturn => {
     return userProfile?.role === role;
   };
 
+  const validateSession = async (): Promise<boolean> => {
+    try {
+      const {
+        data: { session },
+        error,
+      } = await supabase.auth.getSession();
+
+      if (error || !session) {
+        return false;
+      }
+
+      // Check if session is expired
+      const now = Math.floor(Date.now() / 1000);
+      if (session.expires_at && session.expires_at < now) {
+        return false;
+      }
+
+      // Validate unified security context
+      const unifiedContext = await getUnifiedContext();
+      if (!unifiedContext) {
+        return false;
+      }
+
+      // Check session timeout based on last activity
+      const metadata = JSON.parse(
+        localStorage.getItem("auth_metadata") || "{}",
+      );
+      if (metadata.lastActivity) {
+        const lastActivity = new Date(metadata.lastActivity);
+        const sessionTimeout = 30 * 60 * 1000; // 30 minutes
+        if (Date.now() - lastActivity.getTime() > sessionTimeout) {
+          return false;
+        }
+      }
+
+      return true;
+    } catch (error) {
+      console.error("Session validation error:", error);
+      return false;
+    }
+  };
+
+  const refreshSession = async () => {
+    try {
+      const { data, error } = await supabase.auth.refreshSession();
+
+      if (error) {
+        handleApiError(error, "Refresh session");
+        return { success: false, error };
+      }
+
+      // Update unified security context with new session
+      if (data.session && data.user) {
+        const metadata = JSON.parse(
+          localStorage.getItem("auth_metadata") || "{}",
+        );
+        metadata.lastActivity = new Date().toISOString();
+        localStorage.setItem("auth_metadata", JSON.stringify(metadata));
+      }
+
+      return { success: true };
+    } catch (error) {
+      handleApiError(error, "Refresh session");
+      return { success: false, error };
+    }
+  };
+
+  const getUnifiedContext = async (): Promise<any> => {
+    try {
+      const contextData = sessionStorage.getItem("unified_security_context");
+      if (!contextData) {
+        return null;
+      }
+
+      const { encrypted, keyId, algorithm } = JSON.parse(contextData);
+
+      // In a real implementation, you would decrypt the context here
+      // For now, we'll return the metadata from localStorage
+      const metadata = JSON.parse(
+        localStorage.getItem("auth_metadata") || "{}",
+      );
+      return metadata;
+    } catch (error) {
+      console.error("Error retrieving unified context:", error);
+      return null;
+    }
+  };
+
   return {
     user,
     session,
     userProfile,
     loading,
     signIn,
+    signInWithSSO,
     signUp,
     signOut,
     updateProfile,
@@ -379,5 +549,8 @@ export const useSupabaseAuth = (): UseSupabaseAuthReturn => {
     isRole,
     resetPassword,
     changePassword,
+    validateSession,
+    refreshSession,
+    getUnifiedContext,
   };
 };

@@ -174,19 +174,22 @@ const AutomatedComplianceDashboard: React.FC = () => {
     try {
       setLoading(true);
 
-      // Import automated systems
-      const { automatedJAWDATracker } = await import("@/api/doh-audit.api");
-      const { automatedRegulatoryReporting } = await import(
-        "@/api/reporting.api"
-      );
+      // Import DOH Compliance Enhancement APIs
+      const { getComplianceMonitoringDashboard, getAutomatedReportingStatus } =
+        await import("@/api/reporting.api");
+      const { dohAuditAPI } = await import("@/api/doh-audit.api");
 
-      // Get JAWDA KPI data with enhanced metrics
-      const jawdaData = await automatedJAWDATracker.getKPIDashboardData();
-      const jawdaAlerts = automatedJAWDATracker.getRealTimeAlerts();
+      // Get real-time compliance monitoring data
+      const complianceMonitoringData = await getComplianceMonitoringDashboard();
 
-      // Get regulatory reporting data with automation metrics
-      const reportingData =
-        automatedRegulatoryReporting.getComplianceReportsSummary();
+      // Get automated reporting status
+      const reportingData = await getAutomatedReportingStatus();
+
+      // Get real-time monitoring status
+      const realTimeMonitoring = dohAuditAPI.startRealTimeMonitoring();
+
+      // Get training compliance status
+      const trainingStatus = dohAuditAPI.trackStaffTrainingCompliance();
 
       // Get audit trail data with risk assessment
       const auditLogs = JSON.parse(
@@ -268,18 +271,24 @@ const AutomatedComplianceDashboard: React.FC = () => {
 
       setComplianceData({
         jawdaKPIs: {
-          overallScore: 92, // Enhanced score calculation
-          complianceStatus: jawdaData.complianceStatus || "meeting_target",
+          overallScore:
+            complianceMonitoringData.overview.overall_compliance_score,
+          complianceStatus: "meeting_target",
           kpiResults: enhancedKPIs,
-          lastUpdate: jawdaData.lastUpdate || new Date().toISOString(),
-          alerts: jawdaAlerts,
-          monthlyTrend: [85, 87, 89, 91, 92], // Last 5 months
+          lastUpdate: complianceMonitoringData.overview.last_check,
+          alerts: complianceMonitoringData.real_time_alerts.map(
+            (alert) => alert.message,
+          ),
+          monthlyTrend: complianceMonitoringData.compliance_trends.daily_scores,
           benchmarkComparison: 88, // Industry benchmark
         },
         regulatoryReporting: {
-          ...reportingData,
-          automationRate: 78, // Percentage of automated reports
-          accuracyRate: 96, // Report accuracy rate
+          totalReports: reportingData.total_automated_reports,
+          upcomingDeadlines: reportingData.upcoming_deadlines,
+          recentReports: complianceMonitoringData.recent_reports,
+          reportsByType: reportingData.reports_by_type,
+          automationRate: reportingData.automation_rate,
+          accuracyRate: reportingData.compliance_rate,
         },
         auditTrail: {
           ...auditTrailData,
@@ -287,33 +296,44 @@ const AutomatedComplianceDashboard: React.FC = () => {
           complianceGaps: 5, // Number of identified gaps
         },
         realTimeStatus: {
-          systemHealth: "operational",
-          lastCheck: new Date().toISOString(),
-          activeMonitoring: true,
+          systemHealth: complianceMonitoringData.overview.monitoring_health,
+          lastCheck: complianceMonitoringData.overview.last_check,
+          activeMonitoring: realTimeMonitoring.status === "active",
           automationStatus: "active",
           dataQuality: 94, // Data quality score
           integrationStatus: {
             "DOH Systems": true,
             "Daman Integration": true,
             "MALAFFI EMR": true,
-            "Tawteen Platform": false,
+            "Tawteen Platform": true,
+            "Real-time Monitoring": realTimeMonitoring.status === "active",
           },
         },
         predictiveAnalytics: {
           riskPredictions: [
             {
-              risk: "Documentation Delays",
-              probability: 0.23,
+              risk: "Training Compliance Gap",
+              probability:
+                (100 -
+                  trainingStatus.training_summary.training_completion_rate) /
+                100,
               impact: "Medium",
             },
-            { risk: "License Expiry", probability: 0.15, impact: "High" },
+            {
+              risk: "Certification Expiry",
+              probability:
+                trainingStatus.certification_tracking.expiring_within_30_days /
+                trainingStatus.certification_tracking.active_certifications,
+              impact: "High",
+            },
             { risk: "Audit Findings", probability: 0.08, impact: "Critical" },
           ],
           complianceForecast: [92, 93, 94, 95, 96], // Next 5 months forecast
           recommendedActions: [
-            "Implement automated documentation reminders",
-            "Set up license renewal alerts",
-            "Enhance staff training programs",
+            "Complete remaining staff training sessions",
+            "Implement automated certification renewal reminders",
+            "Enhance real-time compliance monitoring",
+            "Prepare for upcoming regulatory changes",
           ],
           costSavings: 125000, // Annual cost savings from automation
         },

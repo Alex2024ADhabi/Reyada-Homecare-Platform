@@ -5,9 +5,12 @@ import { realTimeSyncService } from "@/services/real-time-sync.service";
 import { offlineService } from "@/services/offline.service";
 import { communicationService } from "@/services/communication.service";
 import { SecurityService } from "@/services/security.service";
+import { serviceWorkerService } from "@/services/service-worker.service";
 import { environmentValidator } from "@/utils/environment-validator";
 import PlatformHealthMonitor from "@/components/ui/platform-health-monitor";
 import ComprehensivePlatformValidator from "@/components/ui/comprehensive-platform-validator";
+import { MobileAppAccess } from "@/components/ui/mobile-responsive";
+import { useSupabaseAuth } from "@/hooks/useSupabaseAuth";
 
 // Enhanced service imports with error handling
 let emiratesIdVerificationService: any;
@@ -111,16 +114,29 @@ const NetworkErrorBoundary = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
-// Simplified Tempo routes loading
+// Simplified Tempo routes loading with enhanced error handling
 let routes: any[] = [];
 try {
   if (process.env.TEMPO === "true" || process.env.NODE_ENV === "development") {
-    const tempoRoutes = require("tempo-routes");
-    routes = Array.isArray(tempoRoutes?.default)
-      ? tempoRoutes.default
-      : Array.isArray(tempoRoutes)
-        ? tempoRoutes
-        : [];
+    try {
+      const tempoRoutes = require("tempo-routes");
+      routes = Array.isArray(tempoRoutes?.default)
+        ? tempoRoutes.default
+        : Array.isArray(tempoRoutes)
+          ? tempoRoutes
+          : [];
+      console.log(
+        "✅ Tempo routes loaded successfully:",
+        routes.length,
+        "routes",
+      );
+    } catch (requireError) {
+      console.warn(
+        "Tempo routes require failed, using empty routes:",
+        requireError.message,
+      );
+      routes = [];
+    }
   }
 } catch (error) {
   console.warn("Failed to load tempo routes:", error.message);
@@ -134,6 +150,11 @@ const HealthMonitor = lazy(() => PlatformHealthMonitor);
 const PlatformCompletionDashboard = lazy(
   () => import("./components/ui/platform-completion-dashboard"),
 );
+const SSOCallback = lazy(() => import("./components/auth/SSOCallback"));
+const EnhancedLoginForm = lazy(
+  () => import("./components/auth/EnhancedLoginForm"),
+);
+const ProtectedRoute = lazy(() => import("./components/auth/ProtectedRoute"));
 
 // Brand Loading Component
 const BrandedLoadingFallback = () => (
@@ -173,6 +194,11 @@ const BrandedLoadingFallback = () => (
 );
 
 function App() {
+  const [pwaInstallPrompt, setPwaInstallPrompt] = useState<any>(null);
+  const [showMobileFeatures, setShowMobileFeatures] = useState(false);
+  const [pwaUpdateAvailable, setPwaUpdateAvailable] = useState(false);
+  const { validateSession, refreshSession } = useSupabaseAuth();
+
   useEffect(() => {
     // Enhanced service initialization with environment validation
     const initializeServices = async () => {
@@ -195,6 +221,22 @@ function App() {
         const securityService = SecurityService.getInstance();
         await securityService.initialize();
         console.log("✅ Security service initialized");
+
+        // Initialize service worker for PWA functionality
+        try {
+          await serviceWorkerService.register();
+          console.log("✅ Service Worker initialized for PWA");
+
+          // Listen for PWA updates
+          if ("serviceWorker" in navigator) {
+            navigator.serviceWorker.addEventListener("controllerchange", () => {
+              setPwaUpdateAvailable(true);
+              console.log("🔄 PWA update available");
+            });
+          }
+        } catch (error) {
+          console.warn("⚠️ Service Worker initialization failed:", error);
+        }
 
         // Initialize offline service
         await offlineService.init();
@@ -277,7 +319,29 @@ function App() {
       }
     };
 
+    // PWA install prompt handling
+    const handleBeforeInstallPrompt = (e: any) => {
+      e.preventDefault();
+      setPwaInstallPrompt(e);
+      setShowMobileFeatures(true);
+    };
+
+    // Check if mobile features should be shown
+    const checkMobileFeatures = () => {
+      const isMobile =
+        window.innerWidth < 768 ||
+        /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+          navigator.userAgent,
+        );
+      setShowMobileFeatures(isMobile);
+    };
+
     initializeServices();
+    checkMobileFeatures();
+    initializeUnifiedSessionManagement();
+
+    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    window.addEventListener("resize", checkMobileFeatures);
 
     return () => {
       try {
@@ -288,12 +352,75 @@ function App() {
         ) {
           websocketService.disconnect();
         }
+        window.removeEventListener(
+          "beforeinstallprompt",
+          handleBeforeInstallPrompt,
+        );
+        window.removeEventListener("resize", checkMobileFeatures);
         console.log("🧹 Services cleanup completed");
       } catch (error) {
         console.warn("⚠️ Error during service cleanup:", error);
       }
     };
   }, []);
+
+  /**
+   * Initialize unified session management across all modules
+   */
+  const initializeUnifiedSessionManagement = () => {
+    // Set up periodic session validation
+    const sessionValidationInterval = setInterval(
+      async () => {
+        const isValid = await validateSession();
+        if (!isValid) {
+          console.log("🔒 Session validation failed, clearing context");
+          sessionStorage.clear();
+          localStorage.removeItem("auth_metadata");
+          // Don't redirect here as it might interfere with normal flow
+        }
+      },
+      5 * 60 * 1000,
+    ); // Check every 5 minutes
+
+    // Set up automatic session refresh
+    const sessionRefreshInterval = setInterval(
+      async () => {
+        try {
+          const metadata = JSON.parse(
+            localStorage.getItem("auth_metadata") || "{}",
+          );
+          if (metadata.userId) {
+            const { success } = await refreshSession();
+            if (success) {
+              console.log("🔄 Session refreshed successfully");
+            }
+          }
+        } catch (error) {
+          console.warn("⚠️ Session refresh failed:", error);
+        }
+      },
+      25 * 60 * 1000,
+    ); // Refresh every 25 minutes
+
+    // Set up cross-tab session synchronization
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === "auth_metadata" && !e.newValue) {
+        // Session was cleared in another tab
+        console.log("🔄 Session cleared in another tab, synchronizing");
+        sessionStorage.clear();
+        window.location.reload();
+      }
+    };
+
+    window.addEventListener("storage", handleStorageChange);
+
+    // Cleanup function
+    return () => {
+      clearInterval(sessionValidationInterval);
+      clearInterval(sessionRefreshInterval);
+      window.removeEventListener("storage", handleStorageChange);
+    };
+  };
 
   return (
     <NetworkErrorBoundary>
@@ -307,15 +434,41 @@ function App() {
 
           <Routes>
             <Route path="/" element={<Home />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/health" element={<PlatformHealthMonitor />} />
+            <Route path="/login" element={<EnhancedLoginForm />} />
+            <Route path="/auth/callback" element={<SSOCallback />} />
+
+            {/* Protected Routes */}
+            <Route
+              path="/dashboard"
+              element={
+                <ProtectedRoute>
+                  <Dashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/health"
+              element={
+                <ProtectedRoute requiredPermission="system.monitor">
+                  <PlatformHealthMonitor />
+                </ProtectedRoute>
+              }
+            />
             <Route
               path="/validation"
-              element={<ComprehensivePlatformValidator />}
+              element={
+                <ProtectedRoute requiredPermission="system.configure">
+                  <ComprehensivePlatformValidator />
+                </ProtectedRoute>
+              }
             />
             <Route
               path="/completion"
-              element={<PlatformCompletionDashboard />}
+              element={
+                <ProtectedRoute requiredRole="admin">
+                  <PlatformCompletionDashboard />
+                </ProtectedRoute>
+              }
             />
 
             {/* Tempo route placeholder */}
@@ -330,6 +483,52 @@ function App() {
         </Suspense>
 
         <Toaster />
+
+        {/* PWA Update Banner */}
+        {pwaUpdateAvailable && (
+          <div className="fixed top-0 left-0 right-0 bg-reyada-primary text-white p-3 text-center z-50">
+            <div className="flex items-center justify-center gap-4">
+              <span className="text-sm font-medium">
+                🔄 App update available! Refresh to get the latest version.
+              </span>
+              <button
+                onClick={() => window.location.reload()}
+                className="bg-white text-reyada-primary px-3 py-1 rounded text-sm font-medium hover:bg-gray-100 transition-colors"
+              >
+                Refresh
+              </button>
+              <button
+                onClick={() => setPwaUpdateAvailable(false)}
+                className="text-white/80 hover:text-white text-sm"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Mobile PWA Features */}
+        {showMobileFeatures && (
+          <div className="fixed bottom-4 right-4 z-40">
+            <MobileAppAccess
+              isInstalled={
+                window.matchMedia("(display-mode: standalone)").matches
+              }
+              onInstall={() => {
+                if (pwaInstallPrompt) {
+                  pwaInstallPrompt.prompt();
+                  pwaInstallPrompt.userChoice.then((choiceResult: any) => {
+                    if (choiceResult.outcome === "accepted") {
+                      console.log("✅ PWA installed successfully");
+                    }
+                    setPwaInstallPrompt(null);
+                  });
+                }
+                setShowMobileFeatures(false);
+              }}
+            />
+          </div>
+        )}
 
         {/* Real-time Notification Center */}
         <div className="fixed top-4 right-4 z-50">

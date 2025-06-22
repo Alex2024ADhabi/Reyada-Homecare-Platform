@@ -100,20 +100,20 @@ module "eks_primary" {
 
   eks_managed_node_groups = {
     general = {
-      desired_size = 2
-      min_size     = 2
-      max_size     = 10
+      desired_size = 6
+      min_size     = 4
+      max_size     = 20
 
-      instance_types = ["t3.large"]
+      instance_types = ["t3.xlarge"]
       capacity_type  = "ON_DEMAND"
     }
 
     compute = {
-      desired_size = 1
-      min_size     = 1
-      max_size     = 5
+      desired_size = 4
+      min_size     = 2
+      max_size     = 15
 
-      instance_types = ["c5.xlarge"]
+      instance_types = ["c5.2xlarge"]
       capacity_type  = "ON_DEMAND"
 
       labels = {
@@ -127,6 +127,19 @@ module "eks_primary" {
           effect = "NO_SCHEDULE"
         }
       ]
+    }
+
+    memory_optimized = {
+      desired_size = 2
+      min_size     = 1
+      max_size     = 8
+
+      instance_types = ["r5.xlarge"]
+      capacity_type  = "ON_DEMAND"
+
+      labels = {
+        workload = "memory-intensive"
+      }
     }
   }
 
@@ -155,11 +168,11 @@ module "eks_secondary" {
 
   eks_managed_node_groups = {
     general = {
-      desired_size = 2
+      desired_size = 4
       min_size     = 2
-      max_size     = 10
+      max_size     = 12
 
-      instance_types = ["t3.large"]
+      instance_types = ["t3.xlarge"]
       capacity_type  = "ON_DEMAND"
     }
   }
@@ -181,10 +194,10 @@ module "rds_primary" {
   engine_version       = "14"
   family               = "postgres14"
   major_engine_version = "14"
-  instance_class       = "db.r5.large"
+  instance_class       = "db.r5.2xlarge"
 
-  allocated_storage     = 100
-  max_allocated_storage = 500
+  allocated_storage     = 500
+  max_allocated_storage = 2000
 
   db_name  = "reyada"
   username = var.db_username
@@ -356,15 +369,15 @@ resource "aws_elasticache_subnet_group" "primary" {
 resource "aws_elasticache_replication_group" "primary" {
   replication_group_id          = "reyada-redis-primary"
   replication_group_description = "Reyada Homecare Redis Cluster"
-  node_type                     = "cache.m5.large"
+  node_type                     = "cache.m5.xlarge"
   port                          = 6379
   parameter_group_name          = "default.redis6.x.cluster.on"
   automatic_failover_enabled    = true
   engine_version                = "6.x"
   subnet_group_name             = aws_elasticache_subnet_group.primary.name
   security_group_ids            = [aws_security_group.redis_primary.id]
-  num_node_groups               = 2
-  replicas_per_node_group       = 1
+  num_node_groups               = 4
+  replicas_per_node_group       = 2
 
   tags = {
     Environment = "production"
@@ -409,15 +422,15 @@ resource "aws_elasticache_replication_group" "secondary" {
   provider                       = aws.secondary
   replication_group_id          = "reyada-redis-secondary"
   replication_group_description = "Reyada Homecare Redis Cluster (DR)"
-  node_type                     = "cache.m5.large"
+  node_type                     = "cache.m5.xlarge"
   port                          = 6379
   parameter_group_name          = "default.redis6.x.cluster.on"
   automatic_failover_enabled    = true
   engine_version                = "6.x"
   subnet_group_name             = aws_elasticache_subnet_group.secondary.name
   security_group_ids            = [aws_security_group.redis_secondary.id]
-  num_node_groups               = 2
-  replicas_per_node_group       = 1
+  num_node_groups               = 4
+  replicas_per_node_group       = 2
 
   tags = {
     Environment = "production"

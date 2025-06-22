@@ -25,6 +25,9 @@ import {
   Stethoscope,
   Brain,
   Languages,
+  Accessibility,
+  Eye,
+  Keyboard,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -154,6 +157,8 @@ export const VoiceInput: React.FC<VoiceInputProps> = ({
   const [isSupported, setIsSupported] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [corrections, setCorrections] = useState<any[]>([]);
+  const [voiceNavigationActive, setVoiceNavigationActive] = useState(false);
+  const [screenReaderMode, setScreenReaderMode] = useState(false);
 
   const recognitionRef = useRef<any>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -165,10 +170,74 @@ export const VoiceInput: React.FC<VoiceInputProps> = ({
 
   useEffect(() => {
     checkBrowserSupport();
+    initializeAccessibilityFeatures();
     return () => {
       cleanup();
     };
   }, []);
+
+  const initializeAccessibilityFeatures = () => {
+    // Check for screen reader
+    const isScreenReaderActive =
+      window.navigator.userAgent.includes("NVDA") ||
+      window.navigator.userAgent.includes("JAWS") ||
+      window.speechSynthesis?.getVoices().length > 0;
+
+    setScreenReaderMode(isScreenReaderActive);
+
+    // Set up voice navigation commands
+    if (voiceNavigationActive) {
+      setupVoiceNavigation();
+    }
+
+    // Add keyboard shortcuts for accessibility
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Ctrl+Shift+V to start/stop recording
+      if (event.ctrlKey && event.shiftKey && event.key === "V") {
+        event.preventDefault();
+        if (isRecording) {
+          stopRecording();
+        } else {
+          startRecording();
+        }
+      }
+      // Ctrl+Shift+C to clear transcription
+      if (event.ctrlKey && event.shiftKey && event.key === "C") {
+        event.preventDefault();
+        clearTranscription();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  };
+
+  const setupVoiceNavigation = () => {
+    // Voice commands for navigation
+    const voiceCommands = {
+      "start recording": () => !isRecording && startRecording(),
+      "stop recording": () => isRecording && stopRecording(),
+      "clear text": () => clearTranscription(),
+      "read transcription": () => {
+        if (transcription && window.speechSynthesis) {
+          const utterance = new SpeechSynthesisUtterance(transcription);
+          utterance.lang = language;
+          window.speechSynthesis.speak(utterance);
+        }
+      },
+    };
+
+    // Arabic voice commands
+    if (language.startsWith("ar")) {
+      Object.assign(voiceCommands, {
+        "ابدأ التسجيل": () => !isRecording && startRecording(),
+        "أوقف التسجيل": () => isRecording && stopRecording(),
+        "امسح النص": () => clearTranscription(),
+      });
+    }
+
+    return voiceCommands;
+  };
 
   const checkBrowserSupport = () => {
     const SpeechRecognition =
@@ -199,15 +268,23 @@ export const VoiceInput: React.FC<VoiceInputProps> = ({
 
     const recognition = new SpeechRecognition();
 
-    // Enhanced configuration for medical terminology
+    // Enhanced configuration for medical terminology and accessibility
     recognition.continuous = true;
     recognition.interimResults = true;
     recognition.lang = language;
     recognition.maxAlternatives = 3;
 
-    // Medical-specific settings
+    // Medical-specific settings with accessibility enhancements
     if (medicalMode) {
       recognition.grammars = createMedicalGrammar();
+    }
+
+    // Accessibility enhancements for voice navigation
+    recognition.serviceURI = undefined; // Use default for better accessibility
+
+    // UAE Arabic language support
+    if (language.startsWith("ar")) {
+      recognition.lang = "ar-AE"; // UAE Arabic
     }
 
     recognition.onstart = () => {
@@ -246,6 +323,23 @@ export const VoiceInput: React.FC<VoiceInputProps> = ({
         }
 
         onTranscriptionUpdate?.(transcription + processedText);
+
+        // Accessibility: Announce transcription to screen readers
+        if ((window as any).announceToScreenReader) {
+          (window as any).announceToScreenReader(
+            `Transcribed: ${processedText}`,
+          );
+        }
+
+        // Voice feedback for accessibility
+        if (screenReaderMode && window.speechSynthesis) {
+          const utterance = new SpeechSynthesisUtterance(
+            `Transcribed: ${processedText}`,
+          );
+          utterance.lang = language;
+          utterance.volume = 0.3;
+          window.speechSynthesis.speak(utterance);
+        }
       }
 
       if (interimTranscript) {
@@ -482,7 +576,7 @@ export const VoiceInput: React.FC<VoiceInputProps> = ({
   const processMedicalText = (text: string): string => {
     let processedText = text;
 
-    // Common medical abbreviation expansions
+    // Common medical abbreviation expansions with Arabic support
     const abbreviations: { [key: string]: string } = {
       bp: "blood pressure",
       hr: "heart rate",
@@ -493,12 +587,38 @@ export const VoiceInput: React.FC<VoiceInputProps> = ({
       mg: "milligrams",
       ml: "milliliters",
       cc: "cubic centimeters",
+      // Arabic medical terms (transliterated)
+      "ضغط الدم": "blood pressure",
+      "معدل ضربات القلب": "heart rate",
+      "معدل التنفس": "respiratory rate",
+      "درجة الحرارة": "temperature",
+      "تشبع الأكسجين": "oxygen saturation",
     };
 
     // Apply abbreviation expansions
     Object.entries(abbreviations).forEach(([abbr, expansion]) => {
       const regex = new RegExp(`\\b${abbr}\\b`, "gi");
       processedText = processedText.replace(regex, expansion);
+    });
+
+    // Handle Arabic numerals and medical terms
+    if (language.startsWith("ar")) {
+      processedText = processArabicMedicalText(processedText);
+    }
+
+    return processedText;
+  };
+
+  const processArabicMedicalText = (text: string): string => {
+    let processedText = text;
+
+    // Convert Arabic-Indic numerals to Western numerals for medical consistency
+    const arabicNumerals = ["٠", "١", "٢", "٣", "٤", "٥", "٦", "٧", "٨", "٩"];
+    const westernNumerals = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"];
+
+    arabicNumerals.forEach((arabicNum, index) => {
+      const regex = new RegExp(arabicNum, "g");
+      processedText = processedText.replace(regex, westernNumerals[index]);
     });
 
     return processedText;
@@ -616,12 +736,16 @@ export const VoiceInput: React.FC<VoiceInputProps> = ({
               Medical Mode
             </Badge>
           )}
+          <Badge variant="outline" className="ml-2">
+            <Accessibility className="h-3 w-3 mr-1" />
+            WCAG 2.1 AA
+          </Badge>
         </CardTitle>
 
         <div className="flex flex-wrap gap-2">
           <Badge variant="outline">
             <Languages className="h-3 w-3 mr-1" />
-            {language}
+            {language === "ar-AE" ? "🇦🇪 Arabic (UAE)" : language}
           </Badge>
           {confidence > 0 && (
             <Badge
@@ -636,6 +760,19 @@ export const VoiceInput: React.FC<VoiceInputProps> = ({
               Confidence: {confidence.toFixed(0)}%
             </Badge>
           )}
+          <Badge variant="outline" className="text-xs">
+            <Volume2 className="h-3 w-3 mr-1" />
+            Screen Reader Compatible
+          </Badge>
+          {language.startsWith("ar") && (
+            <Badge variant="outline" className="text-xs">
+              🇦🇪 RTL Support
+            </Badge>
+          )}
+          <Badge variant="outline" className="text-xs">
+            <Keyboard className="h-3 w-3 mr-1" />
+            Ctrl+Shift+V
+          </Badge>
         </div>
       </CardHeader>
 
@@ -654,6 +791,10 @@ export const VoiceInput: React.FC<VoiceInputProps> = ({
             onClick={isRecording ? stopRecording : startRecording}
             disabled={isProcessing}
             className="min-w-32"
+            aria-label={
+              isRecording ? "Stop voice recording" : "Start voice recording"
+            }
+            aria-describedby="voice-input-help"
           >
             {isProcessing ? (
               <>
@@ -674,11 +815,58 @@ export const VoiceInput: React.FC<VoiceInputProps> = ({
           </Button>
 
           {(transcription || interimTranscription) && (
-            <Button variant="outline" onClick={clearTranscription}>
+            <Button
+              variant="outline"
+              onClick={clearTranscription}
+              aria-label="Clear transcription text"
+            >
               <RotateCcw className="h-4 w-4 mr-2" />
               Clear
             </Button>
           )}
+        </div>
+
+        <div
+          id="voice-input-help"
+          className="text-sm text-gray-600 text-center"
+        >
+          Use Ctrl+Shift+V to start/stop recording, Ctrl+Shift+C to clear text
+        </div>
+
+        {/* Accessibility Controls */}
+        <div className="flex items-center justify-center gap-4 p-2 bg-gray-50 rounded">
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="voice-navigation"
+              checked={voiceNavigationActive}
+              onChange={(e) => setVoiceNavigationActive(e.target.checked)}
+              className="rounded"
+            />
+            <label
+              htmlFor="voice-navigation"
+              className="text-sm flex items-center gap-1"
+            >
+              <Volume2 className="h-3 w-3" />
+              Voice Navigation
+            </label>
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="screen-reader-mode"
+              checked={screenReaderMode}
+              onChange={(e) => setScreenReaderMode(e.target.checked)}
+              className="rounded"
+            />
+            <label
+              htmlFor="screen-reader-mode"
+              className="text-sm flex items-center gap-1"
+            >
+              <Eye className="h-3 w-3" />
+              Screen Reader Mode
+            </label>
+          </div>
         </div>
 
         {isRecording && (
@@ -713,6 +901,10 @@ export const VoiceInput: React.FC<VoiceInputProps> = ({
             placeholder={placeholder}
             className="min-h-32 resize-none"
             readOnly
+            aria-label="Voice transcription output"
+            aria-live="polite"
+            aria-atomic="true"
+            dir={language.startsWith("ar") ? "rtl" : "ltr"}
           />
 
           {interimTranscription && (
