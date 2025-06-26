@@ -120,6 +120,15 @@ export const SERVICE_ENDPOINTS = {
   blockchainRecords: `${API_GATEWAY_CONFIG.baseUrl}/blockchain/records`,
   arAssistedCare: `${API_GATEWAY_CONFIG.baseUrl}/ar/assisted-care`,
   networkPerformance: `${API_GATEWAY_CONFIG.baseUrl}/network/performance`,
+  // Governance & Regulations Library Endpoints
+  governanceRegulations: `${API_GATEWAY_CONFIG.baseUrl}/governance/regulations`,
+  documentManagement: `${API_GATEWAY_CONFIG.baseUrl}/governance/documents`,
+  complianceEngine: `${API_GATEWAY_CONFIG.baseUrl}/governance/compliance`,
+  regulatoryFramework: `${API_GATEWAY_CONFIG.baseUrl}/governance/framework`,
+  documentClassification: `${API_GATEWAY_CONFIG.baseUrl}/governance/classification`,
+  complianceMonitoring: `${API_GATEWAY_CONFIG.baseUrl}/governance/monitoring`,
+  auditTrail: `${API_GATEWAY_CONFIG.baseUrl}/governance/audit`,
+  regulatoryReporting: `${API_GATEWAY_CONFIG.baseUrl}/governance/reporting`,
   // Sustainability & Growth Endpoints
   multiTenant: `${API_GATEWAY_CONFIG.baseUrl}/platform/multi-tenant`,
   apiMarketplace: `${API_GATEWAY_CONFIG.baseUrl}/platform/api-marketplace`,

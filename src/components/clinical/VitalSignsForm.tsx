@@ -21,6 +21,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { ElectronicSignature } from "@/components/ui/electronic-signature";
 import {
   Activity,
   Heart,
@@ -194,6 +195,7 @@ export const VitalSignsForm: React.FC<VitalSignsFormProps> = ({
     [key: string]: "up" | "down" | "stable";
   }>({});
   const [vitalSignsData, setVitalSignsData] = useState<any>(null);
+  const [showSignatureDialog, setShowSignatureDialog] = useState(false);
 
   const {
     register,
@@ -413,8 +415,51 @@ export const VitalSignsForm: React.FC<VitalSignsFormProps> = ({
           notes: data.notes || undefined,
         };
 
+      // Store the data temporarily and show signature dialog
+      setVitalSignsData(vitalSignsData);
+      setShowSignatureDialog(true);
+      setFormState((prev) => ({ ...prev, isSubmitting: false }));
+    } catch (error) {
+      console.error("Form submission failed:", error);
+      setClinicalAlerts((prev) => [
+        ...prev,
+        {
+          type: "SUBMISSION_ERROR",
+          message:
+            error instanceof Error
+              ? error.message
+              : "Failed to save vital signs",
+          severity: "critical",
+        },
+      ]);
+      setFormState((prev) => ({ ...prev, isSubmitting: false }));
+    }
+  };
+
+  // Handle signature completion
+  const handleSignatureComplete = async (signatureData: any) => {
+    try {
+      setFormState((prev) => ({ ...prev, isSubmitting: true }));
+
+      // In a real implementation, we would attach the signature to the vital signs data
+      const vitalSignsWithSignature = {
+        ...vitalSignsData,
+        signature: {
+          signatureId: signatureData.id,
+          signatureImage: signatureData.signatureImage,
+          signedBy: signatureData.userFullName,
+          signedAt: signatureData.timestamp,
+          signatureType: "clinician",
+        },
+        validated: true,
+        validatedBy: signatureData.userFullName,
+        validatedAt: signatureData.timestamp,
+      };
+
       // Submit via API
-      const response = await VitalSignsAPI.recordVitalSigns(vitalSignsData);
+      const response = await VitalSignsAPI.recordVitalSigns(
+        vitalSignsWithSignature,
+      );
 
       if (response.success) {
         setVitalSignsData(response.data);
@@ -423,6 +468,7 @@ export const VitalSignsForm: React.FC<VitalSignsFormProps> = ({
           lastSaved: new Date().toISOString(),
           hasChanges: false,
         }));
+        setShowSignatureDialog(false);
 
         // Call custom onSubmit if provided
         if (onSubmit) {
@@ -434,15 +480,15 @@ export const VitalSignsForm: React.FC<VitalSignsFormProps> = ({
         );
       }
     } catch (error) {
-      console.error("Form submission failed:", error);
+      console.error("Signature submission failed:", error);
       setClinicalAlerts((prev) => [
         ...prev,
         {
-          type: "SUBMISSION_ERROR",
+          type: "SIGNATURE_ERROR",
           message:
             error instanceof Error
               ? error.message
-              : "Failed to save vital signs",
+              : "Failed to process electronic signature",
           severity: "critical",
         },
       ]);
@@ -1220,6 +1266,35 @@ export const VitalSignsForm: React.FC<VitalSignsFormProps> = ({
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Electronic Signature Dialog */}
+      <Dialog open={showSignatureDialog} onOpenChange={setShowSignatureDialog}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Electronic Signature Required</DialogTitle>
+          </DialogHeader>
+          <ElectronicSignature
+            documentId={`vital-signs-${patientId}-${new Date().getTime()}`}
+            documentType="vital_signs"
+            onSignatureComplete={handleSignatureComplete}
+            onCancel={() => setShowSignatureDialog(false)}
+            biometricEnabled={false}
+            workflowEnabled={true}
+            captureRequirements={{
+              minStrokes: 10,
+              minDuration: 1000,
+              minComplexity: 20,
+              touchRequired: false,
+            }}
+            formData={{
+              patientId,
+              episodeId,
+              formType: "vital_signs",
+              ...watchedValues,
+            }}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

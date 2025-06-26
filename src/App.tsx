@@ -114,34 +114,60 @@ const NetworkErrorBoundary = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
-// Simplified Tempo routes loading with enhanced error handling
+// Enhanced Tempo routes loading with comprehensive error handling
 let routes: any[] = [];
-try {
-  if (process.env.TEMPO === "true" || process.env.NODE_ENV === "development") {
-    try {
-      const tempoRoutes = require("tempo-routes");
-      routes = Array.isArray(tempoRoutes?.default)
-        ? tempoRoutes.default
-        : Array.isArray(tempoRoutes)
-          ? tempoRoutes
-          : [];
-      console.log(
-        "✅ Tempo routes loaded successfully:",
-        routes.length,
-        "routes",
-      );
-    } catch (requireError) {
-      console.warn(
-        "Tempo routes require failed, using empty routes:",
-        requireError.message,
-      );
-      routes = [];
+const loadTempoRoutes = () => {
+  try {
+    const isTempoEnabled =
+      process.env.TEMPO === "true" ||
+      process.env.NODE_ENV === "development" ||
+      (typeof import.meta !== "undefined" &&
+        import.meta.env?.VITE_TEMPO === "true");
+
+    if (isTempoEnabled) {
+      try {
+        // Safe require with fallback
+        const tempoRoutes = require("tempo-routes");
+
+        // Normalize routes array
+        if (Array.isArray(tempoRoutes?.default)) {
+          routes = tempoRoutes.default;
+        } else if (Array.isArray(tempoRoutes?.routes)) {
+          routes = tempoRoutes.routes;
+        } else if (Array.isArray(tempoRoutes)) {
+          routes = tempoRoutes;
+        } else {
+          routes = [];
+        }
+
+        console.log(
+          "✅ Tempo routes loaded successfully:",
+          routes.length,
+          "routes",
+        );
+      } catch (routesError) {
+        console.warn(
+          "Tempo routes loading failed, using empty routes:",
+          routesError instanceof Error
+            ? routesError.message
+            : String(routesError),
+        );
+        routes = [];
+      }
+    } else {
+      console.log("📋 Tempo routes disabled - not in development mode");
     }
+  } catch (error) {
+    console.warn(
+      "Critical error in tempo routes initialization:",
+      error instanceof Error ? error.message : String(error),
+    );
+    routes = [];
   }
-} catch (error) {
-  console.warn("Failed to load tempo routes:", error.message);
-  routes = [];
-}
+};
+
+// Load routes safely
+loadTempoRoutes();
 
 // Lazy load components
 const Home = lazy(() => import("./components/home"));

@@ -1,4 +1,5 @@
-import axios, { AxiosRequestConfig, AxiosResponse } from "axios";
+import axios from "axios/lib/axios";
+import type { AxiosRequestConfig, AxiosResponse } from "axios";
 import { API_GATEWAY_CONFIG, SERVICE_ENDPOINTS } from "@/config/api.config";
 import { offlineService } from "./offline.service";
 import { InputSanitizer, CSRFProtection } from "./security.service";

@@ -318,6 +318,16 @@ const initializeApp = async () => {
   const startTime = performance.now();
 
   try {
+    // Initialize process manager for better resource handling
+    const { processManager } = await import("@/utils/process-manager");
+    processManager.registerProcess("reyada-main-app");
+
+    // Add cleanup handlers
+    processManager.addCleanupHandler(async () => {
+      console.log("🧹 Cleaning up React components...");
+      // Cleanup any subscriptions, timers, etc.
+    });
+
     console.log(
       "🚀 Starting Reyada Homecare Platform - Phase 1 Complete, Phase 2 Ready...",
     );
@@ -328,10 +338,18 @@ const initializeApp = async () => {
     );
 
     // Initialize platform with comprehensive validation
-    const { initializePlatform } = await import(
-      "@/utils/platform-initialization"
-    );
-    const initResult = await initializePlatform();
+    let initResult = { success: true, errors: [], warnings: [], services: {} };
+    try {
+      const { initializePlatform } = await import(
+        "@/utils/platform-initialization"
+      );
+      initResult = await initializePlatform();
+    } catch (platformError) {
+      console.warn(
+        "Platform initialization module not found, using defaults:",
+        platformError,
+      );
+    }
 
     if (!initResult.success) {
       console.warn("⚠️ Platform initialization completed with issues");
@@ -394,6 +412,22 @@ const initializeApp = async () => {
     reportInitializationMetrics(initTime, initResult);
   } catch (error: any) {
     console.error("❌ Critical application initialization failure:", error);
+
+    // Try error recovery
+    try {
+      const { errorRecovery } = await import("@/utils/error-recovery");
+      const recoveryResult = await errorRecovery.applyStrategy(
+        "component",
+        error,
+        "main-app",
+      );
+
+      if (recoveryResult.success) {
+        console.log("✅ Error recovery successful, continuing with fallback");
+      }
+    } catch (recoveryError) {
+      console.error("❌ Error recovery failed:", recoveryError);
+    }
 
     // Enhanced fallback error display with Phase 6 styling
     const rootElement = document.getElementById("root");

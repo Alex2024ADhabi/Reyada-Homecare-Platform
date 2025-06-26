@@ -1,5 +1,6 @@
 // Authentication & Authorization Configuration
 // Centralized authentication system configuration for Reyada Homecare Platform
+// P1-003: Multi-Factor Authentication Implementation - IMPLEMENTED
 
 export interface AuthConfig {
   provider: "supabase" | "custom" | "oauth";
@@ -315,7 +316,7 @@ export const HEALTHCARE_ROLES: UserRole[] = [
   },
 ];
 
-// Authentication configuration
+// Authentication configuration with enhanced MFA
 export const AUTH_CONFIG: AuthConfig = {
   provider: "supabase",
   sessionTimeout: 1800000, // 30 minutes
@@ -334,6 +335,94 @@ export const AUTH_CONFIG: AuthConfig = {
     expiryDays: 90,
   },
 };
+
+// Enhanced MFA Configuration
+export const MFA_CONFIG = {
+  enabled: true,
+  methods: {
+    totp: {
+      enabled: true,
+      issuer: "Reyada Homecare Platform",
+      algorithm: "SHA1",
+      digits: 6,
+      period: 30,
+      window: 1,
+    },
+    sms: {
+      enabled: true,
+      provider: "twilio",
+      codeLength: 6,
+      expiryMinutes: 5,
+      maxAttempts: 3,
+    },
+    email: {
+      enabled: true,
+      codeLength: 8,
+      expiryMinutes: 10,
+      maxAttempts: 3,
+    },
+    backup_codes: {
+      enabled: true,
+      count: 10,
+      length: 8,
+      oneTimeUse: true,
+    },
+  },
+  enforcement: {
+    adminRoles: ["super_admin", "clinical_director", "quality_manager"],
+    clinicalRoles: ["physician", "registered_nurse", "therapist"],
+    gracePeriodDays: 7,
+    bypassEmergency: true,
+  },
+  riskBasedAuth: {
+    enabled: true,
+    factors: {
+      location: { weight: 0.3, enabled: true },
+      device: { weight: 0.2, enabled: true },
+      timeOfDay: { weight: 0.1, enabled: true },
+      accessPattern: { weight: 0.4, enabled: true },
+    },
+    thresholds: {
+      low: 0.3,
+      medium: 0.6,
+      high: 0.8,
+    },
+  },
+} as const;
+
+// API Rate Limiting Configuration - P1-006
+export const RATE_LIMITING_CONFIG = {
+  enabled: true,
+  global: {
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    maxRequests: 1000,
+    message: "Too many requests from this IP",
+  },
+  endpoints: {
+    "/api/auth/login": {
+      windowMs: 15 * 60 * 1000,
+      maxRequests: 5,
+      skipSuccessfulRequests: true,
+    },
+    "/api/auth/mfa/verify": {
+      windowMs: 5 * 60 * 1000,
+      maxRequests: 10,
+      skipSuccessfulRequests: true,
+    },
+    "/api/patients": {
+      windowMs: 60 * 1000,
+      maxRequests: 100,
+      skipSuccessfulRequests: false,
+    },
+    "/api/clinical-forms": {
+      windowMs: 60 * 1000,
+      maxRequests: 50,
+      skipSuccessfulRequests: false,
+    },
+  },
+  bypassRoles: ["super_admin"],
+  trustProxy: true,
+} as const;
 
 // DOH Compliance Requirements
 export const DOH_AUTH_REQUIREMENTS = {

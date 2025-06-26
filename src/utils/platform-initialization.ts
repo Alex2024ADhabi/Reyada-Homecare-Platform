@@ -1,9 +1,12 @@
 // Platform Initialization Utilities
 // Centralized initialization logic for the Reyada Homecare Platform
 
-import { environmentValidator } from "@/config/environment.config";
-import { buildConfigValidator } from "@/config/build.config";
-import { SecurityService } from "@/services/security.service";
+import { environmentValidator } from "@/utils/environment-validator";
+import { smartComputationEngine } from "@/engines/computation.engine";
+import { formGenerationEngine } from "@/engines/form-generation.engine";
+import { workflowEngine } from "@/engines/workflow.engine";
+import { platformOrchestratorService } from "@/services/platform-orchestrator.service";
+import { aiHubService } from "@/services/ai-hub.service";
 
 export interface InitializationResult {
   success: boolean;
@@ -11,10 +14,11 @@ export interface InitializationResult {
   warnings: string[];
   services: {
     environment: boolean;
-    build: boolean;
-    security: boolean;
+    engines: boolean;
+    orchestrator: boolean;
     tempo: boolean;
     database: boolean;
+    aiHub: boolean;
   };
   performance: {
     initTime: number;
@@ -46,10 +50,11 @@ export class PlatformInitializer {
       warnings: [],
       services: {
         environment: false,
-        build: false,
-        security: false,
+        engines: false,
+        orchestrator: false,
         tempo: false,
         database: false,
+        aiHub: false,
       },
       performance: {
         initTime: 0,
@@ -62,20 +67,24 @@ export class PlatformInitializer {
       console.log("🔧 Phase 1: Validating environment configuration...");
       await this.initializeEnvironment(result);
 
-      // Phase 2: Build Configuration Validation
-      console.log("🏗️ Phase 2: Validating build configuration...");
-      await this.initializeBuildSystem(result);
+      // Phase 2: Dynamic Engines Initialization
+      console.log("⚙️ Phase 2: Initializing dynamic engines...");
+      await this.initializeEngines(result);
 
-      // Phase 3: Security Initialization
-      console.log("🔒 Phase 3: Initializing security services...");
-      await this.initializeSecurity(result);
+      // Phase 3: Platform Orchestrator Initialization
+      console.log("🎯 Phase 3: Initializing platform orchestrator...");
+      await this.initializeOrchestrator(result);
 
       // Phase 4: Tempo Integration
       console.log("⚡ Phase 4: Setting up Tempo integration...");
       await this.initializeTempo(result);
 
-      // Phase 5: Database Schema Validation
-      console.log("🗄️ Phase 5: Validating database schema...");
+      // Phase 5: AI Hub Initialization
+      console.log("🤖 Phase 5: Initializing AI Hub...");
+      await this.initializeAIHub(result);
+
+      // Phase 6: Database Schema Validation
+      console.log("🗄️ Phase 6: Validating database schema...");
       await this.initializeDatabase(result);
 
       // Calculate performance metrics
@@ -200,6 +209,27 @@ export class PlatformInitializer {
     return { errors, warnings };
   }
 
+  private async initializeAIHub(result: InitializationResult): Promise<void> {
+    try {
+      console.log("   🤖 Starting AI Hub initialization...");
+      await aiHubService.initialize();
+
+      // Verify AI Hub health
+      const isHealthy = await aiHubService.healthCheck();
+      if (isHealthy) {
+        result.services.aiHub = true;
+        console.log("   ✅ AI Hub initialized successfully");
+      } else {
+        result.warnings.push("AI Hub initialized but health check failed");
+        result.services.aiHub = false;
+        console.warn("   ⚠️ AI Hub health check failed");
+      }
+    } catch (error: any) {
+      result.errors.push(`AI Hub initialization failed: ${error.message}`);
+      console.error("   ❌ AI Hub initialization failed:", error);
+    }
+  }
+
   private validateSecurityConfiguration(
     errors: string[],
     warnings: string[],
@@ -283,41 +313,56 @@ export class PlatformInitializer {
     console.log(`     API Base URL: ${config.API_BASE_URL || "Not set"}`);
   }
 
-  private async initializeBuildSystem(
-    result: InitializationResult,
-  ): Promise<void> {
+  private async initializeEngines(result: InitializationResult): Promise<void> {
     try {
-      const buildStatus = buildConfigValidator.getStatusReport();
+      console.log("   🧠 Initializing Smart Computation Engine...");
+      await smartComputationEngine.initialize();
 
-      if (buildStatus.status === "error") {
-        result.errors.push(...buildStatus.details.errors);
-      }
+      console.log("   📝 Initializing Form Generation Engine...");
+      await formGenerationEngine.initialize();
 
-      if (buildStatus.status === "warning") {
-        result.warnings.push(...buildStatus.details.warnings);
-      }
+      console.log("   🔄 Initializing Workflow Engine...");
+      await workflowEngine.initialize();
 
-      result.services.build = buildStatus.status !== "error";
-      console.log(
-        `   Build System: ${buildStatus.status.toUpperCase()} - ${buildStatus.message}`,
-      );
+      result.services.engines = true;
+      console.log("   ✅ All dynamic engines initialized successfully");
     } catch (error: any) {
-      result.errors.push(`Build system validation failed: ${error.message}`);
-      console.error("   ❌ Build system validation failed:", error);
+      result.errors.push(`Engine initialization failed: ${error.message}`);
+      console.error("   ❌ Engine initialization failed:", error);
     }
   }
 
-  private async initializeSecurity(
+  private async initializeOrchestrator(
     result: InitializationResult,
   ): Promise<void> {
     try {
-      const securityService = SecurityService.getInstance();
-      await securityService.initialize();
-      result.services.security = true;
-      console.log("   ✅ Security services initialized");
+      console.log("   🎯 Starting platform orchestration...");
+      const orchestrationReport =
+        await platformOrchestratorService.executeComprehensiveOrchestration();
+
+      if (orchestrationReport.isProductionReady) {
+        result.services.orchestrator = true;
+        console.log(
+          "   ✅ Platform orchestrator initialized - Production Ready!",
+        );
+      } else {
+        result.warnings.push(
+          `Platform orchestration completed with ${orchestrationReport.completionPercentage}% completion`,
+        );
+        result.services.orchestrator =
+          orchestrationReport.completionPercentage >= 90;
+        console.log(
+          `   ⚠️ Platform orchestrator initialized - ${orchestrationReport.completionPercentage}% complete`,
+        );
+      }
     } catch (error: any) {
-      result.errors.push(`Security initialization failed: ${error.message}`);
-      console.error("   ❌ Security initialization failed:", error);
+      result.errors.push(
+        `Platform orchestrator initialization failed: ${error.message}`,
+      );
+      console.error(
+        "   ❌ Platform orchestrator initialization failed:",
+        error,
+      );
     }
   }
 
@@ -481,7 +526,17 @@ export class PlatformInitializer {
 
     console.log("\n🔧 Service Status:");
     Object.entries(result.services).forEach(([service, status]) => {
-      console.log(`   ${service}: ${status ? "✅" : "❌"}`);
+      const serviceNames = {
+        environment: "Environment Validation",
+        engines: "Dynamic Engines",
+        orchestrator: "Platform Orchestrator",
+        tempo: "Tempo Integration",
+        database: "Database Schema",
+        aiHub: "AI Hub Service",
+      };
+      console.log(
+        `   ${serviceNames[service as keyof typeof serviceNames] || service}: ${status ? "✅" : "❌"}`,
+      );
     });
 
     if (result.errors.length > 0) {

@@ -281,6 +281,66 @@ export type Database = {
           },
         ];
       };
+      episode_care_team: {
+        Row: {
+          id: string;
+          episode_id: string;
+          user_id: string;
+          role: string;
+          responsibilities: string[];
+          is_primary: boolean;
+          status: string;
+          start_date: string;
+          end_date: string | null;
+          notes: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          episode_id: string;
+          user_id: string;
+          role: string;
+          responsibilities: string[];
+          is_primary?: boolean;
+          status?: string;
+          start_date?: string;
+          end_date?: string | null;
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          episode_id?: string;
+          user_id?: string;
+          role?: string;
+          responsibilities?: string[];
+          is_primary?: boolean;
+          status?: string;
+          start_date?: string;
+          end_date?: string | null;
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "episode_care_team_episode_id_fkey";
+            columns: ["episode_id"];
+            isOneToOne: false;
+            referencedRelation: "episodes";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "episode_care_team_user_id_fkey";
+            columns: ["user_id"];
+            isOneToOne: false;
+            referencedRelation: "user_profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       user_profiles: {
         Row: {
           id: string;
