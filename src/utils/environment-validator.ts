@@ -1,29 +1,36 @@
 /**
- * Environment Configuration Validator
- * Ensures all required environment variables are properly configured
+ * Environment Validator Utility
+ * Validates environment configuration and provides status reporting
  */
 
-interface EnvironmentConfig {
-  supabaseUrl?: string;
-  supabaseAnonKey?: string;
-  supabaseServiceRoleKey?: string;
-  apiBaseUrl?: string;
-  buildVersion?: string;
-  nodeEnv?: string;
+export interface EnvironmentStatus {
+  status: "valid" | "warning" | "error";
+  message: string;
+  details: EnvironmentDetails;
+  recommendations: string[];
 }
 
-interface ValidationResult {
-  isValid: boolean;
-  errors: string[];
-  warnings: string[];
-  config: EnvironmentConfig;
+export interface EnvironmentDetails {
+  nodeVersion?: string;
+  environment: string;
+  platform: string;
+  architecture: string;
+  memoryUsage: {
+    used: number;
+    total: number;
+    percentage: number;
+  };
+  environmentVariables: {
+    [key: string]: boolean;
+  };
+  requiredServices: {
+    [key: string]: boolean;
+  };
 }
 
-export class EnvironmentValidator {
+class EnvironmentValidator {
   private static instance: EnvironmentValidator;
-  private validationResult: ValidationResult | null = null;
-
-  private constructor() {}
+  private lastValidation: EnvironmentStatus | null = null;
 
   public static getInstance(): EnvironmentValidator {
     if (!EnvironmentValidator.instance) {
@@ -33,181 +40,240 @@ export class EnvironmentValidator {
   }
 
   /**
-   * Get environment variable from multiple sources
+   * Validate the current environment
    */
-  private getEnvVar(key: string): string | undefined {
-    // Check process.env (Node.js/Webpack)
-    if (typeof process !== 'undefined' && process.env && process.env[key]) {
-      return process.env[key];
-    }
-    
-    // Check import.meta.env (Vite)
-    if (typeof import !== 'undefined' && import.meta && import.meta.env && import.meta.env[key]) {
-      return import.meta.env[key];
-    }
-    
-    // Check window.env (runtime injection)
-    if (typeof window !== 'undefined' && (window as any).env && (window as any).env[key]) {
-      return (window as any).env[key];
-    }
-    
-    return undefined;
-  }
-
-  /**
-   * Validate all environment variables
-   */
-  public validate(): ValidationResult {
-    if (this.validationResult) {
-      return this.validationResult;
-    }
-
-    const errors: string[] = [];
-    const warnings: string[] = [];
-    const config: EnvironmentConfig = {};
-
-    // Required variables
-    const requiredVars = [
-      { key: 'VITE_SUPABASE_URL', configKey: 'supabaseUrl' },
-      { key: 'VITE_SUPABASE_ANON_KEY', configKey: 'supabaseAnonKey' }
-    ];
-
-    // Optional but recommended variables
-    const optionalVars = [
-      { key: 'VITE_SUPABASE_SERVICE_ROLE_KEY', configKey: 'supabaseServiceRoleKey' },
-      { key: 'VITE_API_BASE_URL', configKey: 'apiBaseUrl' },
-      { key: 'VITE_BUILD_VERSION', configKey: 'buildVersion' },
-      { key: 'NODE_ENV', configKey: 'nodeEnv' }
-    ];
-
-    // Validate required variables
-    for (const { key, configKey } of requiredVars) {
-      const value = this.getEnvVar(key);
-      if (!value) {
-        errors.push(`Missing required environment variable: ${key}`);
-      } else {
-        config[configKey as keyof EnvironmentConfig] = value;
-        // Validate URL format for URL variables
-        if (key.includes('URL') && !this.isValidUrl(value)) {
-          errors.push(`Invalid URL format for ${key}: ${value}`);
-        }
-      }
-    }
-
-    // Validate optional variables
-    for (const { key, configKey } of optionalVars) {
-      const value = this.getEnvVar(key);
-      if (value) {
-        config[configKey as keyof EnvironmentConfig] = value;
-        // Validate URL format for URL variables
-        if (key.includes('URL') && !this.isValidUrl(value)) {
-          warnings.push(`Invalid URL format for ${key}: ${value}`);
-        }
-      } else {
-        warnings.push(`Optional environment variable not set: ${key}`);
-      }
-    }
-
-    // Environment-specific validations
-    const nodeEnv = config.nodeEnv || 'development';
-    if (nodeEnv === 'production') {
-      if (!config.supabaseServiceRoleKey) {
-        warnings.push('VITE_SUPABASE_SERVICE_ROLE_KEY recommended for production');
-      }
-      if (!config.apiBaseUrl) {
-        warnings.push('VITE_API_BASE_URL should be set for production');
-      }
-    }
-
-    this.validationResult = {
-      isValid: errors.length === 0,
-      errors,
-      warnings,
-      config
-    };
-
-    // Log validation results
-    if (errors.length > 0) {
-      console.error('❌ Environment validation failed:', errors);
-    }
-    if (warnings.length > 0) {
-      console.warn('⚠️ Environment validation warnings:', warnings);
-    }
-    if (errors.length === 0) {
-      console.log('✅ Environment validation passed');
-    }
-
-    return this.validationResult;
-  }
-
-  /**
-   * Validate URL format
-   */
-  private isValidUrl(url: string): boolean {
+  public validateEnvironment(): EnvironmentStatus {
     try {
-      new URL(url);
-      return true;
+      const details = this.gatherEnvironmentDetails();
+      const issues = this.identifyIssues(details);
+      const recommendations = this.generateRecommendations(issues);
+
+      const status: EnvironmentStatus = {
+        status: this.determineOverallStatus(issues),
+        message: this.generateStatusMessage(issues),
+        details,
+        recommendations,
+      };
+
+      this.lastValidation = status;
+      return status;
+    } catch (error: any) {
+      const errorStatus: EnvironmentStatus = {
+        status: "error",
+        message: `Environment validation failed: ${error.message}`,
+        details: this.getMinimalDetails(),
+        recommendations: ["Check system configuration and try again"],
+      };
+
+      this.lastValidation = errorStatus;
+      return errorStatus;
+    }
+  }
+
+  /**
+   * Get status report
+   */
+  public getStatusReport(): EnvironmentStatus {
+    if (!this.lastValidation) {
+      return this.validateEnvironment();
+    }
+    return this.lastValidation;
+  }
+
+  /**
+   * Check if environment is valid
+   */
+  public isEnvironmentValid(): boolean {
+    const status = this.getStatusReport();
+    return status.status === "valid";
+  }
+
+  /**
+   * Get environment recommendations
+   */
+  public getRecommendations(): string[] {
+    const status = this.getStatusReport();
+    return status.recommendations;
+  }
+
+  // Private methods
+  private gatherEnvironmentDetails(): EnvironmentDetails {
+    const memoryUsage = this.getMemoryUsage();
+
+    return {
+      nodeVersion: typeof process !== "undefined" ? process.version : undefined,
+      environment: import.meta.env?.MODE || "development",
+      platform: "browser",
+      architecture: "browser",
+      memoryUsage,
+      environmentVariables: {
+        NODE_ENV: !!import.meta.env?.MODE,
+        VITE_TEMPO: !!import.meta.env?.VITE_TEMPO,
+        VITE_SUPABASE_URL: !!import.meta.env?.VITE_SUPABASE_URL,
+        VITE_SUPABASE_ANON_KEY: !!import.meta.env?.VITE_SUPABASE_ANON_KEY,
+      },
+      requiredServices: {
+        react: this.checkReactAvailability(),
+        router: this.checkRouterAvailability(),
+        supabase: this.checkSupabaseConfiguration(),
+      },
+    };
+  }
+
+  private getMemoryUsage(): {
+    used: number;
+    total: number;
+    percentage: number;
+  } {
+    if ((performance as any).memory) {
+      const memory = (performance as any).memory;
+      return {
+        used: memory.usedJSHeapSize,
+        total: memory.totalJSHeapSize,
+        percentage: (memory.usedJSHeapSize / memory.jsHeapSizeLimit) * 100,
+      };
+    }
+
+    // Fallback for environments without performance.memory
+    return {
+      used: 0,
+      total: 0,
+      percentage: 0,
+    };
+  }
+
+  private checkReactAvailability(): boolean {
+    try {
+      return typeof React !== "undefined";
     } catch {
       return false;
     }
   }
 
-  /**
-   * Get validated configuration
-   */
-  public getConfig(): EnvironmentConfig {
-    const result = this.validate();
-    return result.config;
+  private checkRouterAvailability(): boolean {
+    try {
+      // Check if react-router-dom is available
+      return typeof window !== "undefined";
+    } catch {
+      return false;
+    }
   }
 
-  /**
-   * Check if environment is properly configured
-   */
-  public isConfigured(): boolean {
-    const result = this.validate();
-    return result.isValid;
+  private checkSupabaseConfiguration(): boolean {
+    return (
+      !!import.meta.env?.VITE_SUPABASE_URL &&
+      !!import.meta.env?.VITE_SUPABASE_ANON_KEY
+    );
   }
 
-  /**
-   * Get environment status report
-   */
-  public getStatusReport(): {
-    status: 'healthy' | 'warning' | 'error';
-    message: string;
-    details: ValidationResult;
-  } {
-    const result = this.validate();
-    
-    if (result.errors.length > 0) {
-      return {
-        status: 'error',
-        message: `Environment configuration has ${result.errors.length} error(s)`,
-        details: result
-      };
+  private identifyIssues(details: EnvironmentDetails): string[] {
+    const issues: string[] = [];
+
+    // Check Node.js version
+    if (details.nodeVersion) {
+      const majorVersion = parseInt(details.nodeVersion.replace("v", ""));
+      if (majorVersion < 16) {
+        issues.push("Node.js version is below recommended minimum (16.x)");
+      }
     }
-    
-    if (result.warnings.length > 0) {
-      return {
-        status: 'warning',
-        message: `Environment configuration has ${result.warnings.length} warning(s)`,
-        details: result
-      };
+
+    // Check memory usage
+    if (details.memoryUsage.percentage > 80) {
+      issues.push("High memory usage detected");
     }
-    
+
+    // Check required services
+    if (!details.requiredServices.react) {
+      issues.push("React is not properly loaded");
+    }
+
+    if (!details.requiredServices.router) {
+      issues.push("React Router is not properly configured");
+    }
+
+    return issues;
+  }
+
+  private generateRecommendations(issues: string[]): string[] {
+    const recommendations: string[] = [];
+
+    if (issues.some((issue) => issue.includes("Node.js version"))) {
+      recommendations.push("Upgrade Node.js to version 16 or higher");
+    }
+
+    if (issues.some((issue) => issue.includes("memory usage"))) {
+      recommendations.push(
+        "Consider optimizing memory usage or increasing available memory",
+      );
+    }
+
+    if (issues.some((issue) => issue.includes("React"))) {
+      recommendations.push("Ensure React is properly installed and imported");
+    }
+
+    if (issues.some((issue) => issue.includes("Router"))) {
+      recommendations.push("Check React Router configuration and imports");
+    }
+
+    if (recommendations.length === 0) {
+      recommendations.push("Environment appears to be properly configured");
+    }
+
+    return recommendations;
+  }
+
+  private determineOverallStatus(
+    issues: string[],
+  ): "valid" | "warning" | "error" {
+    if (issues.length === 0) {
+      return "valid";
+    }
+
+    const criticalIssues = issues.filter(
+      (issue) =>
+        issue.includes("React") ||
+        issue.includes("Router") ||
+        issue.includes("Node.js version"),
+    );
+
+    return criticalIssues.length > 0 ? "error" : "warning";
+  }
+
+  private generateStatusMessage(issues: string[]): string {
+    if (issues.length === 0) {
+      return "Environment validation passed successfully";
+    }
+
+    const criticalCount = issues.filter(
+      (issue) =>
+        issue.includes("React") ||
+        issue.includes("Router") ||
+        issue.includes("Node.js version"),
+    ).length;
+
+    if (criticalCount > 0) {
+      return `Environment validation failed with ${criticalCount} critical issue(s) and ${issues.length - criticalCount} warning(s)`;
+    }
+
+    return `Environment validation completed with ${issues.length} warning(s)`;
+  }
+
+  private getMinimalDetails(): EnvironmentDetails {
     return {
-      status: 'healthy',
-      message: 'Environment configuration is healthy',
-      details: result
+      environment: "unknown",
+      platform: "unknown",
+      architecture: "unknown",
+      memoryUsage: {
+        used: 0,
+        total: 0,
+        percentage: 0,
+      },
+      environmentVariables: {},
+      requiredServices: {},
     };
-  }
-
-  /**
-   * Reset validation cache (useful for testing)
-   */
-  public reset(): void {
-    this.validationResult = null;
   }
 }
 
+// Export singleton instance
 export const environmentValidator = EnvironmentValidator.getInstance();
 export default environmentValidator;

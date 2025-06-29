@@ -21,7 +21,6 @@
     "noImplicitThis": false,
     "alwaysStrict": true,
     "noImplicitOverride": false,
-    "skipLibCheck": true,
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": false,
     "resolveJsonModule": true,
@@ -34,18 +33,18 @@
       "tempo-routes": ["./src/tempobook/routes.js"]
     },
     "typeRoots": ["./node_modules/@types", "./src/types"],
-    "types": ["@testing-library/jest-dom", "node"],
+    "types": ["vite/client", "node"],
     "moduleDetection": "force",
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
-    "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true
   },
   "include": [
     "src/**/*",
     "src/**/*.tsx",
     "src/**/*.ts",
-    "*.d.ts"
+    "*.d.ts",
+    "vite.config.ts"
   ],
   "exclude": [
     "node_modules",
@@ -54,9 +53,7 @@
     "**/*.test.ts",
     "**/*.test.tsx",
     "**/*.spec.ts",
-    "**/*.spec.tsx",
-
-    "webpack.config.cjs"
+    "**/*.spec.tsx"
   ],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

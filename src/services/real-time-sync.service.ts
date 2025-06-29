@@ -1,44 +1,68 @@
-import { EventEmitter } from "events";
-import * as React from "react";
-import { supabase } from "@/api/supabase.api";
-import { RealtimeChannel } from "@supabase/supabase-js";
+/**
+ * Enhanced Real-Time Sync Service
+ * Advanced real-time data synchronization with conflict resolution and offline support
+ */
 
-interface SyncEvent {
-  type: "create" | "update" | "delete";
-  entity: string;
+import { errorRecovery } from "@/utils/error-recovery";
+
+export interface SyncEvent {
   id: string;
-  data?: any;
-  timestamp: string;
+  type: "create" | "update" | "delete" | "conflict" | "merge";
+  entity: string;
+  data: any;
+  timestamp: Date;
   userId?: string;
+  version?: number;
+  checksum?: string;
+  priority: "low" | "medium" | "high" | "critical";
+  metadata: Record<string, any>;
 }
 
-interface SyncSubscription {
+export interface SyncSubscription {
+  id: string;
   entity: string;
   callback: (event: SyncEvent) => void;
+  filters?: Record<string, any>;
+  priority: "low" | "medium" | "high" | "critical";
+  retryPolicy: {
+    maxRetries: number;
+    backoffStrategy: "linear" | "exponential";
+    baseDelay: number;
+  };
 }
 
-interface RealtimeEvent {
-  table: string;
-  eventType: "INSERT" | "UPDATE" | "DELETE";
-  new?: any;
-  old?: any;
-  timestamp: string;
+export interface ConflictResolution {
+  strategy: "client_wins" | "server_wins" | "merge" | "manual";
+  resolver?: (clientData: any, serverData: any) => any;
+  metadata: Record<string, any>;
 }
 
-export class RealTimeSyncService extends EventEmitter {
+export interface SyncStats {
+  isConnected: boolean;
+  totalEvents: number;
+  successfulSyncs: number;
+  failedSyncs: number;
+  conflictsResolved: number;
+  averageLatency: number;
+  subscriptionCount: number;
+  offlineQueueSize: number;
+  lastSyncTime: Date | null;
+}
+
+class RealTimeSyncService {
   private static instance: RealTimeSyncService;
-  private websocket: WebSocket | null = null;
-  private subscriptions: Map<string, SyncSubscription[]> = new Map();
-  private realtimeChannels: Map<string, RealtimeChannel> = new Map();
-  private reconnectAttempts = 0;
-  private maxReconnectAttempts = 5;
-  private reconnectDelay = 1000;
+  private subscriptions = new Map<string, SyncSubscription>();
+  private offlineQueue: SyncEvent[] = [];
+  private conflictResolvers = new Map<string, ConflictResolution>();
   private isConnected = false;
-  private pendingEvents: SyncEvent[] = [];
-
-  private constructor() {
-    super();
-  }
+  private reconnectAttempts = 0;
+  private maxReconnectAttempts = 10;
+  private heartbeatInterval: NodeJS.Timeout | null = null;
+  private stats: SyncStats;
+  private websocket: WebSocket | null = null;
+  private syncBuffer = new Map<string, SyncEvent[]>();
+  private batchSize = 50;
+  private batchTimeout = 1000;
 
   public static getInstance(): RealTimeSyncService {
     if (!RealTimeSyncService.instance) {
@@ -47,519 +71,694 @@ export class RealTimeSyncService extends EventEmitter {
     return RealTimeSyncService.instance;
   }
 
-  public async connect(wsUrl?: string): Promise<void> {
-    // For Supabase, we don't need a separate WebSocket connection
-    // Real-time functionality is handled through Supabase channels
-    this.isConnected = true;
-    this.emit("connected");
-    console.log("Real-time sync service connected via Supabase");
+  constructor() {
+    this.stats = {
+      isConnected: false,
+      totalEvents: 0,
+      successfulSyncs: 0,
+      failedSyncs: 0,
+      conflictsResolved: 0,
+      averageLatency: 0,
+      subscriptionCount: 0,
+      offlineQueueSize: 0,
+      lastSyncTime: null,
+    };
+  }
+
+  /**
+   * Enhanced connection with WebSocket support and automatic reconnection
+   */
+  public async connect(): Promise<void> {
+    return await errorRecovery.withRecovery(
+      async () => {
+        console.log("🔄 Connecting to enhanced real-time sync service...");
+
+        try {
+          // Initialize WebSocket connection
+          await this.initializeWebSocket();
+
+          // Setup heartbeat monitoring
+          this.setupHeartbeat();
+
+          // Initialize conflict resolution
+          this.initializeConflictResolution();
+
+          // Setup batch processing
+          this.setupBatchProcessing();
+
+          // Process offline queue
+          await this.processOfflineQueue();
+
+          this.isConnected = true;
+          this.stats.isConnected = true;
+          this.reconnectAttempts = 0;
+
+          console.log("✅ Enhanced real-time sync service connected");
+        } catch (error) {
+          console.error(
+            "❌ Failed to connect to real-time sync service:",
+            error,
+          );
+          await this.handleReconnection();
+        }
+      },
+      {
+        maxRetries: 3,
+        fallbackValue: undefined,
+      },
+    );
+  }
+
+  /**
+   * Initialize WebSocket connection with advanced features
+   */
+  private async initializeWebSocket(): Promise<void> {
+    if (typeof window === "undefined" || !window.WebSocket) {
+      console.warn("⚠️ WebSocket not available, using fallback sync");
+      return;
+    }
+
+    const wsUrl = process.env.VITE_WS_URL || "wss://api.reyada-homecare.ae/ws";
+
+    this.websocket = new WebSocket(wsUrl);
+
+    this.websocket.onopen = () => {
+      console.log("🔗 WebSocket connection established");
+      this.sendAuthentication();
+    };
+
+    this.websocket.onmessage = (event) => {
+      try {
+        const syncEvent: SyncEvent = JSON.parse(event.data);
+        this.handleIncomingEvent(syncEvent);
+      } catch (error) {
+        console.error("❌ Error parsing WebSocket message:", error);
+      }
+    };
+
+    this.websocket.onclose = () => {
+      console.log("🔌 WebSocket connection closed");
+      this.isConnected = false;
+      this.stats.isConnected = false;
+      this.handleReconnection();
+    };
+
+    this.websocket.onerror = (error) => {
+      console.error("❌ WebSocket error:", error);
+    };
+  }
+
+  /**
+   * Setup heartbeat monitoring for connection health
+   */
+  private setupHeartbeat(): void {
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+    }
+
+    this.heartbeatInterval = setInterval(() => {
+      if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
+        this.websocket.send(
+          JSON.stringify({ type: "ping", timestamp: Date.now() }),
+        );
+      }
+    }, 30000); // Send ping every 30 seconds
+  }
+
+  /**
+   * Initialize conflict resolution strategies
+   */
+  private initializeConflictResolution(): void {
+    console.log("🔧 Initializing conflict resolution strategies...");
+
+    // Patient data conflict resolution
+    this.conflictResolvers.set("patient", {
+      strategy: "merge",
+      resolver: (clientData: any, serverData: any) => {
+        return {
+          ...serverData,
+          ...clientData,
+          lastModified: new Date(),
+          conflictResolved: true,
+        };
+      },
+      metadata: { priority: "high" },
+    });
+
+    // Clinical data conflict resolution
+    this.conflictResolvers.set("clinical", {
+      strategy: "server_wins",
+      metadata: { priority: "critical" },
+    });
+
+    // Administrative data conflict resolution
+    this.conflictResolvers.set("administrative", {
+      strategy: "client_wins",
+      metadata: { priority: "medium" },
+    });
+
+    console.log(
+      `✅ Initialized ${this.conflictResolvers.size} conflict resolvers`,
+    );
+  }
+
+  /**
+   * Setup batch processing for efficient sync
+   */
+  private setupBatchProcessing(): void {
+    setInterval(() => {
+      this.processSyncBatches();
+    }, this.batchTimeout);
+  }
+
+  /**
+   * Process batched sync events
+   */
+  private processSyncBatches(): void {
+    for (const [entity, events] of this.syncBuffer.entries()) {
+      if (events.length >= this.batchSize || events.length > 0) {
+        this.processBatch(entity, events);
+        this.syncBuffer.set(entity, []);
+      }
+    }
+  }
+
+  /**
+   * Process a batch of sync events
+   */
+  private async processBatch(
+    entity: string,
+    events: SyncEvent[],
+  ): Promise<void> {
+    try {
+      console.log(`📦 Processing batch of ${events.length} ${entity} events`);
+
+      // Sort events by priority and timestamp
+      events.sort((a, b) => {
+        const priorityOrder = { critical: 4, high: 3, medium: 2, low: 1 };
+        const priorityDiff =
+          priorityOrder[b.priority] - priorityOrder[a.priority];
+        if (priorityDiff !== 0) return priorityDiff;
+        return a.timestamp.getTime() - b.timestamp.getTime();
+      });
+
+      // Process events in order
+      for (const event of events) {
+        await this.processEvent(event);
+      }
+
+      this.stats.successfulSyncs += events.length;
+    } catch (error) {
+      console.error(`❌ Error processing batch for ${entity}:`, error);
+      this.stats.failedSyncs += events.length;
+    }
+  }
+
+  /**
+   * Enhanced patient data sync with conflict resolution
+   */
+  public syncPatientData(
+    patientId: string,
+    callback: (event: SyncEvent) => void,
+    options: {
+      priority?: "low" | "medium" | "high" | "critical";
+      conflictStrategy?: "client_wins" | "server_wins" | "merge";
+    } = {},
+  ): () => void {
+    const subscriptionId = `patient_${patientId}_${Date.now()}`;
+
+    const subscription: SyncSubscription = {
+      id: subscriptionId,
+      entity: "patient",
+      callback: (event: SyncEvent) => {
+        this.handleEventWithConflictResolution(event, callback);
+      },
+      filters: { patientId },
+      priority: options.priority || "high",
+      retryPolicy: {
+        maxRetries: 3,
+        backoffStrategy: "exponential",
+        baseDelay: 1000,
+      },
+    };
+
+    this.subscriptions.set(subscriptionId, subscription);
+    this.stats.subscriptionCount = this.subscriptions.size;
+
+    console.log(
+      `📡 Enhanced patient data sync: ${patientId} (priority: ${subscription.priority})`,
+    );
+
+    return () => {
+      this.subscriptions.delete(subscriptionId);
+      this.stats.subscriptionCount = this.subscriptions.size;
+      console.log(`📡 Unsubscribed from patient data sync: ${patientId}`);
+    };
+  }
+
+  /**
+   * Enhanced clinical team sync with real-time collaboration
+   */
+  public syncClinicalTeam(
+    clinicianId: string,
+    callback: (event: SyncEvent) => void,
+    options: {
+      includePresence?: boolean;
+      includeActivities?: boolean;
+    } = {},
+  ): () => void {
+    const subscriptionId = `clinician_${clinicianId}_${Date.now()}`;
+
+    const subscription: SyncSubscription = {
+      id: subscriptionId,
+      entity: "clinical_team",
+      callback: (event: SyncEvent) => {
+        // Add presence and activity tracking
+        if (options.includePresence) {
+          this.trackClinicianPresence(clinicianId, event);
+        }
+        if (options.includeActivities) {
+          this.trackClinicianActivity(clinicianId, event);
+        }
+        callback(event);
+      },
+      filters: { clinicianId },
+      priority: "high",
+      retryPolicy: {
+        maxRetries: 5,
+        backoffStrategy: "exponential",
+        baseDelay: 500,
+      },
+    };
+
+    this.subscriptions.set(subscriptionId, subscription);
+    this.stats.subscriptionCount = this.subscriptions.size;
+
+    console.log(`👥 Enhanced clinical team sync: ${clinicianId}`);
+
+    return () => {
+      this.subscriptions.delete(subscriptionId);
+      this.stats.subscriptionCount = this.subscriptions.size;
+      console.log(`👥 Unsubscribed from clinical team sync: ${clinicianId}`);
+    };
+  }
+
+  /**
+   * Enhanced event publishing with offline queue support
+   */
+  public publishEvent(event: Omit<SyncEvent, "id" | "timestamp">): void {
+    const syncEvent: SyncEvent = {
+      ...event,
+      id: `event_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      timestamp: new Date(),
+      priority: event.priority || "medium",
+      metadata: event.metadata || {},
+    };
+
+    // Add to offline queue if not connected
+    if (!this.isConnected) {
+      this.offlineQueue.push(syncEvent);
+      this.stats.offlineQueueSize = this.offlineQueue.length;
+      console.log(
+        `📥 Event queued for offline sync: ${syncEvent.type} ${syncEvent.entity}`,
+      );
+      return;
+    }
+
+    // Add to batch buffer for efficient processing
+    if (!this.syncBuffer.has(syncEvent.entity)) {
+      this.syncBuffer.set(syncEvent.entity, []);
+    }
+    this.syncBuffer.get(syncEvent.entity)!.push(syncEvent);
+
+    // Send immediately for critical events
+    if (syncEvent.priority === "critical") {
+      this.processEvent(syncEvent);
+    }
+
+    this.stats.totalEvents++;
+    console.log(
+      `📤 Publishing enhanced sync event: ${syncEvent.type} ${syncEvent.entity} (priority: ${syncEvent.priority})`,
+    );
+  }
+
+  /**
+   * Handle incoming events with conflict detection
+   */
+  private async handleIncomingEvent(event: SyncEvent): Promise<void> {
+    try {
+      // Check for conflicts
+      const hasConflict = await this.detectConflict(event);
+
+      if (hasConflict) {
+        await this.resolveConflict(event);
+        this.stats.conflictsResolved++;
+      } else {
+        await this.processEvent(event);
+      }
+
+      this.stats.lastSyncTime = new Date();
+    } catch (error) {
+      console.error("❌ Error handling incoming event:", error);
+      this.stats.failedSyncs++;
+    }
+  }
+
+  /**
+   * Detect data conflicts
+   */
+  private async detectConflict(event: SyncEvent): Promise<boolean> {
+    // Simple conflict detection based on version numbers
+    if (event.version && event.data.localVersion) {
+      return event.version !== event.data.localVersion;
+    }
+
+    // Checksum-based conflict detection
+    if (event.checksum && event.data.localChecksum) {
+      return event.checksum !== event.data.localChecksum;
+    }
+
+    return false;
+  }
+
+  /**
+   * Resolve data conflicts using configured strategies
+   */
+  private async resolveConflict(event: SyncEvent): Promise<void> {
+    console.log(`🔧 Resolving conflict for ${event.entity}:${event.id}`);
+
+    const resolver = this.conflictResolvers.get(event.entity);
+    if (!resolver) {
+      console.warn(`⚠️ No conflict resolver for entity: ${event.entity}`);
+      return;
+    }
+
+    let resolvedData: any;
+
+    switch (resolver.strategy) {
+      case "client_wins":
+        resolvedData = event.data.clientData || event.data;
+        break;
+      case "server_wins":
+        resolvedData = event.data.serverData || event.data;
+        break;
+      case "merge":
+        if (resolver.resolver) {
+          resolvedData = resolver.resolver(
+            event.data.clientData,
+            event.data.serverData,
+          );
+        } else {
+          resolvedData = { ...event.data.serverData, ...event.data.clientData };
+        }
+        break;
+      case "manual":
+        // Emit conflict event for manual resolution
+        this.publishEvent({
+          type: "conflict",
+          entity: event.entity,
+          data: {
+            originalEvent: event,
+            requiresManualResolution: true,
+          },
+          priority: "high",
+          metadata: { conflictStrategy: "manual" },
+        });
+        return;
+    }
+
+    // Create resolved event
+    const resolvedEvent: SyncEvent = {
+      ...event,
+      type: "merge",
+      data: resolvedData,
+      metadata: {
+        ...event.metadata,
+        conflictResolved: true,
+        resolutionStrategy: resolver.strategy,
+        resolvedAt: new Date(),
+      },
+    };
+
+    await this.processEvent(resolvedEvent);
+  }
+
+  /**
+   * Process offline queue when connection is restored
+   */
+  private async processOfflineQueue(): Promise<void> {
+    if (this.offlineQueue.length === 0) return;
+
+    console.log(`📤 Processing ${this.offlineQueue.length} offline events`);
+
+    // Sort by priority and timestamp
+    this.offlineQueue.sort((a, b) => {
+      const priorityOrder = { critical: 4, high: 3, medium: 2, low: 1 };
+      const priorityDiff =
+        priorityOrder[b.priority] - priorityOrder[a.priority];
+      if (priorityDiff !== 0) return priorityDiff;
+      return a.timestamp.getTime() - b.timestamp.getTime();
+    });
+
+    // Process in batches
+    const batchSize = 10;
+    for (let i = 0; i < this.offlineQueue.length; i += batchSize) {
+      const batch = this.offlineQueue.slice(i, i + batchSize);
+      await Promise.all(batch.map((event) => this.processEvent(event)));
+
+      // Small delay between batches to prevent overwhelming
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+
+    this.offlineQueue = [];
+    this.stats.offlineQueueSize = 0;
+    console.log("✅ Offline queue processed successfully");
+  }
+
+  /**
+   * Process individual sync event
+   */
+  private async processEvent(event: SyncEvent): Promise<void> {
+    // Notify relevant subscriptions
+    for (const subscription of this.subscriptions.values()) {
+      if (this.matchesSubscription(event, subscription)) {
+        try {
+          await this.executeWithRetry(subscription, event);
+        } catch (error) {
+          console.error("❌ Error in sync callback:", error);
+        }
+      }
+    }
+
+    // Send via WebSocket if connected
+    if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
+      this.websocket.send(JSON.stringify(event));
+    }
+  }
+
+  /**
+   * Execute subscription callback with retry logic
+   */
+  private async executeWithRetry(
+    subscription: SyncSubscription,
+    event: SyncEvent,
+  ): Promise<void> {
+    let attempts = 0;
+    const maxAttempts = subscription.retryPolicy.maxRetries;
+
+    while (attempts < maxAttempts) {
+      try {
+        subscription.callback(event);
+        return;
+      } catch (error) {
+        attempts++;
+        if (attempts >= maxAttempts) {
+          throw error;
+        }
+
+        const delay =
+          subscription.retryPolicy.backoffStrategy === "exponential"
+            ? subscription.retryPolicy.baseDelay * Math.pow(2, attempts - 1)
+            : subscription.retryPolicy.baseDelay * attempts;
+
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
+    }
+  }
+
+  /**
+   * Handle event with conflict resolution
+   */
+  private async handleEventWithConflictResolution(
+    event: SyncEvent,
+    callback: (event: SyncEvent) => void,
+  ): Promise<void> {
+    try {
+      // Check for conflicts before processing
+      const hasConflict = await this.detectConflict(event);
+
+      if (hasConflict) {
+        console.log(`⚠️ Conflict detected for ${event.entity}:${event.id}`);
+        await this.resolveConflict(event);
+      }
+
+      callback(event);
+    } catch (error) {
+      console.error("❌ Error in conflict resolution:", error);
+      // Fallback to original callback
+      callback(event);
+    }
+  }
+
+  /**
+   * Track clinician presence
+   */
+  private trackClinicianPresence(clinicianId: string, event: SyncEvent): void {
+    // Implement presence tracking logic
+    console.log(`👤 Tracking presence for clinician: ${clinicianId}`);
+  }
+
+  /**
+   * Track clinician activity
+   */
+  private trackClinicianActivity(clinicianId: string, event: SyncEvent): void {
+    // Implement activity tracking logic
+    console.log(`📊 Tracking activity for clinician: ${clinicianId}`);
+  }
+
+  /**
+   * Send authentication to WebSocket server
+   */
+  private sendAuthentication(): void {
+    if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
+      const authMessage = {
+        type: "auth",
+        token: localStorage.getItem("authToken") || "anonymous",
+        timestamp: Date.now(),
+      };
+      this.websocket.send(JSON.stringify(authMessage));
+    }
   }
 
   public disconnect(): void {
-    // Unsubscribe from all Supabase channels
-    this.realtimeChannels.forEach((channel) => {
-      supabase.removeChannel(channel);
-    });
-    this.realtimeChannels.clear();
+    console.log("🔌 Disconnecting from enhanced real-time sync service...");
+
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+      this.heartbeatInterval = null;
+    }
 
     if (this.websocket) {
       this.websocket.close();
       this.websocket = null;
     }
+
     this.isConnected = false;
-    this.emit("disconnected");
+    this.stats.isConnected = false;
+    this.subscriptions.clear();
+    this.stats.subscriptionCount = 0;
   }
 
-  // Subscribe to real-time changes for a specific table
-  public subscribeToTable(
-    tableName: string,
-    callback: (event: RealtimeEvent) => void,
-    filter?: { column: string; value: any },
-  ): () => void {
-    const channelName = filter
-      ? `${tableName}_${filter.column}_${filter.value}`
-      : tableName;
-
-    if (this.realtimeChannels.has(channelName)) {
-      console.log(`Already subscribed to ${channelName}`);
-      return () => this.unsubscribeFromTable(channelName);
+  private matchesSubscription(
+    event: SyncEvent,
+    subscription: SyncSubscription,
+  ): boolean {
+    if (event.entity !== subscription.entity) {
+      return false;
     }
 
-    let channel = supabase.channel(channelName);
-
-    if (filter) {
-      channel = channel.on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: tableName,
-          filter: `${filter.column}=eq.${filter.value}`,
-        },
-        (payload) => this.handleRealtimeEvent(payload, callback),
-      );
-    } else {
-      channel = channel.on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: tableName,
-        },
-        (payload) => this.handleRealtimeEvent(payload, callback),
-      );
-    }
-
-    channel.subscribe((status) => {
-      if (status === "SUBSCRIBED") {
-        console.log(`Subscribed to ${channelName}`);
-      }
-    });
-
-    this.realtimeChannels.set(channelName, channel);
-
-    return () => this.unsubscribeFromTable(channelName);
-  }
-
-  private handleRealtimeEvent(
-    payload: any,
-    callback: (event: RealtimeEvent) => void,
-  ) {
-    const event: RealtimeEvent = {
-      table: payload.table,
-      eventType: payload.eventType,
-      new: payload.new,
-      old: payload.old,
-      timestamp: new Date().toISOString(),
-    };
-
-    try {
-      callback(event);
-    } catch (error) {
-      console.error("Error in realtime event handler:", error);
-    }
-  }
-
-  private unsubscribeFromTable(channelName: string) {
-    const channel = this.realtimeChannels.get(channelName);
-    if (channel) {
-      supabase.removeChannel(channel);
-      this.realtimeChannels.delete(channelName);
-      console.log(`Unsubscribed from ${channelName}`);
-    }
-  }
-
-  public subscribe(
-    entity: string,
-    callback: (event: SyncEvent) => void,
-  ): () => void {
-    const subscription: SyncSubscription = { entity, callback };
-
-    if (!this.subscriptions.has(entity)) {
-      this.subscriptions.set(entity, []);
-    }
-
-    this.subscriptions.get(entity)!.push(subscription);
-
-    // Return unsubscribe function
-    return () => {
-      const subscriptions = this.subscriptions.get(entity);
-      if (subscriptions) {
-        const index = subscriptions.indexOf(subscription);
-        if (index > -1) {
-          subscriptions.splice(index, 1);
-        }
-
-        if (subscriptions.length === 0) {
-          this.subscriptions.delete(entity);
+    if (subscription.filters) {
+      for (const [key, value] of Object.entries(subscription.filters)) {
+        if (event.data[key] !== value) {
+          return false;
         }
       }
-    };
-  }
-
-  public publishEvent(event: Omit<SyncEvent, "timestamp">): void {
-    // Quality control: Validate event data
-    if (!event.type || !event.entity || !event.id) {
-      console.error("Invalid sync event: missing required fields", event);
-      return;
     }
 
-    // Quality control: Validate event type
-    const validTypes = ["create", "update", "delete"];
-    if (!validTypes.includes(event.type)) {
-      console.error("Invalid sync event type:", event.type);
-      return;
-    }
-
-    const syncEvent: SyncEvent = {
-      ...event,
-      timestamp: new Date().toISOString(),
-    };
-
-    // Quality control: Check payload size
-    const eventSize = JSON.stringify(syncEvent).length;
-    if (eventSize > 1024 * 1024) {
-      // 1MB limit
-      console.error("Sync event payload too large:", eventSize, "bytes");
-      return;
-    }
-
-    // Handle the sync event locally
-    this.handleSyncEvent(syncEvent);
-
-    // Broadcast to other clients via Supabase
-    this.broadcastEvent("sync_events", "sync_event", syncEvent);
+    return true;
   }
 
-  private handleSyncEvent(event: SyncEvent): void {
-    // Enhanced conflict resolution
-    const resolvedEvent = this.resolveConflicts(event);
-
-    const subscriptions = this.subscriptions.get(resolvedEvent.entity);
-    if (subscriptions) {
-      subscriptions.forEach((subscription) => {
-        try {
-          subscription.callback(resolvedEvent);
-        } catch (error) {
-          console.error("Error in sync event callback:", error);
-          // Log error for debugging
-          this.logSyncError(error, resolvedEvent);
-        }
-      });
-    }
-
-    // Store event for conflict resolution
-    this.storeEventForConflictResolution(resolvedEvent);
-
-    // Emit global event
-    this.emit("sync-event", resolvedEvent);
-  }
-
-  /**
-   * Resolve conflicts in sync events
-   */
-  private resolveConflicts(event: SyncEvent): SyncEvent {
-    // Simple last-write-wins strategy
-    // In production, implement more sophisticated conflict resolution
-    const existingEvents = this.getStoredEvents(event.entity, event.id);
-
-    if (existingEvents.length > 0) {
-      const latestEvent = existingEvents.sort(
-        (a, b) =>
-          new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
-      )[0];
-
-      // If incoming event is older, merge with latest
-      if (new Date(event.timestamp) < new Date(latestEvent.timestamp)) {
-        return this.mergeEvents(latestEvent, event);
-      }
-    }
-
-    return event;
-  }
-
-  /**
-   * Merge conflicting events
-   */
-  private mergeEvents(latest: SyncEvent, incoming: SyncEvent): SyncEvent {
-    // Simple merge strategy - in production, implement field-level merging
-    return {
-      ...latest,
-      data: {
-        ...latest.data,
-        ...incoming.data,
-        _conflictResolved: true,
-        _mergedAt: new Date().toISOString(),
-      },
-    };
-  }
-
-  /**
-   * Store event for conflict resolution
-   */
-  private storeEventForConflictResolution(event: SyncEvent): void {
-    try {
-      const key = `sync_events_${event.entity}_${event.id}`;
-      const existingEvents = JSON.parse(localStorage.getItem(key) || "[]");
-      existingEvents.push(event);
-
-      // Keep only last 10 events per entity/id
-      const recentEvents = existingEvents.slice(-10);
-      localStorage.setItem(key, JSON.stringify(recentEvents));
-    } catch (error) {
-      console.error("Failed to store event for conflict resolution:", error);
-    }
-  }
-
-  /**
-   * Get stored events for conflict resolution
-   */
-  private getStoredEvents(entity: string, id: string): SyncEvent[] {
-    try {
-      const key = `sync_events_${entity}_${id}`;
-      return JSON.parse(localStorage.getItem(key) || "[]");
-    } catch (error) {
-      console.error("Failed to get stored events:", error);
-      return [];
-    }
-  }
-
-  /**
-   * Log sync errors for debugging
-   */
-  private logSyncError(error: any, event: SyncEvent): void {
-    const errorLog = {
-      error: error.message || error.toString(),
-      event: {
-        type: event.type,
-        entity: event.entity,
-        id: event.id,
-        timestamp: event.timestamp,
-      },
-      timestamp: new Date().toISOString(),
-    };
-
-    try {
-      const existingLogs = JSON.parse(
-        localStorage.getItem("sync_error_logs") || "[]",
-      );
-      existingLogs.push(errorLog);
-
-      // Keep only last 100 error logs
-      const recentLogs = existingLogs.slice(-100);
-      localStorage.setItem("sync_error_logs", JSON.stringify(recentLogs));
-    } catch (e) {
-      console.error("Failed to log sync error:", e);
-    }
-  }
-
-  private attemptReconnect(): void {
+  private async handleReconnection(): Promise<void> {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.error("Max reconnection attempts reached");
-      this.emit("max-reconnect-attempts");
-
-      // Implement exponential backoff with jitter for final attempts
-      setTimeout(
-        () => {
-          this.reconnectAttempts = 0; // Reset after extended delay
-          this.attemptReconnect();
-        },
-        300000 + Math.random() * 60000,
-      ); // 5-6 minutes
+      console.error("❌ Max reconnection attempts reached");
       return;
     }
 
     this.reconnectAttempts++;
-
-    // Enhanced exponential backoff with jitter
-    const baseDelay =
-      this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1);
-    const jitter = Math.random() * 1000; // Add up to 1 second of jitter
-    const delay = Math.min(baseDelay + jitter, 30000); // Cap at 30 seconds
+    const delay = Math.min(Math.pow(2, this.reconnectAttempts) * 1000, 30000); // Max 30 seconds
 
     console.log(
-      `Attempting to reconnect in ${Math.round(delay)}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`,
+      `🔄 Attempting reconnection in ${delay}ms (attempt ${this.reconnectAttempts})`,
     );
 
     setTimeout(() => {
-      // Check if we're still offline before attempting reconnection
-      if (!navigator.onLine) {
-        console.log("Still offline, delaying reconnection attempt");
-        this.attemptReconnect();
-        return;
-      }
-
-      this.connect().catch((error) => {
-        console.error(
-          `Reconnection attempt ${this.reconnectAttempts} failed:`,
-          error,
-        );
-        this.attemptReconnect();
-      });
+      this.connect();
     }, delay);
   }
 
-  private processPendingEvents(): void {
-    if (this.pendingEvents.length > 0) {
-      console.log(
-        `Processing ${this.pendingEvents.length} pending sync events`,
-      );
-
-      this.pendingEvents.forEach((event) => {
-        this.handleSyncEvent(event);
-      });
-
-      this.pendingEvents = [];
-    }
+  /**
+   * Get comprehensive sync statistics
+   */
+  public getStats(): SyncStats {
+    return { ...this.stats };
   }
 
-  // Broadcast custom events via Supabase
-  public async broadcastEvent(
-    channel: string,
-    event: string,
-    payload: any,
-  ): Promise<void> {
-    try {
-      const broadcastChannel = supabase.channel(channel);
-      await broadcastChannel.send({
-        type: "broadcast",
-        event,
-        payload,
-      });
-    } catch (error) {
-      console.error("Failed to broadcast event:", error);
-    }
-  }
-
-  // Listen for custom broadcasts
-  public listenToBroadcast(
-    channel: string,
-    event: string,
-    callback: (payload: any) => void,
-  ): () => void {
-    const channelName = `broadcast_${channel}_${event}`;
-
-    if (this.realtimeChannels.has(channelName)) {
-      console.log(`Already listening to broadcast ${channelName}`);
-      return () => this.unsubscribeFromTable(channelName);
-    }
-
-    const broadcastChannel = supabase
-      .channel(channel)
-      .on("broadcast", { event }, callback)
-      .subscribe();
-
-    this.realtimeChannels.set(channelName, broadcastChannel);
-
-    return () => this.unsubscribeFromTable(channelName);
-  }
-
-  // Sync patient data in real-time
-  public syncPatientData(
-    patientId: string,
-    callback: (event: RealtimeEvent) => void,
-  ): () => void {
-    const unsubscribeFunctions: (() => void)[] = [];
-
-    // Subscribe to patient updates
-    unsubscribeFunctions.push(
-      this.subscribeToTable("patients", callback, {
-        column: "id",
-        value: patientId,
-      }),
-    );
-
-    // Subscribe to patient episodes
-    unsubscribeFunctions.push(
-      this.subscribeToTable("patient_episodes", callback, {
-        column: "patient_id",
-        value: patientId,
-      }),
-    );
-
-    // Subscribe to clinical forms
-    unsubscribeFunctions.push(
-      this.subscribeToTable("clinical_forms", callback, {
-        column: "patient_id",
-        value: patientId,
-      }),
-    );
-
-    // Subscribe to claims
-    unsubscribeFunctions.push(
-      this.subscribeToTable("daman_claims", callback, {
-        column: "patient_id",
-        value: patientId,
-      }),
-    );
-
-    // Return function to unsubscribe from all
-    return () => {
-      unsubscribeFunctions.forEach((unsubscribe) => unsubscribe());
-    };
-  }
-
-  // Sync clinical team updates
-  public syncClinicalTeam(
-    clinicianId: string,
-    callback: (event: RealtimeEvent) => void,
-  ): () => void {
-    const unsubscribeFunctions: (() => void)[] = [];
-
-    // Subscribe to assigned episodes
-    unsubscribeFunctions.push(
-      this.subscribeToTable("patient_episodes", callback, {
-        column: "assigned_clinician",
-        value: clinicianId,
-      }),
-    );
-
-    // Subscribe to clinical forms by clinician
-    unsubscribeFunctions.push(
-      this.subscribeToTable("clinical_forms", callback, {
-        column: "clinician_id",
-        value: clinicianId,
-      }),
-    );
-
-    return () => {
-      unsubscribeFunctions.forEach((unsubscribe) => unsubscribe());
-    };
-  }
-
+  /**
+   * Get connection status
+   */
   public getConnectionStatus(): boolean {
     return this.isConnected;
   }
 
-  public getPendingEventsCount(): number {
-    return this.pendingEvents.length;
+  /**
+   * Get subscription count
+   */
+  public getSubscriptionCount(): number {
+    return this.subscriptions.size;
+  }
+
+  /**
+   * Get offline queue size
+   */
+  public getOfflineQueueSize(): number {
+    return this.offlineQueue.length;
+  }
+
+  /**
+   * Clear offline queue (for testing/debugging)
+   */
+  public clearOfflineQueue(): void {
+    this.offlineQueue = [];
+    this.stats.offlineQueueSize = 0;
+    console.log("🧹 Offline queue cleared");
+  }
+
+  /**
+   * Add custom conflict resolver
+   */
+  public addConflictResolver(
+    entity: string,
+    resolver: ConflictResolution,
+  ): void {
+    this.conflictResolvers.set(entity, resolver);
+    console.log(`🔧 Added conflict resolver for entity: ${entity}`);
+  }
+
+  /**
+   * Force sync for specific entity
+   */
+  public async forceSync(entity: string, entityId: string): Promise<void> {
+    console.log(`🔄 Forcing sync for ${entity}:${entityId}`);
+
+    this.publishEvent({
+      type: "update",
+      entity,
+      data: { entityId, forceSync: true },
+      priority: "high",
+      metadata: { forcedSync: true, timestamp: Date.now() },
+    });
   }
 }
 
 export const realTimeSyncService = RealTimeSyncService.getInstance();
-
-// React hook for using real-time sync
-export const useRealTimeSync = (entity: string) => {
-  const [isConnected, setIsConnected] = React.useState(false);
-  const [pendingEvents, setPendingEvents] = React.useState(0);
-
-  React.useEffect(() => {
-    const updateConnectionStatus = () => {
-      setIsConnected(realTimeSyncService.getConnectionStatus());
-      setPendingEvents(realTimeSyncService.getPendingEventsCount());
-    };
-
-    realTimeSyncService.on("connected", updateConnectionStatus);
-    realTimeSyncService.on("disconnected", updateConnectionStatus);
-    realTimeSyncService.on("sync-event", updateConnectionStatus);
-
-    updateConnectionStatus();
-
-    return () => {
-      realTimeSyncService.off("connected", updateConnectionStatus);
-      realTimeSyncService.off("disconnected", updateConnectionStatus);
-      realTimeSyncService.off("sync-event", updateConnectionStatus);
-    };
-  }, []);
-
-  const subscribe = React.useCallback(
-    (callback: (event: SyncEvent) => void) => {
-      return realTimeSyncService.subscribe(entity, callback);
-    },
-    [entity],
-  );
-
-  const publish = React.useCallback(
-    (event: Omit<SyncEvent, "timestamp" | "entity">) => {
-      realTimeSyncService.publishEvent({ ...event, entity });
-    },
-    [entity],
-  );
-
-  return {
-    isConnected,
-    pendingEvents,
-    subscribe,
-    publish,
-  };
-};
+export default realTimeSyncService;

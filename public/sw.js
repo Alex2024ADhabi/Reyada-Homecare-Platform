@@ -1,444 +1,626 @@
-// Service Worker for Reyada Homecare Platform
+/**
+ * Service Worker for Reyada Homecare Platform
+ * Progressive Web App features and offline capabilities
+ */
 
-const CACHE_VERSION = "v1.0.0";
-const STATIC_CACHE = `reyada-static-${CACHE_VERSION}`;
-const DYNAMIC_CACHE = `reyada-dynamic-${CACHE_VERSION}`;
-const API_CACHE = `reyada-api-${CACHE_VERSION}`;
+const CACHE_NAME = "reyada-homecare-v1.0.0";
+const STATIC_CACHE = "reyada-static-v1.0.0";
+const DYNAMIC_CACHE = "reyada-dynamic-v1.0.0";
+const API_CACHE = "reyada-api-v1.0.0";
 
-// Cache strategies
-let cacheStrategies = [];
-
-// Resources to pre-cache
-const STATIC_RESOURCES = [
+// Assets to cache immediately
+const STATIC_ASSETS = [
   "/",
+  "/index.html",
   "/manifest.json",
   "/offline.html",
-  "/src/main.tsx",
-  "/src/index.css",
+  // Add critical CSS and JS files
 ];
 
-// Install event - cache static resources
+// API endpoints to cache
+const API_ENDPOINTS = ["/api/patients", "/api/forms", "/api/analytics"];
+
+// Cache strategies
+const CACHE_STRATEGIES = {
+  CACHE_FIRST: "cache-first",
+  NETWORK_FIRST: "network-first",
+  STALE_WHILE_REVALIDATE: "stale-while-revalidate",
+  NETWORK_ONLY: "network-only",
+  CACHE_ONLY: "cache-only",
+};
+
+// Route configurations
+const ROUTE_CONFIG = {
+  "/api/": CACHE_STRATEGIES.NETWORK_FIRST,
+  "/static/": CACHE_STRATEGIES.CACHE_FIRST,
+  "/images/": CACHE_STRATEGIES.STALE_WHILE_REVALIDATE,
+  "/": CACHE_STRATEGIES.NETWORK_FIRST,
+};
+
+// Performance monitoring
+const performanceMetrics = {
+  cacheHits: 0,
+  cacheMisses: 0,
+  networkRequests: 0,
+  offlineRequests: 0,
+};
+
+/**
+ * Service Worker Installation
+ */
 self.addEventListener("install", (event) => {
-  console.log("Service Worker installing...");
+  console.log("🔧 Service Worker installing...");
 
   event.waitUntil(
-    caches
-      .open(STATIC_CACHE)
-      .then((cache) => {
-        console.log("Pre-caching static resources");
-        return cache.addAll(STATIC_RESOURCES);
-      })
-      .then(() => {
-        console.log("Static resources cached successfully");
-        return self.skipWaiting();
-      })
-      .catch((error) => {
-        console.error("Failed to cache static resources:", error);
+    Promise.all([
+      // Cache static assets
+      caches.open(STATIC_CACHE).then((cache) => {
+        console.log("📦 Caching static assets...");
+        return cache.addAll(STATIC_ASSETS);
       }),
+
+      // Initialize performance tracking
+      initializePerformanceTracking(),
+
+      // Setup background sync
+      setupBackgroundSync(),
+    ]).then(() => {
+      console.log("✅ Service Worker installed successfully");
+      // Skip waiting to activate immediately
+      return self.skipWaiting();
+    }),
   );
 });
 
-// Activate event - clean up old caches
+/**
+ * Service Worker Activation
+ */
 self.addEventListener("activate", (event) => {
-  console.log("Service Worker activating...");
+  console.log("🚀 Service Worker activating...");
 
   event.waitUntil(
-    caches
-      .keys()
-      .then((cacheNames) => {
-        return Promise.all(
-          cacheNames.map((cacheName) => {
-            if (
-              cacheName !== STATIC_CACHE &&
-              cacheName !== DYNAMIC_CACHE &&
-              cacheName !== API_CACHE
-            ) {
-              console.log("Deleting old cache:", cacheName);
-              return caches.delete(cacheName);
-            }
-          }),
-        );
-      })
-      .then(() => {
-        console.log("Service Worker activated");
-        return self.clients.claim();
-      }),
+    Promise.all([
+      // Clean up old caches
+      cleanupOldCaches(),
+
+      // Claim all clients
+      self.clients.claim(),
+
+      // Initialize offline capabilities
+      initializeOfflineCapabilities(),
+    ]).then(() => {
+      console.log("✅ Service Worker activated successfully");
+    }),
   );
 });
 
-// Fetch event - handle requests with caching strategies
+/**
+ * Fetch Event Handler
+ */
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // Skip non-GET requests for caching
+  // Skip non-GET requests
   if (request.method !== "GET") {
     return;
   }
 
-  // Skip chrome-extension and other non-http requests
-  if (!request.url.startsWith("http")) {
+  // Skip chrome-extension requests
+  if (url.protocol === "chrome-extension:") {
     return;
   }
 
-  event.respondWith(handleRequest(request));
+  // Determine cache strategy
+  const strategy = getCacheStrategy(url.pathname);
+
+  event.respondWith(
+    handleRequest(request, strategy)
+      .then((response) => {
+        // Track performance metrics
+        updatePerformanceMetrics(request, response);
+        return response;
+      })
+      .catch((error) => {
+        console.error("❌ Fetch error:", error);
+        return handleFetchError(request, error);
+      }),
+  );
 });
 
-// Handle different types of requests
-async function handleRequest(request) {
-  const url = new URL(request.url);
-
-  // API requests
-  if (url.pathname.startsWith("/api/")) {
-    return handleApiRequest(request);
-  }
-
-  // Static assets
-  if (isStaticAsset(url.pathname)) {
-    return handleStaticAsset(request);
-  }
-
-  // Navigation requests
-  if (request.mode === "navigate") {
-    return handleNavigation(request);
-  }
-
-  // Default: network first with cache fallback
-  return networkFirstWithCacheFallback(request, DYNAMIC_CACHE);
-}
-
-// Handle API requests with network-first strategy
-async function handleApiRequest(request) {
-  const strategy = getCacheStrategy(request.url);
-
-  switch (strategy?.strategy) {
-    case "cache-first":
-      return cacheFirstWithNetworkFallback(request, API_CACHE);
-    case "network-first":
-      return networkFirstWithCacheFallback(request, API_CACHE);
-    case "stale-while-revalidate":
-      return staleWhileRevalidate(request, API_CACHE);
-    case "cache-only":
-      return cacheOnly(request, API_CACHE);
-    case "network-only":
-      return networkOnly(request);
-    default:
-      return networkFirstWithCacheFallback(request, API_CACHE);
-  }
-}
-
-// Handle static assets with cache-first strategy
-async function handleStaticAsset(request) {
-  return cacheFirstWithNetworkFallback(request, STATIC_CACHE);
-}
-
-// Handle navigation requests
-async function handleNavigation(request) {
-  try {
-    // Try network first for navigation
-    const response = await fetch(request);
-
-    // Cache successful navigation responses
-    if (response.ok) {
-      const cache = await caches.open(DYNAMIC_CACHE);
-      cache.put(request, response.clone());
-    }
-
-    return response;
-  } catch (error) {
-    // If network fails, try cache
-    const cachedResponse = await caches.match(request);
-    if (cachedResponse) {
-      return cachedResponse;
-    }
-
-    // If no cache, return offline page
-    const offlineResponse = await caches.match("/offline.html");
-    return offlineResponse || new Response("Offline", { status: 503 });
-  }
-}
-
-// Cache strategies implementation
-
-// Cache first with network fallback
-async function cacheFirstWithNetworkFallback(request, cacheName) {
-  try {
-    const cachedResponse = await caches.match(request);
-    if (cachedResponse) {
-      return cachedResponse;
-    }
-
-    const networkResponse = await fetch(request);
-    if (networkResponse.ok) {
-      const cache = await caches.open(cacheName);
-      cache.put(request, networkResponse.clone());
-    }
-
-    return networkResponse;
-  } catch (error) {
-    console.error("Cache first strategy failed:", error);
-    throw error;
-  }
-}
-
-// Network first with cache fallback
-async function networkFirstWithCacheFallback(request, cacheName) {
-  try {
-    const networkResponse = await fetch(request);
-
-    if (networkResponse.ok) {
-      const cache = await caches.open(cacheName);
-      cache.put(request, networkResponse.clone());
-    }
-
-    return networkResponse;
-  } catch (error) {
-    console.log("Network failed, trying cache:", error.message);
-
-    const cachedResponse = await caches.match(request);
-    if (cachedResponse) {
-      return cachedResponse;
-    }
-
-    throw error;
-  }
-}
-
-// Stale while revalidate
-async function staleWhileRevalidate(request, cacheName) {
-  const cachedResponse = await caches.match(request);
-
-  // Start network request in background
-  const networkResponsePromise = fetch(request)
-    .then(async (response) => {
-      if (response.ok) {
-        const cache = await caches.open(cacheName);
-        cache.put(request, response.clone());
-      }
-      return response;
-    })
-    .catch((error) => {
-      console.log("Background network request failed:", error.message);
-    });
-
-  // Return cached response immediately if available
-  if (cachedResponse) {
-    return cachedResponse;
-  }
-
-  // If no cache, wait for network
-  return networkResponsePromise;
-}
-
-// Cache only
-async function cacheOnly(request, cacheName) {
-  const cachedResponse = await caches.match(request);
-  if (cachedResponse) {
-    return cachedResponse;
-  }
-
-  throw new Error("No cached response available");
-}
-
-// Network only
-async function networkOnly(request) {
-  return fetch(request);
-}
-
-// Utility functions
-
-function isStaticAsset(pathname) {
-  const staticExtensions = [
-    ".js",
-    ".css",
-    ".png",
-    ".jpg",
-    ".jpeg",
-    ".gif",
-    ".svg",
-    ".woff",
-    ".woff2",
-    ".ttf",
-    ".eot",
-  ];
-  return staticExtensions.some((ext) => pathname.endsWith(ext));
-}
-
-function getCacheStrategy(url) {
-  return cacheStrategies.find((strategy) => strategy.pattern.test(url));
-}
-
-// Background sync
+/**
+ * Background Sync Event Handler
+ */
 self.addEventListener("sync", (event) => {
-  console.log("Background sync triggered:", event.tag);
+  console.log("🔄 Background sync triggered:", event.tag);
 
-  if (event.tag === "background-sync") {
-    event.waitUntil(performBackgroundSync());
+  if (event.tag === "patient-data-sync") {
+    event.waitUntil(syncPatientData());
+  } else if (event.tag === "form-data-sync") {
+    event.waitUntil(syncFormData());
+  } else if (event.tag === "analytics-sync") {
+    event.waitUntil(syncAnalyticsData());
   }
 });
 
-async function performBackgroundSync() {
-  try {
-    // Get pending sync tasks from IndexedDB or localStorage
-    const syncTasks = await getSyncTasks();
-
-    for (const task of syncTasks) {
-      try {
-        const response = await fetch(task.url, {
-          method: task.method,
-          headers: task.headers,
-          body: task.data ? JSON.stringify(task.data) : undefined,
-        });
-
-        if (response.ok) {
-          await removeSyncTask(task.id);
-          console.log(`Sync task ${task.id} completed`);
-        } else {
-          console.error(
-            `Sync task ${task.id} failed with status:`,
-            response.status,
-          );
-        }
-      } catch (error) {
-        console.error(`Sync task ${task.id} failed:`, error);
-      }
-    }
-
-    // Notify main thread
-    self.clients.matchAll().then((clients) => {
-      clients.forEach((client) => {
-        client.postMessage({
-          type: "SYNC_COMPLETED",
-          data: { completedTasks: syncTasks.length },
-        });
-      });
-    });
-  } catch (error) {
-    console.error("Background sync failed:", error);
-
-    // Notify main thread of failure
-    self.clients.matchAll().then((clients) => {
-      clients.forEach((client) => {
-        client.postMessage({
-          type: "SYNC_FAILED",
-          data: { error: error.message },
-        });
-      });
-    });
-  }
-}
-
-// Sync task management (simplified - would use IndexedDB in production)
-async function getSyncTasks() {
-  // This would typically read from IndexedDB
-  // For now, return empty array
-  return [];
-}
-
-async function removeSyncTask(taskId) {
-  // This would typically remove from IndexedDB
-  console.log(`Removing sync task: ${taskId}`);
-}
-
-// Message handling
-self.addEventListener("message", (event) => {
-  const { type, data } = event.data;
-
-  switch (type) {
-    case "SKIP_WAITING":
-      self.skipWaiting();
-      break;
-
-    case "INIT_CACHE_STRATEGIES":
-      cacheStrategies = data.strategies || [];
-      console.log("Cache strategies initialized:", cacheStrategies.length);
-      break;
-
-    case "PRE_CACHE":
-      event.waitUntil(preCacheResources(data.resources));
-      break;
-
-    case "CLEAR_CACHE":
-      event.waitUntil(clearSpecificCache(data.cacheName));
-      break;
-
-    default:
-      console.log("Unknown message type:", type);
-  }
-});
-
-// Pre-cache additional resources
-async function preCacheResources(resources) {
-  try {
-    const cache = await caches.open(STATIC_CACHE);
-    await cache.addAll(resources);
-    console.log("Additional resources pre-cached:", resources.length);
-
-    // Notify main thread
-    self.clients.matchAll().then((clients) => {
-      clients.forEach((client) => {
-        client.postMessage({
-          type: "CACHE_UPDATED",
-          data: { resources: resources.length },
-        });
-      });
-    });
-  } catch (error) {
-    console.error("Failed to pre-cache resources:", error);
-  }
-}
-
-// Clear specific cache
-async function clearSpecificCache(cacheName) {
-  try {
-    await caches.delete(cacheName);
-    console.log(`Cache cleared: ${cacheName}`);
-  } catch (error) {
-    console.error(`Failed to clear cache ${cacheName}:`, error);
-  }
-}
-
-// Push notifications (if needed in the future)
+/**
+ * Push Event Handler
+ */
 self.addEventListener("push", (event) => {
-  console.log("Push notification received:", event);
+  console.log("📱 Push notification received");
+
+  const options = {
+    body: "You have new updates in Reyada Homecare",
+    icon: "/icons/icon-192x192.png",
+    badge: "/icons/badge-72x72.png",
+    vibrate: [100, 50, 100],
+    data: {
+      dateOfArrival: Date.now(),
+      primaryKey: 1,
+    },
+    actions: [
+      {
+        action: "explore",
+        title: "View Updates",
+        icon: "/icons/checkmark.png",
+      },
+      {
+        action: "close",
+        title: "Close",
+        icon: "/icons/xmark.png",
+      },
+    ],
+  };
 
   if (event.data) {
     const data = event.data.json();
-
-    const options = {
-      body: data.body,
-      icon: "/icon-192x192.png",
-      badge: "/badge-72x72.png",
-      vibrate: [100, 50, 100],
-      data: data.data,
-      actions: data.actions,
-    };
-
-    event.waitUntil(self.registration.showNotification(data.title, options));
+    options.body = data.body || options.body;
+    options.data = { ...options.data, ...data };
   }
+
+  event.waitUntil(
+    self.registration.showNotification("Reyada Homecare", options),
+  );
 });
 
-// Notification click handling
+/**
+ * Notification Click Handler
+ */
 self.addEventListener("notificationclick", (event) => {
-  console.log("Notification clicked:", event);
+  console.log("🔔 Notification clicked:", event.action);
 
   event.notification.close();
 
-  if (event.action) {
-    // Handle action buttons
-    console.log("Notification action clicked:", event.action);
-  } else {
-    // Handle notification body click
-    event.waitUntil(
-      self.clients.matchAll().then((clients) => {
-        if (clients.length > 0) {
-          return clients[0].focus();
-        } else {
-          return self.clients.openWindow("/");
-        }
-      }),
-    );
+  if (event.action === "explore") {
+    event.waitUntil(self.clients.openWindow("/"));
   }
 });
 
-console.log("Service Worker loaded successfully");
+/**
+ * Message Handler
+ */
+self.addEventListener("message", (event) => {
+  console.log("💬 Message received:", event.data);
+
+  if (event.data && event.data.type === "SKIP_WAITING") {
+    self.skipWaiting();
+  } else if (event.data && event.data.type === "GET_CACHE_STATUS") {
+    event.ports[0].postMessage({
+      cacheStatus: getCacheStatus(),
+      performanceMetrics,
+    });
+  } else if (event.data && event.data.type === "CLEAR_CACHE") {
+    clearAllCaches().then(() => {
+      event.ports[0].postMessage({ success: true });
+    });
+  }
+});
+
+/**
+ * Handle different caching strategies
+ */
+async function handleRequest(request, strategy) {
+  switch (strategy) {
+    case CACHE_STRATEGIES.CACHE_FIRST:
+      return cacheFirst(request);
+    case CACHE_STRATEGIES.NETWORK_FIRST:
+      return networkFirst(request);
+    case CACHE_STRATEGIES.STALE_WHILE_REVALIDATE:
+      return staleWhileRevalidate(request);
+    case CACHE_STRATEGIES.NETWORK_ONLY:
+      return networkOnly(request);
+    case CACHE_STRATEGIES.CACHE_ONLY:
+      return cacheOnly(request);
+    default:
+      return networkFirst(request);
+  }
+}
+
+/**
+ * Cache First Strategy
+ */
+async function cacheFirst(request) {
+  const cachedResponse = await caches.match(request);
+
+  if (cachedResponse) {
+    performanceMetrics.cacheHits++;
+    return cachedResponse;
+  }
+
+  performanceMetrics.cacheMisses++;
+  const networkResponse = await fetch(request);
+
+  if (networkResponse.ok) {
+    const cache = await caches.open(DYNAMIC_CACHE);
+    cache.put(request, networkResponse.clone());
+  }
+
+  return networkResponse;
+}
+
+/**
+ * Network First Strategy
+ */
+async function networkFirst(request) {
+  try {
+    performanceMetrics.networkRequests++;
+    const networkResponse = await fetch(request);
+
+    if (networkResponse.ok) {
+      const cache = await caches.open(DYNAMIC_CACHE);
+      cache.put(request, networkResponse.clone());
+    }
+
+    return networkResponse;
+  } catch (error) {
+    console.log("🌐 Network failed, trying cache:", request.url);
+
+    const cachedResponse = await caches.match(request);
+
+    if (cachedResponse) {
+      performanceMetrics.cacheHits++;
+      return cachedResponse;
+    }
+
+    throw error;
+  }
+}
+
+/**
+ * Stale While Revalidate Strategy
+ */
+async function staleWhileRevalidate(request) {
+  const cachedResponse = await caches.match(request);
+
+  const networkResponsePromise = fetch(request).then((networkResponse) => {
+    if (networkResponse.ok) {
+      const cache = caches.open(DYNAMIC_CACHE);
+      cache.then((c) => c.put(request, networkResponse.clone()));
+    }
+    return networkResponse;
+  });
+
+  if (cachedResponse) {
+    performanceMetrics.cacheHits++;
+    return cachedResponse;
+  }
+
+  performanceMetrics.cacheMisses++;
+  return networkResponsePromise;
+}
+
+/**
+ * Network Only Strategy
+ */
+async function networkOnly(request) {
+  performanceMetrics.networkRequests++;
+  return fetch(request);
+}
+
+/**
+ * Cache Only Strategy
+ */
+async function cacheOnly(request) {
+  const cachedResponse = await caches.match(request);
+
+  if (cachedResponse) {
+    performanceMetrics.cacheHits++;
+    return cachedResponse;
+  }
+
+  performanceMetrics.cacheMisses++;
+  throw new Error("No cached response available");
+}
+
+/**
+ * Determine cache strategy based on URL
+ */
+function getCacheStrategy(pathname) {
+  for (const [pattern, strategy] of Object.entries(ROUTE_CONFIG)) {
+    if (pathname.startsWith(pattern)) {
+      return strategy;
+    }
+  }
+  return CACHE_STRATEGIES.NETWORK_FIRST;
+}
+
+/**
+ * Handle fetch errors
+ */
+async function handleFetchError(request, error) {
+  console.error("🚨 Fetch failed:", request.url, error);
+
+  performanceMetrics.offlineRequests++;
+
+  // Try to serve from cache
+  const cachedResponse = await caches.match(request);
+  if (cachedResponse) {
+    return cachedResponse;
+  }
+
+  // Serve offline page for navigation requests
+  if (request.mode === "navigate") {
+    const offlineResponse = await caches.match("/offline.html");
+    if (offlineResponse) {
+      return offlineResponse;
+    }
+  }
+
+  // Return a generic offline response
+  return new Response(
+    JSON.stringify({
+      error: "Offline",
+      message: "This content is not available offline",
+      timestamp: new Date().toISOString(),
+    }),
+    {
+      status: 503,
+      statusText: "Service Unavailable",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    },
+  );
+}
+
+/**
+ * Clean up old caches
+ */
+async function cleanupOldCaches() {
+  const cacheNames = await caches.keys();
+  const validCaches = [CACHE_NAME, STATIC_CACHE, DYNAMIC_CACHE, API_CACHE];
+
+  const deletePromises = cacheNames
+    .filter((cacheName) => !validCaches.includes(cacheName))
+    .map((cacheName) => {
+      console.log("🗑️ Deleting old cache:", cacheName);
+      return caches.delete(cacheName);
+    });
+
+  return Promise.all(deletePromises);
+}
+
+/**
+ * Initialize performance tracking
+ */
+async function initializePerformanceTracking() {
+  console.log("📊 Initializing performance tracking...");
+
+  // Reset metrics
+  Object.keys(performanceMetrics).forEach((key) => {
+    performanceMetrics[key] = 0;
+  });
+
+  // Send metrics to main thread periodically
+  setInterval(() => {
+    self.clients.matchAll().then((clients) => {
+      clients.forEach((client) => {
+        client.postMessage({
+          type: "PERFORMANCE_METRICS",
+          data: performanceMetrics,
+        });
+      });
+    });
+  }, 60000); // Every minute
+}
+
+/**
+ * Setup background sync
+ */
+async function setupBackgroundSync() {
+  console.log("🔄 Setting up background sync...");
+
+  // Register sync events
+  if ("sync" in self.registration) {
+    console.log("✅ Background sync supported");
+  } else {
+    console.warn("⚠️ Background sync not supported");
+  }
+}
+
+/**
+ * Initialize offline capabilities
+ */
+async function initializeOfflineCapabilities() {
+  console.log("📱 Initializing offline capabilities...");
+
+  // Pre-cache critical resources
+  const cache = await caches.open(STATIC_CACHE);
+
+  // Add offline page if not already cached
+  const offlineResponse = await cache.match("/offline.html");
+  if (!offlineResponse) {
+    await cache.add("/offline.html");
+  }
+}
+
+/**
+ * Sync patient data
+ */
+async function syncPatientData() {
+  console.log("👥 Syncing patient data...");
+
+  try {
+    // Get pending patient data from IndexedDB
+    const pendingData = await getPendingPatientData();
+
+    if (pendingData.length > 0) {
+      const response = await fetch("/api/patients/sync", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(pendingData),
+      });
+
+      if (response.ok) {
+        await clearPendingPatientData();
+        console.log("✅ Patient data synced successfully");
+      }
+    }
+  } catch (error) {
+    console.error("❌ Patient data sync failed:", error);
+  }
+}
+
+/**
+ * Sync form data
+ */
+async function syncFormData() {
+  console.log("📝 Syncing form data...");
+
+  try {
+    const pendingForms = await getPendingFormData();
+
+    if (pendingForms.length > 0) {
+      const response = await fetch("/api/forms/sync", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(pendingForms),
+      });
+
+      if (response.ok) {
+        await clearPendingFormData();
+        console.log("✅ Form data synced successfully");
+      }
+    }
+  } catch (error) {
+    console.error("❌ Form data sync failed:", error);
+  }
+}
+
+/**
+ * Sync analytics data
+ */
+async function syncAnalyticsData() {
+  console.log("📊 Syncing analytics data...");
+
+  try {
+    const pendingAnalytics = await getPendingAnalyticsData();
+
+    if (pendingAnalytics.length > 0) {
+      const response = await fetch("/api/analytics/sync", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(pendingAnalytics),
+      });
+
+      if (response.ok) {
+        await clearPendingAnalyticsData();
+        console.log("✅ Analytics data synced successfully");
+      }
+    }
+  } catch (error) {
+    console.error("❌ Analytics data sync failed:", error);
+  }
+}
+
+/**
+ * Update performance metrics
+ */
+function updatePerformanceMetrics(request, response) {
+  // Track response times, cache hit rates, etc.
+  const url = new URL(request.url);
+
+  if (url.pathname.startsWith("/api/")) {
+    // Track API performance
+    if (response.headers.get("x-cache") === "HIT") {
+      performanceMetrics.cacheHits++;
+    } else {
+      performanceMetrics.cacheMisses++;
+    }
+  }
+}
+
+/**
+ * Get cache status
+ */
+async function getCacheStatus() {
+  const cacheNames = await caches.keys();
+  const status = {};
+
+  for (const cacheName of cacheNames) {
+    const cache = await caches.open(cacheName);
+    const keys = await cache.keys();
+    status[cacheName] = keys.length;
+  }
+
+  return status;
+}
+
+/**
+ * Clear all caches
+ */
+async function clearAllCaches() {
+  const cacheNames = await caches.keys();
+  const deletePromises = cacheNames.map((cacheName) =>
+    caches.delete(cacheName),
+  );
+  return Promise.all(deletePromises);
+}
+
+// Mock functions for IndexedDB operations
+// In a real implementation, these would interact with IndexedDB
+
+async function getPendingPatientData() {
+  // Mock implementation
+  return [];
+}
+
+async function clearPendingPatientData() {
+  // Mock implementation
+  return Promise.resolve();
+}
+
+async function getPendingFormData() {
+  // Mock implementation
+  return [];
+}
+
+async function clearPendingFormData() {
+  // Mock implementation
+  return Promise.resolve();
+}
+
+async function getPendingAnalyticsData() {
+  // Mock implementation
+  return [];
+}
+
+async function clearPendingAnalyticsData() {
+  // Mock implementation
+  return Promise.resolve();
+}
+
+// Export for testing
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = {
+    handleRequest,
+    getCacheStrategy,
+    performanceMetrics,
+  };
+}

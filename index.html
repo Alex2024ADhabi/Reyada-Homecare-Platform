@@ -2,121 +2,21 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/tempo-logo-white.svg" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, user-scalable=no"
-    />
-    <title>
-      Reyada Homecare Platform | Reyada Home Health Care Services L.L.C.
-    </title>
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Reyada Homecare Platform</title>
     <meta
       name="description"
-      content="Reyada Homecare Platform - Comprehensive DOH-compliant homecare management system by Reyada Home Health Care Services L.L.C. Featuring Emirates ID integration, clinical documentation, and mobile-first experience."
+      content="Comprehensive homecare platform with AI-powered insights and DOH compliance"
     />
     <meta
       name="keywords"
-      content="Reyada, homecare, healthcare, DOH compliance, Emirates ID, clinical documentation, patient management, UAE healthcare"
+      content="homecare, healthcare, AI, DOH compliance, patient management"
     />
-    <meta name="author" content="Reyada Home Health Care Services L.L.C." />
-    <meta
-      name="copyright"
-      content="© 2024 Reyada Home Health Care Services L.L.C. All rights reserved."
-    />
-    <meta name="application-name" content="Reyada Homecare Platform" />
-    <meta name="msapplication-tooltip" content="Reyada Homecare Platform" />
-    <meta property="og:title" content="Reyada Homecare Platform" />
-    <meta
-      property="og:description"
-      content="Comprehensive DOH-compliant homecare management system"
-    />
-    <meta
-      property="og:site_name"
-      content="Reyada Home Health Care Services L.L.C."
-    />
-    <meta property="og:type" content="website" />
-
-    <!-- PWA Configuration -->
-    <link rel="manifest" href="/manifest.json" />
-    <meta name="theme-color" content="#3b82f6" />
-    <meta name="background-color" content="#ffffff" />
-
-    <!-- iOS PWA Support -->
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <meta name="apple-mobile-web-app-title" content="Reyada" />
-    <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
-    <link rel="apple-touch-startup-image" href="/icons/icon-512x512.png" />
-
-    <!-- Microsoft Tiles -->
-    <meta name="msapplication-TileColor" content="#3b82f6" />
-    <meta name="msapplication-TileImage" content="/icons/icon-144x144.png" />
-    <meta name="msapplication-config" content="/browserconfig.xml" />
-
-    <!-- Security Headers -->
-    <meta
-      http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self' https://api.tempo.new https://storage.googleapis.com 'nonce-tempo-script'; style-src 'self' https://fonts.googleapis.com 'nonce-tempo-style'; img-src 'self' data: blob: https://images.unsplash.com https://api.dicebear.com; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https: wss: ws:; media-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests;"
-    />
-    <meta http-equiv="X-Content-Type-Options" content="nosniff" />
-    <meta http-equiv="X-Frame-Options" content="DENY" />
-    <meta http-equiv="X-XSS-Protection" content="1; mode=block" />
-    <meta
-      http-equiv="Referrer-Policy"
-      content="strict-origin-when-cross-origin"
-    />
-
-    <!-- Mobile Optimization -->
-    <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="format-detection" content="telephone=no" />
-    <meta name="HandheldFriendly" content="true" />
-    <meta name="MobileOptimized" content="width" />
-
-    <!-- Preload Critical Resources -->
-    <link rel="preload" href="/sw.js" as="script" />
-    <link rel="preconnect" href="https://api.tempo.new" />
-    <link rel="dns-prefetch" href="https://storage.googleapis.com" />
   </head>
   <body>
     <div id="root"></div>
-    <footer
-      style="
-        position: fixed;
-        bottom: 0;
-        left: 0;
-        right: 0;
-        background: linear-gradient(
-          135deg,
-          rgba(59, 130, 246, 0.95),
-          rgba(37, 99, 235, 0.95)
-        );
-        backdrop-filter: blur(10px);
-        padding: 10px 16px;
-        text-align: center;
-        font-size: 11px;
-        color: white;
-        border-top: 1px solid rgba(255, 255, 255, 0.2);
-        box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
-        z-index: 1000;
-        font-family: &quot;Naskh Modern&quot;, &quot;Segoe UI&quot;, Tahoma,
-          Geneva, Verdana, sans-serif;
-      "
-    >
-      <div
-        style="
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 8px;
-        "
-      >
-        <span
-          >© 2024 Reyada Home Health Care Services L.L.C. All rights
-          reserved.</span
-        >
-      </div>
-    </footer>
-    <!-- Webpack will inject the script tags automatically -->
+    <script type="module" src="/src/main.tsx"></script>
     <script src="https://api.tempo.new/proxy-asset?url=https://storage.googleapis.com/tempo-public-assets/error-handling.js"></script>
   </body>
 </html>

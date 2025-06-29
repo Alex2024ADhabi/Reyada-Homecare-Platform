@@ -1,572 +1,210 @@
-import React, { Suspense, lazy, useState, useEffect } from "react";
-import { Routes, Route, Navigate, useRoutes } from "react-router-dom";
-import { Toaster } from "@/components/ui/toaster";
-import { realTimeSyncService } from "@/services/real-time-sync.service";
-import { offlineService } from "@/services/offline.service";
-import { communicationService } from "@/services/communication.service";
-import { SecurityService } from "@/services/security.service";
-import { serviceWorkerService } from "@/services/service-worker.service";
-import { environmentValidator } from "@/utils/environment-validator";
-import PlatformHealthMonitor from "@/components/ui/platform-health-monitor";
-import ComprehensivePlatformValidator from "@/components/ui/comprehensive-platform-validator";
-import { MobileAppAccess } from "@/components/ui/mobile-responsive";
-import { useSupabaseAuth } from "@/hooks/useSupabaseAuth";
+import React from "react";
+import { Routes, Route, useRoutes } from "react-router-dom";
+import { ToastProvider } from "@/components/ui/toast-provider";
+import { initializePlatform } from "@/utils/platform-initialization";
+import { useToast } from "@/components/ui/toast-provider";
 
-// Enhanced service imports with error handling
-let emiratesIdVerificationService: any;
-let websocketService: any;
+// Import pages with error handling
+const Dashboard = React.lazy(() =>
+  import("./pages/Dashboard").catch(() => ({
+    default: () => (
+      <div className="p-8 text-center">Dashboard component failed to load</div>
+    ),
+  })),
+);
 
-try {
-  emiratesIdVerificationService =
-    require("@/services/emirates-id-verification.service").emiratesIdVerificationService;
-} catch (error) {
-  console.warn(
-    "Emirates ID verification service not available:",
-    error.message,
-  );
-}
+const PatientPortal = React.lazy(() =>
+  import("./pages/PatientPortal").catch(() => ({
+    default: () => (
+      <div className="p-8 text-center">
+        Patient Portal component failed to load
+      </div>
+    ),
+  })),
+);
 
-try {
-  websocketService = require("@/services/websocket.service").default;
-} catch (error) {
-  console.warn("WebSocket service not available:", error.message);
-}
-import NotificationCenter from "@/components/ui/notification-center";
+// Safe tempo routes import - moved to component level to avoid top-level await
+const loadTempoRoutes = async () => {
+  try {
+    const routesModule = await import("tempo-routes");
+    return Array.isArray(routesModule.default) ? routesModule.default : [];
+  } catch (error) {
+    console.warn("⚠️ Tempo routes failed to load:", error);
+    return [];
+  }
+};
 
-// Network Error Component
-const NetworkErrorBoundary = ({ children }: { children: React.ReactNode }) => {
-  const [hasNetworkError, setHasNetworkError] = useState(false);
-  const [isRetrying, setIsRetrying] = useState(false);
-
-  useEffect(() => {
-    const handleOnline = () => {
-      setHasNetworkError(false);
-      setIsRetrying(false);
-    };
-
-    const handleOffline = () => {
-      setHasNetworkError(true);
-    };
-
-    window.addEventListener("online", handleOnline);
-    window.addEventListener("offline", handleOffline);
-
-    if (!navigator.onLine) {
-      setHasNetworkError(true);
-    }
-
-    return () => {
-      window.removeEventListener("online", handleOnline);
-      window.removeEventListener("offline", handleOffline);
-    };
-  }, []);
-
-  const handleRetry = () => {
-    setIsRetrying(true);
-    setTimeout(() => {
-      window.location.reload();
-    }, 1000);
-  };
-
-  if (hasNetworkError) {
-    return (
-      <div className="min-h-screen bg-reyada-neutral-50 flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-6 text-center">
-          <div className="mb-4">
-            <div className="w-16 h-16 mx-auto bg-reyada-error/10 rounded-full flex items-center justify-center mb-4">
-              <svg
-                className="w-8 h-8 text-reyada-error"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
-              </svg>
-            </div>
-            <h2 className="text-xl font-semibold text-reyada-neutral-900 mb-2">
-              Network Error
-            </h2>
-            <p className="text-reyada-neutral-600 mb-6">
-              Unable to connect to the server. Please check your internet
-              connection and try again.
+// Fallback components for missing pages
+const FallbackDashboard = () => (
+  <div className="min-h-screen bg-gray-50 p-8">
+    <div className="max-w-4xl mx-auto">
+      <h1 className="text-3xl font-bold text-gray-900 mb-6">
+        Reyada Homecare Platform
+      </h1>
+      <div className="bg-white rounded-lg shadow p-6">
+        <h2 className="text-xl font-semibold mb-4">Dashboard</h2>
+        <p className="text-gray-600">
+          Welcome to the Reyada Homecare Platform. The system is initializing...
+        </p>
+        <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-blue-50 p-4 rounded-lg">
+            <h3 className="font-semibold text-blue-900">Patient Management</h3>
+            <p className="text-blue-700 text-sm">
+              Manage patient records and care plans
             </p>
           </div>
-          <button
-            onClick={handleRetry}
-            disabled={isRetrying}
-            className="w-full bg-reyada-primary hover:bg-reyada-primary-dark disabled:bg-reyada-primary/50 text-white font-medium py-2 px-4 rounded-md transition-colors"
-          >
-            {isRetrying ? "Retrying..." : "Retry Connection"}
-          </button>
-          <p className="text-sm text-reyada-neutral-500 mt-4">
-            Status: {navigator.onLine ? "Online" : "Offline"}
+          <div className="bg-green-50 p-4 rounded-lg">
+            <h3 className="font-semibold text-green-900">
+              Clinical Documentation
+            </h3>
+            <p className="text-green-700 text-sm">
+              Electronic health records and assessments
+            </p>
+          </div>
+          <div className="bg-purple-50 p-4 rounded-lg">
+            <h3 className="font-semibold text-purple-900">AI Analytics</h3>
+            <p className="text-purple-700 text-sm">
+              Intelligent insights and predictions
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
+const FallbackPatientPortal = () => (
+  <div className="min-h-screen bg-gray-50 p-8">
+    <div className="max-w-4xl mx-auto">
+      <h1 className="text-3xl font-bold text-gray-900 mb-6">Patient Portal</h1>
+      <div className="bg-white rounded-lg shadow p-6">
+        <h2 className="text-xl font-semibold mb-4">Patient Access</h2>
+        <p className="text-gray-600">
+          Secure patient portal for accessing health information and services.
+        </p>
+      </div>
+    </div>
+  </div>
+);
+
+// Main App Component with Platform Initialization
+function AppContent() {
+  const [tempoRoutes, setTempoRoutes] = React.useState<any[]>([]);
+  const [routesLoaded, setRoutesLoaded] = React.useState(false);
+  const [platformInitialized, setPlatformInitialized] = React.useState(false);
+  const { success, error, warning } = useToast();
+
+  // Initialize platform and routes
+  React.useEffect(() => {
+    const initializeApp = async () => {
+      try {
+        // Initialize platform first
+        console.log("🚀 Starting platform initialization...");
+        const initResult = await initializePlatform();
+
+        if (initResult.success) {
+          success("Platform Initialized", "Reyada Homecare Platform is ready");
+        } else {
+          error("Platform Issues", `${initResult.errors.length} errors found`);
+        }
+
+        if (initResult.warnings.length > 0) {
+          warning(
+            "Platform Warnings",
+            `${initResult.warnings.length} warnings`,
+          );
+        }
+
+        setPlatformInitialized(true);
+
+        // Load tempo routes
+        const routes = await loadTempoRoutes();
+        if (
+          import.meta.env.VITE_TEMPO &&
+          Array.isArray(routes) &&
+          routes.length > 0
+        ) {
+          setTempoRoutes(routes);
+        }
+      } catch (error) {
+        console.error("❌ App initialization failed:", error);
+        error("Initialization Failed", "Failed to initialize the platform");
+      } finally {
+        setRoutesLoaded(true);
+      }
+    };
+
+    initializeApp();
+  }, [success, error, warning]);
+
+  // Render tempo routes using useRoutes hook
+  const tempoRoutesElement = useRoutes(
+    import.meta.env.VITE_TEMPO && tempoRoutes.length > 0 ? tempoRoutes : [],
+  );
+
+  // Show loading state during initialization
+  if (!routesLoaded) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">
+            Initializing Reyada Homecare Platform
+          </h2>
+          <p className="text-gray-600">
+            {platformInitialized
+              ? "Loading application..."
+              : "Starting services..."}
           </p>
         </div>
       </div>
     );
   }
 
-  return <>{children}</>;
-};
-
-// Enhanced Tempo routes loading with comprehensive error handling
-let routes: any[] = [];
-const loadTempoRoutes = () => {
-  try {
-    const isTempoEnabled =
-      process.env.TEMPO === "true" ||
-      process.env.NODE_ENV === "development" ||
-      (typeof import.meta !== "undefined" &&
-        import.meta.env?.VITE_TEMPO === "true");
-
-    if (isTempoEnabled) {
-      try {
-        // Safe require with fallback
-        const tempoRoutes = require("tempo-routes");
-
-        // Normalize routes array
-        if (Array.isArray(tempoRoutes?.default)) {
-          routes = tempoRoutes.default;
-        } else if (Array.isArray(tempoRoutes?.routes)) {
-          routes = tempoRoutes.routes;
-        } else if (Array.isArray(tempoRoutes)) {
-          routes = tempoRoutes;
-        } else {
-          routes = [];
-        }
-
-        console.log(
-          "✅ Tempo routes loaded successfully:",
-          routes.length,
-          "routes",
-        );
-      } catch (routesError) {
-        console.warn(
-          "Tempo routes loading failed, using empty routes:",
-          routesError instanceof Error
-            ? routesError.message
-            : String(routesError),
-        );
-        routes = [];
-      }
-    } else {
-      console.log("📋 Tempo routes disabled - not in development mode");
-    }
-  } catch (error) {
-    console.warn(
-      "Critical error in tempo routes initialization:",
-      error instanceof Error ? error.message : String(error),
-    );
-    routes = [];
-  }
-};
-
-// Load routes safely
-loadTempoRoutes();
-
-// Lazy load components
-const Home = lazy(() => import("./components/home"));
-const Dashboard = lazy(() => import("./pages/Dashboard"));
-const HealthMonitor = lazy(() => PlatformHealthMonitor);
-const PlatformCompletionDashboard = lazy(
-  () => import("./components/ui/platform-completion-dashboard"),
-);
-const SSOCallback = lazy(() => import("./components/auth/SSOCallback"));
-const EnhancedLoginForm = lazy(
-  () => import("./components/auth/EnhancedLoginForm"),
-);
-const ProtectedRoute = lazy(() => import("./components/auth/ProtectedRoute"));
-
-// Brand Loading Component
-const BrandedLoadingFallback = () => (
-  <div className="min-h-screen bg-gradient-to-br from-reyada-neutral-50 to-reyada-primary/10 flex items-center justify-center">
-    <div className="text-center">
-      <div className="flex items-center justify-center gap-3 mb-6">
-        <div
-          className="text-3xl font-bold text-reyada-primary animate-pulse font-arabic"
-          style={{
-            fontWeight: 700,
-          }}
-        >
-          ريادة
-        </div>
-        <div className="w-px h-8 bg-reyada-neutral-300" />
-        <div
-          className="text-3xl font-bold text-reyada-primary animate-pulse font-english"
-          style={{
-            fontWeight: 600,
-          }}
-        >
-          Reyada
-        </div>
-      </div>
-      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-reyada-primary mx-auto mb-4"></div>
-      <p className="text-reyada-neutral-600 font-medium font-english">
-        Loading Homecare Platform...
-      </p>
-      <p className="text-xs text-reyada-neutral-500 mt-2 font-english">
-        Reyada Home Health Care Services L.L.C.
-      </p>
-      <p className="text-xs text-reyada-neutral-400 mt-1 font-english">
-        © 2024 All Rights Reserved
-      </p>
-    </div>
-  </div>
-);
-
-function App() {
-  const [pwaInstallPrompt, setPwaInstallPrompt] = useState<any>(null);
-  const [showMobileFeatures, setShowMobileFeatures] = useState(false);
-  const [pwaUpdateAvailable, setPwaUpdateAvailable] = useState(false);
-  const { validateSession, refreshSession } = useSupabaseAuth();
-
-  useEffect(() => {
-    // Enhanced service initialization with environment validation
-    const initializeServices = async () => {
-      try {
-        // Validate environment configuration first
-        const envStatus = environmentValidator.getStatusReport();
-        console.log(
-          `🔧 Environment Status: ${envStatus.status} - ${envStatus.message}`,
-        );
-
-        if (envStatus.status === "error") {
-          console.error(
-            "❌ Critical environment configuration errors detected:",
-            envStatus.details.errors,
-          );
-          // Continue with limited functionality
-        }
-
-        // Initialize security service first
-        const securityService = SecurityService.getInstance();
-        await securityService.initialize();
-        console.log("✅ Security service initialized");
-
-        // Initialize service worker for PWA functionality
-        try {
-          await serviceWorkerService.register();
-          console.log("✅ Service Worker initialized for PWA");
-
-          // Listen for PWA updates
-          if ("serviceWorker" in navigator) {
-            navigator.serviceWorker.addEventListener("controllerchange", () => {
-              setPwaUpdateAvailable(true);
-              console.log("🔄 PWA update available");
-            });
-          }
-        } catch (error) {
-          console.warn("⚠️ Service Worker initialization failed:", error);
-        }
-
-        // Initialize offline service
-        await offlineService.init();
-        console.log("✅ Offline service initialized");
-
-        // Initialize real-time sync service
-        await realTimeSyncService.connect();
-        console.log("✅ Real-time sync service initialized");
-
-        // Initialize WebSocket service for real-time notifications (if available)
-        if (
-          websocketService &&
-          typeof websocketService.connect === "function"
-        ) {
-          try {
-            websocketService.connect();
-            console.log("✅ WebSocket service initialized");
-          } catch (wsError) {
-            console.warn("⚠️ WebSocket service failed to initialize:", wsError);
-          }
-        }
-
-        // Initialize communication service
-        try {
-          communicationService.setupUserNotificationChannels("current-user", [
-            {
-              type: "push",
-              enabled: true,
-              priority: "high",
-              settings: {
-                push: {
-                  deviceTokens: [],
-                  sound: true,
-                  vibration: true,
-                },
-              },
-            },
-            {
-              type: "email",
-              enabled: true,
-              priority: "medium",
-              settings: {
-                email: {
-                  address: "user@example.com",
-                },
-              },
-            },
-          ]);
-          console.log("✅ Communication service initialized");
-        } catch (commError) {
-          console.warn(
-            "⚠️ Communication service failed to initialize:",
-            commError,
-          );
-        }
-
-        // Initialize Emirates ID verification service (if available)
-        if (
-          emiratesIdVerificationService &&
-          typeof emiratesIdVerificationService.initialize === "function"
-        ) {
-          try {
-            await emiratesIdVerificationService.initialize();
-            console.log("✅ Emirates ID verification service initialized");
-          } catch (eidError) {
-            console.warn(
-              "⚠️ Emirates ID verification service failed to initialize:",
-              eidError,
-            );
-          }
-        }
-
-        console.log("🎉 Core services initialization completed");
-      } catch (error) {
-        console.error(
-          "❌ Critical failure during service initialization:",
-          error,
-        );
-        // Continue with basic functionality
-      }
-    };
-
-    // PWA install prompt handling
-    const handleBeforeInstallPrompt = (e: any) => {
-      e.preventDefault();
-      setPwaInstallPrompt(e);
-      setShowMobileFeatures(true);
-    };
-
-    // Check if mobile features should be shown
-    const checkMobileFeatures = () => {
-      const isMobile =
-        window.innerWidth < 768 ||
-        /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-          navigator.userAgent,
-        );
-      setShowMobileFeatures(isMobile);
-    };
-
-    initializeServices();
-    checkMobileFeatures();
-    initializeUnifiedSessionManagement();
-
-    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
-    window.addEventListener("resize", checkMobileFeatures);
-
-    return () => {
-      try {
-        realTimeSyncService.disconnect();
-        if (
-          websocketService &&
-          typeof websocketService.disconnect === "function"
-        ) {
-          websocketService.disconnect();
-        }
-        window.removeEventListener(
-          "beforeinstallprompt",
-          handleBeforeInstallPrompt,
-        );
-        window.removeEventListener("resize", checkMobileFeatures);
-        console.log("🧹 Services cleanup completed");
-      } catch (error) {
-        console.warn("⚠️ Error during service cleanup:", error);
-      }
-    };
-  }, []);
-
-  /**
-   * Initialize unified session management across all modules
-   */
-  const initializeUnifiedSessionManagement = () => {
-    // Set up periodic session validation
-    const sessionValidationInterval = setInterval(
-      async () => {
-        const isValid = await validateSession();
-        if (!isValid) {
-          console.log("🔒 Session validation failed, clearing context");
-          sessionStorage.clear();
-          localStorage.removeItem("auth_metadata");
-          // Don't redirect here as it might interfere with normal flow
-        }
-      },
-      5 * 60 * 1000,
-    ); // Check every 5 minutes
-
-    // Set up automatic session refresh
-    const sessionRefreshInterval = setInterval(
-      async () => {
-        try {
-          const metadata = JSON.parse(
-            localStorage.getItem("auth_metadata") || "{}",
-          );
-          if (metadata.userId) {
-            const { success } = await refreshSession();
-            if (success) {
-              console.log("🔄 Session refreshed successfully");
-            }
-          }
-        } catch (error) {
-          console.warn("⚠️ Session refresh failed:", error);
-        }
-      },
-      25 * 60 * 1000,
-    ); // Refresh every 25 minutes
-
-    // Set up cross-tab session synchronization
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === "auth_metadata" && !e.newValue) {
-        // Session was cleared in another tab
-        console.log("🔄 Session cleared in another tab, synchronizing");
-        sessionStorage.clear();
-        window.location.reload();
-      }
-    };
-
-    window.addEventListener("storage", handleStorageChange);
-
-    // Cleanup function
-    return () => {
-      clearInterval(sessionValidationInterval);
-      clearInterval(sessionRefreshInterval);
-      window.removeEventListener("storage", handleStorageChange);
-    };
-  };
-
   return (
-    <NetworkErrorBoundary>
-      <div className="min-h-screen bg-reyada-neutral-50">
-        <Suspense fallback={<BrandedLoadingFallback />}>
-          {/* Tempo routes */}
-          {(process.env.TEMPO === "true" ||
-            process.env.NODE_ENV === "development") &&
-            routes.length > 0 &&
-            useRoutes(routes)}
+    <div className="min-h-screen bg-gray-50">
+      {/* Tempo routes for storyboards */}
+      {tempoRoutesElement}
 
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/login" element={<EnhancedLoginForm />} />
-            <Route path="/auth/callback" element={<SSOCallback />} />
+      {/* Main application routes */}
+      <Routes>
+        <Route
+          path="/"
+          element={
+            <React.Suspense fallback={<FallbackDashboard />}>
+              <Dashboard />
+            </React.Suspense>
+          }
+        />
+        <Route
+          path="/patient-portal"
+          element={
+            <React.Suspense fallback={<FallbackPatientPortal />}>
+              <PatientPortal />
+            </React.Suspense>
+          }
+        />
+        <Route
+          path="/dashboard"
+          element={
+            <React.Suspense fallback={<FallbackDashboard />}>
+              <Dashboard />
+            </React.Suspense>
+          }
+        />
+        {/* Fallback route */}
+        <Route path="*" element={<FallbackDashboard />} />
+      </Routes>
+    </div>
+  );
+}
 
-            {/* Protected Routes */}
-            <Route
-              path="/dashboard"
-              element={
-                <ProtectedRoute>
-                  <Dashboard />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/health"
-              element={
-                <ProtectedRoute requiredPermission="system.monitor">
-                  <PlatformHealthMonitor />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/validation"
-              element={
-                <ProtectedRoute requiredPermission="system.configure">
-                  <ComprehensivePlatformValidator />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/completion"
-              element={
-                <ProtectedRoute requiredRole="admin">
-                  <PlatformCompletionDashboard />
-                </ProtectedRoute>
-              }
-            />
-
-            {/* Tempo route placeholder */}
-            {(process.env.TEMPO === "true" ||
-              process.env.NODE_ENV === "development") && (
-              <Route path="/tempobook/*" element={<div>Tempo Route</div>} />
-            )}
-
-            {/* Catch-all route */}
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </Suspense>
-
-        <Toaster />
-
-        {/* PWA Update Banner */}
-        {pwaUpdateAvailable && (
-          <div className="fixed top-0 left-0 right-0 bg-reyada-primary text-white p-3 text-center z-50">
-            <div className="flex items-center justify-center gap-4">
-              <span className="text-sm font-medium">
-                🔄 App update available! Refresh to get the latest version.
-              </span>
-              <button
-                onClick={() => window.location.reload()}
-                className="bg-white text-reyada-primary px-3 py-1 rounded text-sm font-medium hover:bg-gray-100 transition-colors"
-              >
-                Refresh
-              </button>
-              <button
-                onClick={() => setPwaUpdateAvailable(false)}
-                className="text-white/80 hover:text-white text-sm"
-              >
-                ✕
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Mobile PWA Features */}
-        {showMobileFeatures && (
-          <div className="fixed bottom-4 right-4 z-40">
-            <MobileAppAccess
-              isInstalled={
-                window.matchMedia("(display-mode: standalone)").matches
-              }
-              onInstall={() => {
-                if (pwaInstallPrompt) {
-                  pwaInstallPrompt.prompt();
-                  pwaInstallPrompt.userChoice.then((choiceResult: any) => {
-                    if (choiceResult.outcome === "accepted") {
-                      console.log("✅ PWA installed successfully");
-                    }
-                    setPwaInstallPrompt(null);
-                  });
-                }
-                setShowMobileFeatures(false);
-              }}
-            />
-          </div>
-        )}
-
-        {/* Real-time Notification Center */}
-        <div className="fixed top-4 right-4 z-50">
-          <NotificationCenter />
-        </div>
-
-        {/* Copyright Footer */}
-        <footer className="fixed bottom-0 right-0 p-2 text-xs text-reyada-neutral-400 bg-white/80 backdrop-blur-sm rounded-tl-md">
-          © 2024 Reyada Home Health Care Services L.L.C.
-        </footer>
-      </div>
-    </NetworkErrorBoundary>
+// Main App wrapper with providers
+function App() {
+  return (
+    <ToastProvider>
+      <AppContent />
+    </ToastProvider>
   );
 }
 
