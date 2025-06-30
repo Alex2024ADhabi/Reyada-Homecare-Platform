@@ -87,6 +87,10 @@ class AuditTrailService {
     suspiciousActivity: 10, // 10 failed attempts in 5 minutes
     dataAccess: 100, // 100 patient records accessed per hour
     privilegedActions: 20, // 20 privileged actions per hour
+    criticalEvents: 1, // Any critical event triggers immediate alert
+    complianceViolations: 3, // 3 compliance violations in 1 hour
+    bulkDataExport: 5, // 5 bulk data exports per day
+    afterHoursAccess: 10, // 10 after-hours access attempts
   };
 
   public static getInstance(): AuditTrailService {
@@ -571,11 +575,15 @@ class AuditTrailService {
   }
 
   private async checkAlerts(event: AuditEvent): Promise<void> {
+    const now = Date.now();
+    const fiveMinutesAgo = now - 5 * 60 * 1000;
+    const oneHourAgo = now - 60 * 60 * 1000;
+    const oneDayAgo = now - 24 * 60 * 60 * 1000;
+
     // Check for suspicious activity patterns
     const recentEvents = Array.from(this.events.values()).filter(
       (e) =>
-        e.userId === event.userId &&
-        Date.now() - e.timestamp.getTime() < 5 * 60 * 1000, // Last 5 minutes
+        e.userId === event.userId && e.timestamp.getTime() >= fiveMinutesAgo,
     );
 
     const failedAttempts = recentEvents.filter(
@@ -586,7 +594,7 @@ class AuditTrailService {
       await this.triggerAlert({
         type: "SUSPICIOUS_ACTIVITY",
         severity: "high",
-        message: `Suspicious activity detected: ${failedAttempts} failed attempts by user ${event.userId}`,
+        message: `Suspicious activity detected: ${failedAttempts} failed attempts by user ${event.userId} in 5 minutes`,
         event,
       });
     }
@@ -599,6 +607,108 @@ class AuditTrailService {
         message: `Critical security event: ${event.action} by ${event.userId}`,
         event,
       });
+    }
+
+    // Check for compliance violations
+    const hourlyComplianceViolations = Array.from(this.events.values()).filter(
+      (e) =>
+        e.timestamp.getTime() >= oneHourAgo && e.complianceFlags.length > 0,
+    ).length;
+
+    if (
+      hourlyComplianceViolations >= this.alertThresholds.complianceViolations
+    ) {
+      await this.triggerAlert({
+        type: "COMPLIANCE_VIOLATIONS",
+        severity: "high",
+        message: `High compliance violation rate: ${hourlyComplianceViolations} violations in the last hour`,
+        event,
+      });
+    }
+
+    // Check for bulk data access patterns
+    const hourlyDataAccess = Array.from(this.events.values()).filter(
+      (e) =>
+        e.userId === event.userId &&
+        e.timestamp.getTime() >= oneHourAgo &&
+        (e.resource === "PATIENT_DATA" || e.action.includes("BULK_ACCESS")),
+    ).length;
+
+    if (hourlyDataAccess >= this.alertThresholds.dataAccess) {
+      await this.triggerAlert({
+        type: "EXCESSIVE_DATA_ACCESS",
+        severity: "medium",
+        message: `Excessive data access: ${hourlyDataAccess} patient records accessed by ${event.userId} in 1 hour`,
+        event,
+      });
+    }
+
+    // Check for after-hours access (assuming business hours are 8 AM - 6 PM)
+    const eventHour = event.timestamp.getHours();
+    const isAfterHours = eventHour < 8 || eventHour > 18;
+
+    if (isAfterHours && event.resource === "PATIENT_DATA") {
+      const afterHoursEvents = Array.from(this.events.values()).filter(
+        (e) =>
+          e.userId === event.userId &&
+          e.timestamp.getTime() >= oneDayAgo &&
+          (e.timestamp.getHours() < 8 || e.timestamp.getHours() > 18) &&
+          e.resource === "PATIENT_DATA",
+      ).length;
+
+      if (afterHoursEvents >= this.alertThresholds.afterHoursAccess) {
+        await this.triggerAlert({
+          type: "AFTER_HOURS_ACCESS",
+          severity: "medium",
+          message: `Frequent after-hours access: ${afterHoursEvents} patient data access events by ${event.userId} outside business hours`,
+          event,
+        });
+      }
+    }
+
+    // Check for privileged actions
+    const privilegedActions = [
+      "DELETE",
+      "EXPORT",
+      "ADMIN",
+      "MODIFY_PERMISSIONS",
+      "BULK_UPDATE",
+    ];
+    if (privilegedActions.some((action) => event.action.includes(action))) {
+      const hourlyPrivilegedActions = Array.from(this.events.values()).filter(
+        (e) =>
+          e.userId === event.userId &&
+          e.timestamp.getTime() >= oneHourAgo &&
+          privilegedActions.some((action) => e.action.includes(action)),
+      ).length;
+
+      if (hourlyPrivilegedActions >= this.alertThresholds.privilegedActions) {
+        await this.triggerAlert({
+          type: "EXCESSIVE_PRIVILEGED_ACTIONS",
+          severity: "high",
+          message: `Excessive privileged actions: ${hourlyPrivilegedActions} privileged operations by ${event.userId} in 1 hour`,
+          event,
+        });
+      }
+    }
+
+    // Check for data export patterns
+    if (event.action.includes("EXPORT") || event.action.includes("DOWNLOAD")) {
+      const dailyExports = Array.from(this.events.values()).filter(
+        (e) =>
+          e.userId === event.userId &&
+          e.timestamp.getTime() >= oneDayAgo &&
+          (e.action.includes("EXPORT") || e.action.includes("DOWNLOAD")),
+      ).length;
+
+      if (dailyExports >= this.alertThresholds.bulkDataExport) {
+        await this.triggerAlert({
+          type: "EXCESSIVE_DATA_EXPORT",
+          severity: "high",
+          message: `Excessive data export activity: ${dailyExports} export operations by ${event.userId} in 24 hours`,
+          event,
+        });
+      }
     }
   }
 

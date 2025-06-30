@@ -3,23 +3,34 @@
  * Comprehensive testing for AI service interactions and platform integration
  */
 
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from "vitest";
 import { aiHubService } from "@/services/ai-hub.service";
 import { smartComputationEngine } from "@/engines/computation.engine";
 import { formGenerationEngine } from "@/engines/form-generation.engine";
 import { workflowEngine } from "@/engines/workflow.engine";
 import { realTimeSyncService } from "@/services/real-time-sync.service";
 import { advancedSecurityValidator } from "@/security/advanced-security-validator";
+import { databaseSchemaOptimizer } from "@/database/schema-optimizer";
 
 describe("AI-Platform Integration Tests", () => {
   beforeAll(async () => {
-    // Initialize all AI services
-    await aiHubService.initialize();
-    await smartComputationEngine.initialize();
-    await formGenerationEngine.initialize();
-    await workflowEngine.initialize();
-    await realTimeSyncService.connect();
-    await advancedSecurityValidator.initialize();
+    // Initialize all AI services with enhanced error handling
+    try {
+      await aiHubService.initialize();
+      await smartComputationEngine.initialize();
+      await formGenerationEngine.initialize();
+      await workflowEngine.initialize();
+      await realTimeSyncService.connect();
+      await advancedSecurityValidator.initialize();
+      
+      // Initialize database schema optimizer
+      await databaseSchemaOptimizer.optimizeSchema();
+      
+      console.log('✅ All AI platform services initialized successfully');
+    } catch (error) {
+      console.error('❌ Failed to initialize AI platform services:', error);
+      throw error;
+    }
   });
 
   afterAll(async () => {
@@ -542,9 +553,11 @@ describe("AI-Platform Integration Tests", () => {
     });
   });
 
-  describe("Performance Integration Tests", () => {
-    it("should handle concurrent AI processing", async () => {
-      const concurrentTasks = Array.from({ length: 5 }, (_, i) =>
+  describe("Enhanced Performance Integration Tests", () => {
+    it("should handle high-volume concurrent AI processing", async () => {
+      const startTime = Date.now();
+      
+      const concurrentTasks = Array.from({ length: 10 }, (_, i) =>
         aiHubService.analyzeHealthcareData({
           patientId: `concurrent-${i}`,
           data: { symptom: "test", severity: i + 1 },
@@ -552,10 +565,35 @@ describe("AI-Platform Integration Tests", () => {
       );
 
       const results = await Promise.all(concurrentTasks);
-      expect(results).toHaveLength(5);
+      const executionTime = Date.now() - startTime;
+      
+      expect(results).toHaveLength(10);
+      expect(executionTime).toBeLessThan(10000); // Should complete within 10 seconds
+      
       results.forEach((result) => {
         expect(result).toBeDefined();
         expect(result.riskScore).toBeGreaterThan(0);
+      });
+    });
+
+    it("should maintain database performance under load", async () => {
+      const startTime = Date.now();
+      
+      // Test database optimization performance
+      const optimizationPromises = Array.from({ length: 3 }, () =>
+        databaseSchemaOptimizer.optimizeSchema()
+      );
+      
+      const results = await Promise.all(optimizationPromises);
+      const executionTime = Date.now() - startTime;
+      
+      expect(results).toHaveLength(3);
+      expect(executionTime).toBeLessThan(15000); // Should complete within 15 seconds
+      
+      results.forEach((result) => {
+        expect(result.healthScore).toBeGreaterThan(0);
+        expect(result.tables).toBeDefined();
+        expect(result.recommendations).toBeDefined();
       });
     });
 
@@ -597,12 +635,32 @@ describe("AI-Platform Integration Tests", () => {
     });
   });
 
-  describe("Error Handling Integration", () => {
-    it("should handle AI service errors gracefully", async () => {
+  describe("Enhanced Error Handling Integration", () => {
+    it("should handle AI service errors gracefully with recovery", async () => {
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      
       try {
         await aiHubService.analyzeHealthcareData(null as any);
       } catch (error) {
         expect(error).toBeDefined();
+        expect(consoleSpy).toHaveBeenCalled();
+      } finally {
+        consoleSpy.mockRestore();
+      }
+    });
+
+    it("should handle database optimization errors", async () => {
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      
+      try {
+        // Test database optimization error handling
+        const stats = databaseSchemaOptimizer.getOptimizationStats();
+        expect(stats).toBeDefined();
+        expect(stats.healthScore).toBeGreaterThanOrEqual(0);
+      } catch (error) {
+        expect(error).toBeDefined();
+      } finally {
+        consoleSpy.mockRestore();
       }
     });
 
@@ -659,4 +717,119 @@ function generateTestClinicalData() {
   };
 }
 
-export { generateTestPatientData, generateTestClinicalData };
+  describe("Database Schema Integration", () => {
+    it("should optimize healthcare database schema", async () => {
+      const analysis = await databaseSchemaOptimizer.optimizeSchema();
+      
+      expect(analysis).toBeDefined();
+      expect(analysis.healthScore).toBeGreaterThan(0);
+      expect(analysis.tables).toBeInstanceOf(Array);
+      expect(analysis.recommendations).toBeInstanceOf(Array);
+      expect(analysis.performance).toBeDefined();
+    });
+
+    it("should generate healthcare-specific index recommendations", async () => {
+      const recommendations = databaseSchemaOptimizer.getIndexRecommendations();
+      
+      expect(recommendations).toBeInstanceOf(Array);
+      expect(recommendations.length).toBeGreaterThan(0);
+      
+      // Check for healthcare-specific recommendations
+      const emiratesIdIndex = recommendations.find(r => 
+        r.table === 'patients' && r.columns.includes('emirates_id')
+      );
+      expect(emiratesIdIndex).toBeDefined();
+      expect(emiratesIdIndex?.priority).toBe('critical');
+    });
+
+    it("should provide query optimization recommendations", async () => {
+      const optimizations = databaseSchemaOptimizer.getQueryOptimizations();
+      
+      expect(optimizations).toBeInstanceOf(Array);
+      expect(optimizations.length).toBeGreaterThan(0);
+      
+      optimizations.forEach(opt => {
+        expect(opt.improvement).toBeGreaterThan(0);
+        expect(opt.originalQuery).toBeDefined();
+        expect(opt.optimizedQuery).toBeDefined();
+        expect(opt.explanation).toBeDefined();
+      });
+    });
+  });
+
+  describe("Healthcare Compliance Integration", () => {
+    it("should validate DOH compliance requirements", async () => {
+      const securityResult = await advancedSecurityValidator.validateSecurity();
+      
+      expect(securityResult.complianceStatus.doh).toBe(true);
+      expect(securityResult.complianceStatus.hipaa).toBe(true);
+      expect(securityResult.securityScore).toBeGreaterThan(80);
+    });
+
+    it("should ensure JAWDA compliance in database design", async () => {
+      const analysis = await databaseSchemaOptimizer.optimizeSchema();
+      
+      // Check for JAWDA-compliant data structures
+      const patientTable = analysis.tables.find(t => t.name === 'patients');
+      expect(patientTable).toBeDefined();
+      expect(patientTable?.indexes.some(idx => 
+        idx.columns.includes('emirates_id')
+      )).toBe(true);
+    });
+  });
+});
+
+// Enhanced helper functions for comprehensive testing
+function generateTestPatientData() {
+  return {
+    id: `test-${Date.now()}`,
+    name: "Test Patient",
+    age: Math.floor(Math.random() * 80) + 20,
+    conditions: ["hypertension", "diabetes"],
+    vitals: {
+      bp: "120/80",
+      hr: 72,
+      temp: 98.6,
+    },
+    emiratesId: `784-${Math.floor(Math.random() * 9999999999).toString().padStart(10, '0')}`,
+    insuranceInfo: {
+      provider: "DAMAN",
+      policyNumber: `POL-${Math.floor(Math.random() * 999999)}`,
+      validUntil: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
+    }
+  };
+}
+
+function generateTestClinicalData() {
+  return {
+    assessmentType: "comprehensive",
+    scores: {
+      cognitive: Math.floor(Math.random() * 30) + 70,
+      functional: Math.floor(Math.random() * 30) + 70,
+      social: Math.floor(Math.random() * 30) + 70,
+    },
+    recommendations: ["medication_review", "physical_therapy"],
+    complianceFlags: {
+      dohCompliant: true,
+      jawdaCompliant: true,
+      damanApproved: true
+    },
+    qualityMetrics: {
+      completeness: Math.random() * 0.2 + 0.8,
+      accuracy: Math.random() * 0.1 + 0.9,
+      timeliness: Math.random() * 0.15 + 0.85
+    }
+  };
+}
+
+function generateTestPerformanceData() {
+  return {
+    queryExecutionTime: Math.random() * 100 + 10,
+    memoryUsage: Math.random() * 50 + 20,
+    cpuUsage: Math.random() * 30 + 10,
+    indexHitRatio: Math.random() * 0.2 + 0.8,
+    cacheEfficiency: Math.random() * 0.15 + 0.85
+  };
+}
+
+export { generateTestPatientData, generateTestClinicalData, generateTestPerformanceData };

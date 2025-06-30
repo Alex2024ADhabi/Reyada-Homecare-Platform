@@ -69,7 +69,7 @@
     {
       "name": "Patient Dashboard",
       "short_name": "Dashboard",
-      "description": "View patient dashboard",
+      "description": "View patient dashboard with real-time updates",
       "url": "/dashboard",
       "icons": [
         {
@@ -81,7 +81,7 @@
     {
       "name": "Clinical Forms",
       "short_name": "Forms",
-      "description": "Access clinical forms",
+      "description": "Access AI-powered clinical forms",
       "url": "/clinical/forms",
       "icons": [
         {
@@ -93,7 +93,7 @@
     {
       "name": "Patient Management",
       "short_name": "Patients",
-      "description": "Manage patients",
+      "description": "Comprehensive patient management",
       "url": "/patients",
       "icons": [
         {
@@ -105,11 +105,35 @@
     {
       "name": "Daman Claims",
       "short_name": "Claims",
-      "description": "Submit insurance claims",
+      "description": "Smart insurance claims processing",
       "url": "/claims/daman",
       "icons": [
         {
           "src": "/icons/shortcut-claims.png",
+          "sizes": "96x96"
+        }
+      ]
+    },
+    {
+      "name": "AI Analytics",
+      "short_name": "Analytics",
+      "description": "Healthcare AI insights and analytics",
+      "url": "/analytics/ai",
+      "icons": [
+        {
+          "src": "/icons/shortcut-ai.png",
+          "sizes": "96x96"
+        }
+      ]
+    },
+    {
+      "name": "Compliance Monitor",
+      "short_name": "Compliance",
+      "description": "DOH/JAWDA compliance monitoring",
+      "url": "/compliance/monitor",
+      "icons": [
+        {
+          "src": "/icons/shortcut-compliance.png",
           "sizes": "96x96"
         }
       ]

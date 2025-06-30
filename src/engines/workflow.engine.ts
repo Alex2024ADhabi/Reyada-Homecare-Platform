@@ -767,7 +767,7 @@ class WorkflowEngine {
   }
 
   /**
-   * Load default workflows
+   * Load default healthcare workflows with DOH compliance
    */
   private async loadDefaultWorkflows(): Promise<void> {
     // Patient Admission Workflow
@@ -927,7 +927,239 @@ class WorkflowEngine {
       isActive: true,
     });
 
-    console.log("✅ Default workflows loaded");
+    // DOH Compliance Audit Workflow
+    this.createWorkflow({
+      name: "DOH Compliance Audit Workflow",
+      description: "Comprehensive DOH compliance audit and validation process",
+      version: "1.0",
+      category: "compliance",
+      steps: [
+        {
+          id: "compliance_assessment",
+          name: "DOH Compliance Assessment",
+          type: "task",
+          description: "Assess current DOH compliance status",
+          configuration: {
+            formId: "doh_compliance_form",
+            validationRules: ["DOH_STANDARD_V2025", "JAWDA_V8.3"],
+          },
+          nextSteps: ["compliance_review"],
+          assignee: {
+            type: "role",
+            identifier: "compliance_officer",
+          },
+        },
+        {
+          id: "compliance_review",
+          name: "Compliance Review",
+          type: "approval",
+          description: "Review compliance assessment results",
+          configuration: {
+            approvedStep: "generate_report",
+            rejectedStep: "remediation_plan",
+          },
+          nextSteps: [],
+          assignee: {
+            type: "role",
+            identifier: "medical_director",
+          },
+        },
+        {
+          id: "remediation_plan",
+          name: "Create Remediation Plan",
+          type: "task",
+          description: "Create plan to address compliance gaps",
+          configuration: {
+            formId: "remediation_plan_form",
+          },
+          nextSteps: ["compliance_review"],
+          assignee: {
+            type: "role",
+            identifier: "quality_manager",
+          },
+        },
+        {
+          id: "generate_report",
+          name: "Generate Compliance Report",
+          type: "integration",
+          description: "Generate comprehensive compliance report",
+          configuration: {
+            apiEndpoint: "/api/compliance/report",
+            method: "POST",
+            reportType: "DOH_COMPLIANCE",
+          },
+          nextSteps: ["notify_stakeholders"],
+        },
+        {
+          id: "notify_stakeholders",
+          name: "Notify Stakeholders",
+          type: "notification",
+          description: "Notify relevant stakeholders of compliance status",
+          configuration: {
+            notificationTemplate: "compliance_report",
+            recipient: "compliance_team",
+          },
+          nextSteps: [],
+        },
+      ],
+      triggers: [
+        {
+          id: "scheduled_audit",
+          type: "scheduled",
+          configuration: {
+            schedule: "0 0 1 * *", // Monthly on 1st day
+          },
+          isActive: true,
+        },
+        {
+          id: "manual_audit",
+          type: "manual",
+          configuration: {},
+          isActive: true,
+        },
+      ],
+      conditions: [],
+      metadata: {
+        dohCompliant: true,
+        jawdaCompliant: true,
+        priority: "high",
+        auditRequired: true,
+      },
+      isActive: true,
+    });
+
+    // Patient Safety Incident Workflow
+    this.createWorkflow({
+      name: "Patient Safety Incident Workflow",
+      description:
+        "Comprehensive patient safety incident management and reporting",
+      version: "1.0",
+      category: "clinical",
+      steps: [
+        {
+          id: "incident_report",
+          name: "Initial Incident Report",
+          type: "task",
+          description: "Report patient safety incident",
+          configuration: {
+            formId: "incident_report_form",
+            urgency: "high",
+          },
+          nextSteps: ["immediate_assessment"],
+          assignee: {
+            type: "role",
+            identifier: "reporting_staff",
+          },
+        },
+        {
+          id: "immediate_assessment",
+          name: "Immediate Risk Assessment",
+          type: "task",
+          description: "Assess immediate risk and take corrective action",
+          configuration: {
+            formId: "risk_assessment_form",
+            timeLimit: 3600000, // 1 hour
+          },
+          nextSteps: ["investigation"],
+          assignee: {
+            type: "role",
+            identifier: "safety_officer",
+          },
+        },
+        {
+          id: "investigation",
+          name: "Incident Investigation",
+          type: "task",
+          description: "Conduct thorough incident investigation",
+          configuration: {
+            formId: "investigation_form",
+            requiresEvidence: true,
+          },
+          nextSteps: ["root_cause_analysis"],
+          assignee: {
+            type: "role",
+            identifier: "quality_manager",
+          },
+        },
+        {
+          id: "root_cause_analysis",
+          name: "Root Cause Analysis",
+          type: "task",
+          description: "Perform root cause analysis",
+          configuration: {
+            formId: "rca_form",
+            methodology: "fishbone",
+          },
+          nextSteps: ["corrective_actions"],
+          assignee: {
+            type: "role",
+            identifier: "medical_director",
+          },
+        },
+        {
+          id: "corrective_actions",
+          name: "Implement Corrective Actions",
+          type: "task",
+          description: "Implement corrective and preventive actions",
+          configuration: {
+            formId: "corrective_actions_form",
+            trackingRequired: true,
+          },
+          nextSteps: ["doh_reporting"],
+          assignee: {
+            type: "role",
+            identifier: "operations_manager",
+          },
+        },
+        {
+          id: "doh_reporting",
+          name: "DOH Incident Reporting",
+          type: "integration",
+          description: "Report incident to DOH if required",
+          configuration: {
+            apiEndpoint: "/api/doh/incident-report",
+            method: "POST",
+            conditional: true,
+          },
+          nextSteps: ["close_incident"],
+        },
+        {
+          id: "close_incident",
+          name: "Close Incident",
+          type: "task",
+          description: "Close incident with final report",
+          configuration: {
+            formId: "incident_closure_form",
+            requiresApproval: true,
+          },
+          nextSteps: [],
+          assignee: {
+            type: "role",
+            identifier: "medical_director",
+          },
+        },
+      ],
+      triggers: [
+        {
+          id: "incident_trigger",
+          type: "event",
+          configuration: {
+            eventType: "patient_safety_incident",
+          },
+          isActive: true,
+        },
+      ],
+      conditions: [],
+      metadata: {
+        dohCompliant: true,
+        jawdaCompliant: true,
+        priority: "critical",
+        reportingRequired: true,
+      },
+      isActive: true,
+    });
+
+    console.log("✅ Enhanced healthcare workflows loaded with DOH compliance");
   }
 
   /**

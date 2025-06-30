@@ -912,7 +912,534 @@ class FormGenerationEngine {
       },
     });
 
-    console.log(`✅ Loaded healthcare form templates`);
+    // DOH 9-Domain Assessment Form
+    await this.createTemplate({
+      name: "DOH 9-Domain Assessment Form",
+      description: "Comprehensive DOH 9-domain patient assessment form",
+      category: "clinical",
+      version: "2.0.0",
+      fields: [
+        {
+          id: "domain_1_physical",
+          name: "physicalHealth",
+          type: "textarea",
+          label: "Domain 1: Physical Health Assessment",
+          required: true,
+          validation: {
+            rules: [
+              {
+                type: "required",
+                message: "Physical health assessment is required",
+              },
+              {
+                type: "minLength",
+                value: 50,
+                message: "Assessment must be at least 50 characters",
+              },
+            ],
+            messages: { required: "Physical health assessment is required" },
+          },
+          placeholder:
+            "Describe patient's physical health status, mobility, pain levels, and functional capacity...",
+          metadata: { domain: 1, dohRequired: true },
+        },
+        {
+          id: "domain_2_cognitive",
+          name: "cognitiveStatus",
+          type: "textarea",
+          label: "Domain 2: Cognitive and Mental Status",
+          required: true,
+          validation: {
+            rules: [
+              { type: "required", message: "Cognitive assessment is required" },
+              {
+                type: "minLength",
+                value: 30,
+                message: "Assessment must be at least 30 characters",
+              },
+            ],
+            messages: { required: "Cognitive assessment is required" },
+          },
+          placeholder:
+            "Assess cognitive function, memory, orientation, and mental status...",
+          metadata: { domain: 2, dohRequired: true },
+        },
+        {
+          id: "domain_3_psychosocial",
+          name: "psychosocialStatus",
+          type: "textarea",
+          label: "Domain 3: Psychosocial Status",
+          required: true,
+          validation: {
+            rules: [
+              {
+                type: "required",
+                message: "Psychosocial assessment is required",
+              },
+            ],
+            messages: { required: "Psychosocial assessment is required" },
+          },
+          placeholder:
+            "Evaluate emotional well-being, social support, coping mechanisms...",
+          metadata: { domain: 3, dohRequired: true },
+        },
+        {
+          id: "domain_4_spiritual",
+          name: "spiritualNeeds",
+          type: "textarea",
+          label: "Domain 4: Spiritual and Cultural Needs",
+          required: true,
+          validation: {
+            rules: [
+              { type: "required", message: "Spiritual assessment is required" },
+            ],
+            messages: { required: "Spiritual assessment is required" },
+          },
+          placeholder:
+            "Address spiritual beliefs, cultural preferences, and religious needs...",
+          metadata: { domain: 4, dohRequired: true },
+        },
+        {
+          id: "domain_5_financial",
+          name: "financialStatus",
+          type: "select",
+          label: "Domain 5: Financial Resources",
+          required: true,
+          options: [
+            { value: "adequate", label: "Adequate financial resources" },
+            { value: "limited", label: "Limited financial resources" },
+            {
+              value: "insufficient",
+              label: "Insufficient financial resources",
+            },
+            { value: "unknown", label: "Financial status unknown" },
+          ],
+          validation: {
+            rules: [
+              { type: "required", message: "Financial assessment is required" },
+            ],
+            messages: { required: "Financial assessment is required" },
+          },
+          metadata: { domain: 5, dohRequired: true },
+        },
+        {
+          id: "domain_6_legal",
+          name: "legalIssues",
+          type: "textarea",
+          label: "Domain 6: Legal Issues",
+          required: false,
+          validation: {
+            rules: [],
+            messages: {},
+          },
+          placeholder:
+            "Document any legal issues, advance directives, guardianship...",
+          metadata: { domain: 6, dohRequired: false },
+        },
+        {
+          id: "domain_7_cultural",
+          name: "culturalFactors",
+          type: "textarea",
+          label: "Domain 7: Cultural and Ethnic Factors",
+          required: true,
+          validation: {
+            rules: [
+              { type: "required", message: "Cultural assessment is required" },
+            ],
+            messages: { required: "Cultural assessment is required" },
+          },
+          placeholder:
+            "Consider cultural background, language preferences, customs...",
+          metadata: { domain: 7, dohRequired: true },
+        },
+        {
+          id: "domain_8_environmental",
+          name: "environmentalFactors",
+          type: "textarea",
+          label: "Domain 8: Environmental Factors",
+          required: true,
+          validation: {
+            rules: [
+              {
+                type: "required",
+                message: "Environmental assessment is required",
+              },
+            ],
+            messages: { required: "Environmental assessment is required" },
+          },
+          placeholder:
+            "Assess home environment, safety hazards, accessibility...",
+          metadata: { domain: 8, dohRequired: true },
+        },
+        {
+          id: "domain_9_caregiver",
+          name: "caregiverSupport",
+          type: "textarea",
+          label: "Domain 9: Caregiver Support and Resources",
+          required: true,
+          validation: {
+            rules: [
+              { type: "required", message: "Caregiver assessment is required" },
+            ],
+            messages: { required: "Caregiver assessment is required" },
+          },
+          placeholder:
+            "Evaluate caregiver availability, competency, and support needs...",
+          metadata: { domain: 9, dohRequired: true },
+        },
+        {
+          id: "assessment_date",
+          name: "assessmentDate",
+          type: "date",
+          label: "Assessment Date",
+          required: true,
+          validation: {
+            rules: [
+              { type: "required", message: "Assessment date is required" },
+            ],
+            messages: { required: "Assessment date is required" },
+          },
+          defaultValue: new Date().toISOString().split("T")[0],
+          metadata: { dohRequired: true },
+        },
+        {
+          id: "assessor_signature",
+          name: "assessorSignature",
+          type: "signature",
+          label: "Assessor Digital Signature",
+          required: true,
+          validation: {
+            rules: [
+              { type: "required", message: "Digital signature is required" },
+            ],
+            messages: { required: "Digital signature is required" },
+          },
+          metadata: { dohRequired: true, signatureType: "assessor" },
+        },
+      ],
+      layout: {
+        type: "accordion",
+        sections: [
+          {
+            id: "domains_1_3",
+            title: "Domains 1-3: Physical, Cognitive & Psychosocial",
+            description: "Core health and mental status assessment",
+            fields: [
+              "domain_1_physical",
+              "domain_2_cognitive",
+              "domain_3_psychosocial",
+            ],
+            collapsible: true,
+            defaultExpanded: true,
+            order: 1,
+          },
+          {
+            id: "domains_4_6",
+            title: "Domains 4-6: Spiritual, Financial & Legal",
+            description: "Holistic care considerations",
+            fields: [
+              "domain_4_spiritual",
+              "domain_5_financial",
+              "domain_6_legal",
+            ],
+            collapsible: true,
+            defaultExpanded: true,
+            order: 2,
+          },
+          {
+            id: "domains_7_9",
+            title: "Domains 7-9: Cultural, Environmental & Caregiver",
+            description: "Social and environmental factors",
+            fields: [
+              "domain_7_cultural",
+              "domain_8_environmental",
+              "domain_9_caregiver",
+            ],
+            collapsible: true,
+            defaultExpanded: true,
+            order: 3,
+          },
+          {
+            id: "completion",
+            title: "Assessment Completion",
+            description: "Date and signature validation",
+            fields: ["assessment_date", "assessor_signature"],
+            collapsible: false,
+            defaultExpanded: true,
+            order: 4,
+          },
+        ],
+        responsive: true,
+        breakpoints: {
+          mobile: "768px",
+          tablet: "1024px",
+        },
+      },
+      styling: {
+        theme: "medical",
+        colors: {
+          primary: "#1e40af",
+          secondary: "#1e3a8a",
+          accent: "#3b82f6",
+          background: "#f8fafc",
+          text: "#1e293b",
+        },
+        typography: {
+          fontFamily: "Inter, system-ui, sans-serif",
+          fontSize: "16px",
+          lineHeight: "1.6",
+        },
+        spacing: {
+          fieldGap: "1.5rem",
+          sectionGap: "2.5rem",
+          padding: "2rem",
+        },
+      },
+      workflow: {
+        steps: [
+          {
+            id: "domains_assessment",
+            name: "9-Domain Assessment",
+            fields: [
+              "domain_1_physical",
+              "domain_2_cognitive",
+              "domain_3_psychosocial",
+              "domain_4_spiritual",
+              "domain_5_financial",
+              "domain_6_legal",
+              "domain_7_cultural",
+              "domain_8_environmental",
+              "domain_9_caregiver",
+            ],
+            validation: true,
+            optional: false,
+            order: 1,
+          },
+          {
+            id: "completion_step",
+            name: "Assessment Completion",
+            fields: ["assessment_date", "assessor_signature"],
+            validation: true,
+            optional: false,
+            order: 2,
+          },
+        ],
+        validation: "step",
+        submission: {
+          endpoint: "/api/assessments/doh-9-domain",
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-DOH-Compliance": "v2025",
+          },
+        },
+        notifications: {
+          onSuccess: "DOH 9-Domain Assessment completed successfully",
+          onError: "Assessment submission failed. Please review and try again.",
+          onValidationError:
+            "Please complete all required domains before submitting",
+        },
+      },
+    });
+
+    // Patient Safety Incident Report Form
+    await this.createTemplate({
+      name: "Patient Safety Incident Report",
+      description: "Comprehensive patient safety incident reporting form",
+      category: "clinical",
+      version: "1.0.0",
+      fields: [
+        {
+          id: "incident_type",
+          name: "incidentType",
+          type: "select",
+          label: "Incident Type",
+          required: true,
+          options: [
+            { value: "medication_error", label: "Medication Error" },
+            { value: "fall", label: "Patient Fall" },
+            { value: "infection", label: "Healthcare-Associated Infection" },
+            { value: "equipment_failure", label: "Equipment Failure" },
+            { value: "documentation_error", label: "Documentation Error" },
+            { value: "communication_failure", label: "Communication Failure" },
+            { value: "other", label: "Other" },
+          ],
+          validation: {
+            rules: [{ type: "required", message: "Incident type is required" }],
+            messages: { required: "Incident type is required" },
+          },
+          metadata: { category: "classification" },
+        },
+        {
+          id: "severity_level",
+          name: "severityLevel",
+          type: "select",
+          label: "Severity Level",
+          required: true,
+          options: [
+            { value: "no_harm", label: "No Harm - Category A" },
+            { value: "near_miss", label: "Near Miss - Category B" },
+            { value: "temporary_harm", label: "Temporary Harm - Category C" },
+            { value: "permanent_harm", label: "Permanent Harm - Category D" },
+            { value: "death", label: "Death - Category E" },
+          ],
+          validation: {
+            rules: [
+              { type: "required", message: "Severity level is required" },
+            ],
+            messages: { required: "Severity level is required" },
+          },
+          metadata: { category: "classification" },
+        },
+        {
+          id: "incident_description",
+          name: "incidentDescription",
+          type: "textarea",
+          label: "Detailed Incident Description",
+          required: true,
+          validation: {
+            rules: [
+              { type: "required", message: "Incident description is required" },
+              {
+                type: "minLength",
+                value: 100,
+                message: "Description must be at least 100 characters",
+              },
+            ],
+            messages: { required: "Incident description is required" },
+          },
+          placeholder:
+            "Provide a detailed description of what happened, when, where, and who was involved...",
+          metadata: { category: "details" },
+        },
+        {
+          id: "immediate_actions",
+          name: "immediateActions",
+          type: "textarea",
+          label: "Immediate Actions Taken",
+          required: true,
+          validation: {
+            rules: [
+              {
+                type: "required",
+                message: "Immediate actions description is required",
+              },
+            ],
+            messages: { required: "Immediate actions description is required" },
+          },
+          placeholder:
+            "Describe immediate actions taken to address the incident and ensure patient safety...",
+          metadata: { category: "response" },
+        },
+        {
+          id: "reporter_signature",
+          name: "reporterSignature",
+          type: "signature",
+          label: "Reporter Digital Signature",
+          required: true,
+          validation: {
+            rules: [
+              { type: "required", message: "Digital signature is required" },
+            ],
+            messages: { required: "Digital signature is required" },
+          },
+          metadata: { signatureType: "reporter" },
+        },
+      ],
+      layout: {
+        type: "single_column",
+        sections: [
+          {
+            id: "incident_classification",
+            title: "Incident Classification",
+            description: "Classify the type and severity of the incident",
+            fields: ["incident_type", "severity_level"],
+            collapsible: false,
+            defaultExpanded: true,
+            order: 1,
+          },
+          {
+            id: "incident_details",
+            title: "Incident Details",
+            description: "Provide comprehensive incident information",
+            fields: ["incident_description", "immediate_actions"],
+            collapsible: false,
+            defaultExpanded: true,
+            order: 2,
+          },
+          {
+            id: "report_completion",
+            title: "Report Completion",
+            description: "Complete the incident report",
+            fields: ["reporter_signature"],
+            collapsible: false,
+            defaultExpanded: true,
+            order: 3,
+          },
+        ],
+        responsive: true,
+        breakpoints: {},
+      },
+      styling: {
+        theme: "medical",
+        colors: {
+          primary: "#dc2626",
+          secondary: "#b91c1c",
+          accent: "#ef4444",
+          background: "#fef2f2",
+          text: "#1f2937",
+        },
+        typography: {
+          fontFamily: "Inter, system-ui, sans-serif",
+          fontSize: "16px",
+          lineHeight: "1.6",
+        },
+        spacing: {
+          fieldGap: "1.5rem",
+          sectionGap: "2rem",
+          padding: "2rem",
+        },
+      },
+      workflow: {
+        steps: [
+          {
+            id: "incident_reporting",
+            name: "Incident Reporting",
+            fields: [
+              "incident_type",
+              "severity_level",
+              "incident_description",
+              "immediate_actions",
+              "reporter_signature",
+            ],
+            validation: true,
+            optional: false,
+            order: 1,
+          },
+        ],
+        validation: "realtime",
+        submission: {
+          endpoint: "/api/incidents/safety-report",
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Incident-Priority": "high",
+          },
+        },
+        notifications: {
+          onSuccess:
+            "Patient safety incident reported successfully. Investigation will begin immediately.",
+          onError:
+            "Incident report submission failed. Please try again or contact IT support.",
+          onValidationError:
+            "Please complete all required fields before submitting the incident report",
+        },
+      },
+    });
+
+    console.log(
+      `✅ Enhanced healthcare form templates loaded with DOH compliance`,
+    );
   }
 
   private async generateHTML(

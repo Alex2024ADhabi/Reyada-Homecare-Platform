@@ -501,14 +501,18 @@ class ComprehensiveErrorHandler {
   }
 
   /**
-   * Comprehensive platform error analysis
+   * Enhanced healthcare platform error analysis
    */
   public analyzePlatformErrors(): {
     totalErrors: number;
     criticalErrors: number;
     recoveredErrors: number;
     viteErrors: number;
+    healthcareErrors: number;
+    complianceErrors: number;
+    securityErrors: number;
     recommendations: string[];
+    healthScore: number;
   } {
     const viteErrors = this.errorReports.filter(
       (report) =>
@@ -525,6 +529,47 @@ class ComprehensiveErrorHandler {
       (report) => report.recovered,
     ).length;
 
+    // Healthcare-specific error analysis
+    const healthcareErrors = this.errorReports.filter(
+      (report) =>
+        report.error.message.toLowerCase().includes("patient") ||
+        report.error.message.toLowerCase().includes("clinical") ||
+        report.error.message.toLowerCase().includes("medical") ||
+        report.context.component?.includes("clinical") ||
+        report.context.component?.includes("patient"),
+    ).length;
+
+    const complianceErrors = this.errorReports.filter(
+      (report) =>
+        report.error.message.toLowerCase().includes("doh") ||
+        report.error.message.toLowerCase().includes("jawda") ||
+        report.error.message.toLowerCase().includes("compliance") ||
+        report.error.message.toLowerCase().includes("audit"),
+    ).length;
+
+    const securityErrors = this.errorReports.filter(
+      (report) =>
+        report.error.message.toLowerCase().includes("auth") ||
+        report.error.message.toLowerCase().includes("security") ||
+        report.error.message.toLowerCase().includes("permission") ||
+        report.error.message.toLowerCase().includes("unauthorized"),
+    ).length;
+
+    // Calculate platform health score
+    const totalErrors = this.errorReports.length;
+    const recoveryRate =
+      totalErrors > 0 ? (recoveredErrors / totalErrors) * 100 : 100;
+    const criticalErrorRate =
+      totalErrors > 0 ? (criticalErrors / totalErrors) * 100 : 0;
+    const healthcareErrorRate =
+      totalErrors > 0 ? (healthcareErrors / totalErrors) * 100 : 0;
+
+    let healthScore = 100;
+    healthScore -= criticalErrorRate * 2; // Critical errors heavily impact health
+    healthScore -= healthcareErrorRate * 1.5; // Healthcare errors are important
+    healthScore -= (100 - recoveryRate) * 0.5; // Poor recovery impacts health
+    healthScore = Math.max(0, Math.min(100, healthScore));
+
     const recommendations: string[] = [];
 
     if (viteErrors > 0) {
@@ -535,22 +580,56 @@ class ComprehensiveErrorHandler {
 
     if (criticalErrors > 0) {
       recommendations.push(
-        `Resolve ${criticalErrors} critical errors immediately`,
+        `🚨 URGENT: Resolve ${criticalErrors} critical errors immediately - Platform stability at risk`,
+      );
+    }
+
+    if (healthcareErrors > 0) {
+      recommendations.push(
+        `🏥 Healthcare Priority: Address ${healthcareErrors} healthcare-related errors affecting patient care`,
+      );
+    }
+
+    if (complianceErrors > 0) {
+      recommendations.push(
+        `📋 Compliance Risk: Fix ${complianceErrors} compliance-related errors to maintain DOH/JAWDA standards`,
+      );
+    }
+
+    if (securityErrors > 0) {
+      recommendations.push(
+        `🔒 Security Alert: Resolve ${securityErrors} security-related errors to protect patient data`,
       );
     }
 
     if (recoveredErrors < this.errorReports.length / 2) {
       recommendations.push(
-        "Improve error recovery mechanisms for better resilience",
+        "🔧 Improve error recovery mechanisms for better platform resilience",
+      );
+    }
+
+    if (healthScore < 80) {
+      recommendations.push(
+        `⚠️ Platform Health Warning: Health score is ${healthScore.toFixed(1)}% - Immediate attention required`,
+      );
+    }
+
+    if (totalErrors > 50) {
+      recommendations.push(
+        "📊 Consider implementing proactive error monitoring and prevention strategies",
       );
     }
 
     return {
-      totalErrors: this.errorReports.length,
+      totalErrors,
       criticalErrors,
       recoveredErrors,
       viteErrors,
+      healthcareErrors,
+      complianceErrors,
+      securityErrors,
       recommendations,
+      healthScore: Math.round(healthScore * 10) / 10,
     };
   }
 }
