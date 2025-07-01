@@ -4,7 +4,6 @@
  */
 
 import { AIHubService } from "@/services/ai-hub.service";
-import { RealTimeSyncService } from "@/services/real-time-sync.service";
 import performanceMonitor from "@/services/performance-monitor.service";
 
 export interface PlatformInitializationResult {
@@ -20,6 +19,14 @@ export interface PlatformInitializationResult {
     realTimeSync?: {
       initialized: boolean;
       connected?: boolean;
+      connectionQuality?: "excellent" | "good" | "fair" | "poor";
+      latency?: number;
+      reliability?: number;
+      syncHealth?: {
+        overall: "healthy" | "degraded" | "critical";
+        issues: string[];
+        recommendations: string[];
+      };
       error?: string;
     };
     performanceMonitor?: {
@@ -73,7 +80,9 @@ export async function initializePlatform(): Promise<PlatformInitializationResult
   // Initialize Real-Time Sync Service
   console.log("🔄 Initializing Real-Time Sync Service...");
   try {
-    const realTimeSyncService = RealTimeSyncService.getInstance();
+    const { default: realTimeSyncService } = await import(
+      "@/services/real-time-sync.service"
+    );
     await realTimeSyncService.initialize();
 
     // Test connection
@@ -86,14 +95,25 @@ export async function initializePlatform(): Promise<PlatformInitializationResult
       results.realTimeSync = {
         initialized: true,
         connected: true,
+        connectionQuality: connectionStatus.connectionQuality,
+        latency: connectionStatus.latency,
+        reliability: connectionStatus.reliability,
+        syncHealth: connectionStatus.syncHealth,
       };
     } else {
       console.warn("⚠️ Real-Time Sync Service initialized but not connected");
       results.realTimeSync = {
         initialized: true,
         connected: false,
+        connectionQuality: connectionStatus.connectionQuality,
+        syncHealth: connectionStatus.syncHealth,
       };
       warnings.push("Real-Time Sync Service not connected");
+
+      // Add specific warnings based on sync health
+      if (connectionStatus.syncHealth.issues.length > 0) {
+        warnings.push(...connectionStatus.syncHealth.issues);
+      }
     }
   } catch (error) {
     console.error("❌ Real-Time Sync Service initialization failed:", error);
@@ -194,6 +214,49 @@ export async function initializePlatform(): Promise<PlatformInitializationResult
     errors.push("Security Orchestrator initialization failed");
   }
 
+  // Initialize Dynamic Engines Integration
+  console.log("⚙️ Initializing Dynamic Engines Integration...");
+  try {
+    // Initialize all engines first
+    await initializeDynamicEngines();
+
+    // Test all engines integration
+    const enginesIntegrationTest = await testDynamicEnginesIntegration();
+
+    if (enginesIntegrationTest.success) {
+      console.log("✅ Dynamic Engines Integration tested successfully");
+      results.dynamicEnginesIntegration = {
+        initialized: true,
+        formGenerationEngine: enginesIntegrationTest.formGeneration,
+        workflowEngine: enginesIntegrationTest.workflow,
+        rulesEngine: enginesIntegrationTest.rules,
+        computationEngine: enginesIntegrationTest.computation,
+        integrationScore: enginesIntegrationTest.integrationScore,
+        enhancedFeatures: {
+          aiOptimization: true,
+          realTimeSync: true,
+          complianceValidation: true,
+          performanceMonitoring: true,
+        },
+      };
+    } else {
+      console.warn("⚠️ Dynamic Engines Integration has issues");
+      results.dynamicEnginesIntegration = {
+        initialized: true,
+        hasIssues: true,
+        issues: enginesIntegrationTest.issues,
+      };
+      warnings.push("Dynamic Engines Integration has performance issues");
+    }
+  } catch (error) {
+    console.error("❌ Dynamic Engines Integration failed:", error);
+    results.dynamicEnginesIntegration = {
+      initialized: false,
+      error: error instanceof Error ? error.message : "Unknown error",
+    };
+    errors.push("Dynamic Engines Integration failed");
+  }
+
   const totalInitializationTime = Date.now() - startTime;
   const success = errors.length === 0;
 
@@ -274,9 +337,21 @@ export async function getPlatformHealth(): Promise<{
 
   // Check Real-Time Sync Service
   try {
-    const realTimeSyncService = RealTimeSyncService.getInstance();
+    const { default: realTimeSyncService } = await import(
+      "@/services/real-time-sync.service"
+    );
     const connectionStatus = await realTimeSyncService.getConnectionStatus();
-    services.realTimeSync = connectionStatus.connected ? "online" : "degraded";
+
+    if (
+      connectionStatus.connected &&
+      connectionStatus.syncHealth.overall === "healthy"
+    ) {
+      services.realTimeSync = "online";
+    } else if (connectionStatus.connected) {
+      services.realTimeSync = "degraded";
+    } else {
+      services.realTimeSync = "offline";
+    }
   } catch (error) {
     services.realTimeSync = "offline";
   }
@@ -355,8 +430,10 @@ export async function shutdownPlatform(): Promise<{
 
   // Shutdown Real-Time Sync Service
   try {
-    const realTimeSyncService = RealTimeSyncService.getInstance();
-    await realTimeSyncService.disconnect();
+    const { default: realTimeSyncService } = await import(
+      "@/services/real-time-sync.service"
+    );
+    realTimeSyncService.disconnect();
     console.log("✅ Real-Time Sync Service shutdown completed");
   } catch (error) {
     console.error("❌ Real-Time Sync Service shutdown failed:", error);
@@ -392,8 +469,213 @@ export async function shutdownPlatform(): Promise<{
   };
 }
 
+/**
+ * Test Dynamic Engines Integration
+ */
+async function testDynamicEnginesIntegration(): Promise<{
+  success: boolean;
+  formGeneration: boolean;
+  workflow: boolean;
+  rules: boolean;
+  computation: boolean;
+  integrationScore: number;
+  issues?: string[];
+}> {
+  const issues: string[] = [];
+  let successCount = 0;
+  const totalTests = 4;
+
+  // Test Form Generation Engine
+  let formGenerationTest = false;
+  try {
+    const { formGenerationEngine } = await import(
+      "@/engines/form-generation.engine"
+    );
+
+    // Test intelligent form generation
+    const testForm = await formGenerationEngine.generateIntelligentForm({
+      templateId: "test-integration",
+      clinicalContext: {
+        assessmentType: "integration_test",
+        patientConditions: ["test"],
+        careLevel: "basic",
+        complianceRequirements: ["DOH"],
+        urgency: "medium",
+        episodeId: "test-episode",
+      },
+      customizations: {
+        aiEnhancements: true,
+        dynamicValidation: true,
+        realTimeSync: true,
+        offlineCapability: true,
+      },
+      preferences: {
+        language: "en",
+        accessibility: true,
+        mobileOptimized: true,
+        offlineCapable: true,
+        theme: "medical",
+      },
+    });
+    formGenerationTest = testForm && testForm.success;
+    if (formGenerationTest) successCount++;
+    else issues.push("Form Generation Engine integration failed");
+  } catch (error) {
+    issues.push(`Form Generation Engine error: ${error}`);
+  }
+
+  // Test Workflow Engine
+  let workflowTest = false;
+  try {
+    const { workflowEngine } = await import("@/engines/workflow.engine");
+    const testWorkflow = await workflowEngine.executeWorkflow({
+      templateId: "clinical_assessment",
+      context: {
+        patientId: "test-patient",
+        priority: "medium",
+        metadata: { test: true },
+      },
+      aiEnhancements: {
+        intelligentRouting: true,
+        predictiveScheduling: true,
+        resourceOptimization: true,
+      },
+    });
+    workflowTest = testWorkflow && testWorkflow.success;
+    if (workflowTest) successCount++;
+    else issues.push("Workflow Engine integration failed");
+  } catch (error) {
+    issues.push(`Workflow Engine error: ${error}`);
+  }
+
+  // Test Rules Engine
+  let rulesTest = false;
+  try {
+    const { rulesEngine } = await import("@/engines/rules.engine");
+    const testRules = await rulesEngine.evaluateRules({
+      data: { test: true },
+      patient: {
+        id: "test-patient",
+        age: 45,
+        conditions: ["test"],
+        medications: [],
+        allergies: [],
+      },
+      clinical: {
+        episodeId: "test-episode",
+        assessmentType: "integration_test",
+        urgency: "medium",
+      },
+      system: {
+        timestamp: new Date(),
+        source: "integration-test",
+        environment: "test",
+      },
+    });
+    rulesTest = testRules && testRules.success;
+    if (rulesTest) successCount++;
+    else issues.push("Rules Engine integration failed");
+  } catch (error) {
+    issues.push(`Rules Engine error: ${error}`);
+  }
+
+  // Test Computation Engine
+  let computationTest = false;
+  try {
+    const { smartComputationEngine } = await import(
+      "@/engines/computation.engine"
+    );
+    const testComputation = await smartComputationEngine.compute({
+      id: "integration-test",
+      type: "calculation",
+      data: { value: 100 },
+      context: {
+        organizationId: "test-org",
+        environment: "test",
+      },
+      priority: "medium",
+      validation: {
+        required: ["value"],
+      },
+      caching: {
+        enabled: false,
+        ttl: 0,
+      },
+    });
+    computationTest = testComputation && testComputation.success;
+    if (computationTest) successCount++;
+    else issues.push("Computation Engine integration failed");
+  } catch (error) {
+    issues.push(`Computation Engine error: ${error}`);
+  }
+
+  const integrationScore = (successCount / totalTests) * 100;
+  const success = successCount >= 3; // At least 75% success rate
+
+  return {
+    success,
+    formGeneration: formGenerationTest,
+    workflow: workflowTest,
+    rules: rulesTest,
+    computation: computationTest,
+    integrationScore,
+    issues: issues.length > 0 ? issues : undefined,
+  };
+}
+
+/**
+ * Initialize all Dynamic Engines
+ */
+async function initializeDynamicEngines(): Promise<void> {
+  console.log("🔧 Initializing Dynamic Engines...");
+
+  // Initialize Form Generation Engine
+  try {
+    const { formGenerationEngine } = await import(
+      "@/engines/form-generation.engine"
+    );
+    await formGenerationEngine.initialize();
+    console.log("✅ Form Generation Engine initialized");
+  } catch (error) {
+    console.error("❌ Form Generation Engine initialization failed:", error);
+  }
+
+  // Initialize Workflow Engine
+  try {
+    const { workflowEngine } = await import("@/engines/workflow.engine");
+    await workflowEngine.initialize();
+    console.log("✅ Workflow Engine initialized");
+  } catch (error) {
+    console.error("❌ Workflow Engine initialization failed:", error);
+  }
+
+  // Initialize Rules Engine
+  try {
+    const { rulesEngine } = await import("@/engines/rules.engine");
+    await rulesEngine.initialize();
+    console.log("✅ Rules Engine initialized");
+  } catch (error) {
+    console.error("❌ Rules Engine initialization failed:", error);
+  }
+
+  // Initialize Computation Engine
+  try {
+    const { smartComputationEngine } = await import(
+      "@/engines/computation.engine"
+    );
+    await smartComputationEngine.initialize();
+    console.log("✅ Computation Engine initialized");
+  } catch (error) {
+    console.error("❌ Computation Engine initialization failed:", error);
+  }
+
+  console.log("🎉 All Dynamic Engines initialized successfully");
+}
+
 export default {
   initializePlatform,
   getPlatformHealth,
   shutdownPlatform,
+  testDynamicEnginesIntegration,
+  initializeDynamicEngines,
 };

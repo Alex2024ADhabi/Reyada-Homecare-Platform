@@ -672,3 +672,133 @@ class SmartComputationEngine {
 
 export const smartComputationEngine = SmartComputationEngine.getInstance();
 export default smartComputationEngine;
+
+// Enhanced computation interface for AI Hub integration
+export interface ComputationRequest {
+  id: string;
+  type:
+    | "calculation"
+    | "analysis"
+    | "prediction"
+    | "optimization"
+    | "validation"
+    | "resource-optimization";
+  data: any;
+  context: {
+    organizationId: string;
+    environment: string;
+  };
+  priority: "low" | "medium" | "high" | "critical";
+  validation: {
+    required: string[];
+    ranges?: Record<string, { min: number; max: number }>;
+  };
+  caching: {
+    enabled: boolean;
+    ttl: number;
+  };
+}
+
+export interface ComputationResponse {
+  success: boolean;
+  result?: any;
+  error?: string;
+  executionTime: number;
+  metadata: {
+    computationId: string;
+    timestamp: Date;
+    cached: boolean;
+  };
+}
+
+// Add compute method to SmartComputationEngine
+SmartComputationEngine.prototype.compute = async function (
+  request: ComputationRequest,
+): Promise<ComputationResponse> {
+  try {
+    const startTime = Date.now();
+
+    // Validate request
+    if (
+      !request.validation.required.every(
+        (field) => request.data[field] !== undefined,
+      )
+    ) {
+      throw new Error("Missing required fields");
+    }
+
+    // Check ranges if specified
+    if (request.validation.ranges) {
+      for (const [field, range] of Object.entries(request.validation.ranges)) {
+        const value = request.data[field];
+        if (
+          typeof value === "number" &&
+          (value < range.min || value > range.max)
+        ) {
+          throw new Error(
+            `${field} value ${value} is outside valid range [${range.min}, ${range.max}]`,
+          );
+        }
+      }
+    }
+
+    // Execute computation task
+    const taskId = await this.executeTask({
+      name: `Computation: ${request.type}`,
+      type: request.type as any,
+      priority: request.priority,
+      input: request.data,
+      parameters: request.context,
+      dependencies: [],
+      timeout: 30000,
+      retryPolicy: {
+        maxRetries: 2,
+        retryDelay: 1000,
+        exponentialBackoff: true,
+      },
+    });
+
+    // Wait for result
+    let result;
+    let attempts = 0;
+    const maxAttempts = 30; // 30 seconds timeout
+
+    while (attempts < maxAttempts) {
+      result = await this.getResult(taskId);
+      if (result && result.status === "completed") {
+        break;
+      }
+      if (result && result.status === "failed") {
+        throw new Error(result.error || "Computation failed");
+      }
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      attempts++;
+    }
+
+    if (!result || result.status !== "completed") {
+      throw new Error("Computation timeout");
+    }
+
+    return {
+      success: true,
+      result: result.result,
+      executionTime: Date.now() - startTime,
+      metadata: {
+        computationId: taskId,
+        timestamp: new Date(),
+        cached: false,
+      },
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : String(error),
+      executionTime: Date.now() - Date.now(),
+      metadata: {
+        computationId: request.id,
+        timestamp: new Date(),
+        cached: false,
+      },
+    };
+  }
+};

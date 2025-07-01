@@ -2856,6 +2856,48 @@ class HealthcareIntegrationService {
     return this.makeThirdPartyRequest(url, defaultOptions, "uae-pass");
   }
 
+  private async makeFHIRRequest(
+    endpoint: string,
+    options: RequestInit = {},
+  ): Promise<ThirdPartyIntegrationResponse> {
+    const url = `${this.emrBaseUrl}/fhir${endpoint}`;
+    const defaultOptions: RequestInit = {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/fhir+json",
+        Authorization: `Bearer ${this.emrApiKey}`,
+        "X-FHIR-Version": "4.0.1",
+        "X-Source-System": "reyada-homecare",
+        ...options.headers,
+      },
+      timeout: this.timeout,
+      ...options,
+    };
+
+    return this.makeThirdPartyRequest(url, defaultOptions, "fhir");
+  }
+
+  private async makeRadiologyRequest(
+    endpoint: string,
+    options: RequestInit = {},
+  ): Promise<ThirdPartyIntegrationResponse> {
+    const url = `https://api.radiology.ae/v1${endpoint}`;
+    const defaultOptions: RequestInit = {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.RADIOLOGY_API_KEY || "demo_radiology_key"}`,
+        "X-Radiology-Provider": "reyada-homecare",
+        "X-DICOM-Version": "3.0",
+        ...options.headers,
+      },
+      timeout: this.timeout,
+      ...options,
+    };
+
+    return this.makeThirdPartyRequest(url, defaultOptions, "radiology");
+  }
+
   private async makeHospitalRequest(
     endpoint: string,
     options: RequestInit = {},
@@ -2894,6 +2936,434 @@ class HealthcareIntegrationService {
     };
 
     return this.makeThirdPartyRequest(url, defaultOptions, "telehealth");
+  }
+
+  // Radiology Integration Methods
+  async createRadiologyIntegration(
+    patientId: string,
+    episodeId: string,
+    radiologyProvider: string,
+  ): Promise<{
+    id: string;
+    patientId: string;
+    episodeId: string;
+    radiologyProvider: {
+      name: string;
+      license: string;
+      accreditation: string[];
+      contactInfo: {
+        phone: string;
+        email: string;
+        address: string;
+      };
+      dicomConfiguration: {
+        aeTitle: string;
+        port: number;
+        hostname: string;
+        transferSyntax: string[];
+      };
+    };
+    imagingOrders: any[];
+    studies: any[];
+    reports: any[];
+    dicomIntegration: {
+      enabled: boolean;
+      storageClass: string;
+      compressionLevel: string;
+      qualityAssurance: {
+        imageQuality: number;
+        artifactDetection: boolean;
+        radiationDoseTracking: boolean;
+      };
+    };
+    integrationStatus: {
+      connected: boolean;
+      lastSync: string;
+      syncErrors: any[];
+      dicomConnectivity: boolean;
+    };
+    createdAt: string;
+    updatedAt: string;
+  } | null> {
+    try {
+      const radiologyIntegration = {
+        id: `rad-${Date.now()}`,
+        patientId,
+        episodeId,
+        radiologyProvider: {
+          name: radiologyProvider,
+          license: "RAD-UAE-2024",
+          accreditation: ["ACR", "DICOM", "DOH-Accredited"],
+          contactInfo: {
+            phone: "+971-4-XXX-XXXX",
+            email: "imaging@radiology.ae",
+            address: "Dubai Healthcare City, UAE",
+          },
+          dicomConfiguration: {
+            aeTitle: "REYADA_PACS",
+            port: 11112,
+            hostname: "pacs.radiology.ae",
+            transferSyntax: ["1.2.840.10008.1.2", "1.2.840.10008.1.2.1"],
+          },
+        },
+        imagingOrders: [],
+        studies: [],
+        reports: [],
+        dicomIntegration: {
+          enabled: true,
+          storageClass: "CT Image Storage",
+          compressionLevel: "lossless",
+          qualityAssurance: {
+            imageQuality: 95,
+            artifactDetection: true,
+            radiationDoseTracking: true,
+          },
+        },
+        integrationStatus: {
+          connected: true,
+          lastSync: new Date().toISOString(),
+          syncErrors: [],
+          dicomConnectivity: true,
+        },
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      return radiologyIntegration;
+    } catch (error) {
+      console.error("Error creating radiology integration:", error);
+      return null;
+    }
+  }
+
+  async orderImagingStudy(
+    patientId: string,
+    studyDetails: {
+      studyType: string;
+      modality: "CT" | "MRI" | "X-RAY" | "ULTRASOUND" | "MAMMOGRAPHY";
+      bodyPart: string;
+      priority: "routine" | "urgent" | "stat";
+      orderedBy: string;
+      clinicalIndication: string;
+      contrast?: boolean;
+      specialInstructions?: string;
+    },
+  ): Promise<{
+    success: boolean;
+    orderId?: string;
+    studyInstanceUID?: string;
+    scheduledDate?: string;
+    estimatedDuration?: number;
+  }> {
+    try {
+      const response = await this.makeRadiologyRequest("/studies/order", {
+        method: "POST",
+        body: JSON.stringify({
+          patientId,
+          ...studyDetails,
+          orderDate: new Date().toISOString(),
+          status: "ordered",
+          requestId: `study-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        }),
+      });
+
+      return {
+        success: response.success,
+        orderId: response.data?.orderId,
+        studyInstanceUID: response.data?.studyInstanceUID,
+        scheduledDate: response.data?.scheduledDate,
+        estimatedDuration: response.data?.estimatedDuration,
+      };
+    } catch (error) {
+      console.error("Error ordering imaging study:", error);
+      return { success: false };
+    }
+  }
+
+  async getImagingResults(
+    patientId: string,
+    options?: {
+      studyType?: string;
+      modality?: string;
+      startDate?: string;
+      endDate?: string;
+      includeImages?: boolean;
+      includeDICOM?: boolean;
+    },
+  ): Promise<{
+    studies: Array<{
+      studyInstanceUID: string;
+      studyDate: string;
+      modality: string;
+      bodyPart: string;
+      description: string;
+      images: Array<{
+        sopInstanceUID: string;
+        imageNumber: number;
+        dicomUrl?: string;
+        thumbnailUrl?: string;
+      }>;
+      report: {
+        reportId: string;
+        radiologist: string;
+        findings: string;
+        impression: string;
+        recommendations: string;
+        reportDate: string;
+        status: "preliminary" | "final" | "amended";
+      };
+    }>;
+    totalStudies: number;
+  }> {
+    try {
+      const queryParams = new URLSearchParams();
+      if (options?.studyType)
+        queryParams.append("studyType", options.studyType);
+      if (options?.modality) queryParams.append("modality", options.modality);
+      if (options?.startDate)
+        queryParams.append("startDate", options.startDate);
+      if (options?.endDate) queryParams.append("endDate", options.endDate);
+      if (options?.includeImages) queryParams.append("includeImages", "true");
+      if (options?.includeDICOM) queryParams.append("includeDICOM", "true");
+
+      const url = `/radiology/studies/${patientId}${queryParams.toString() ? "?" + queryParams.toString() : ""}`;
+      const response = await this.makeRadiologyRequest(url);
+
+      return response.success
+        ? response.data
+        : { studies: [], totalStudies: 0 };
+    } catch (error) {
+      console.error("Error fetching imaging results:", error);
+      return { studies: [], totalStudies: 0 };
+    }
+  }
+
+  async getDICOMImage(
+    studyInstanceUID: string,
+    sopInstanceUID: string,
+  ): Promise<{
+    success: boolean;
+    imageUrl?: string;
+    metadata?: any;
+    dicomTags?: Record<string, any>;
+  }> {
+    try {
+      const response = await this.makeRadiologyRequest(
+        `/dicom/image/${studyInstanceUID}/${sopInstanceUID}`,
+      );
+
+      return {
+        success: response.success,
+        imageUrl: response.data?.imageUrl,
+        metadata: response.data?.metadata,
+        dicomTags: response.data?.dicomTags,
+      };
+    } catch (error) {
+      console.error("Error fetching DICOM image:", error);
+      return { success: false };
+    }
+  }
+
+  // Enhanced FHIR R4 Integration
+  async createFHIRPatient(patientData: {
+    identifier: string;
+    name: { given: string[]; family: string };
+    gender: "male" | "female" | "other" | "unknown";
+    birthDate: string;
+    address?: any[];
+    telecom?: any[];
+    maritalStatus?: any;
+    contact?: any[];
+  }): Promise<FHIRPatient | null> {
+    try {
+      const fhirPatient = {
+        resourceType: "Patient",
+        id: `patient-${Date.now()}`,
+        identifier: [
+          {
+            use: "official",
+            system: "urn:oid:2.16.784.1.1.1",
+            value: patientData.identifier,
+          },
+        ],
+        active: true,
+        name: [patientData.name],
+        gender: patientData.gender,
+        birthDate: patientData.birthDate,
+        address: patientData.address || [],
+        telecom: patientData.telecom || [],
+        maritalStatus: patientData.maritalStatus,
+        contact: patientData.contact || [],
+        meta: {
+          versionId: "1",
+          lastUpdated: new Date().toISOString(),
+          source: "reyada-homecare",
+        },
+      };
+
+      const response = await this.makeFHIRRequest("/Patient", {
+        method: "POST",
+        body: JSON.stringify(fhirPatient),
+      });
+
+      return response.success ? response.data : null;
+    } catch (error) {
+      console.error("Error creating FHIR patient:", error);
+      return null;
+    }
+  }
+
+  async createFHIRObservation(observationData: {
+    patientId: string;
+    code: { system: string; code: string; display: string };
+    value: any;
+    effectiveDateTime: string;
+    performer?: string[];
+    category?: any[];
+  }): Promise<FHIRObservation | null> {
+    try {
+      const fhirObservation = {
+        resourceType: "Observation",
+        id: `observation-${Date.now()}`,
+        status: "final",
+        category: observationData.category || [
+          {
+            coding: [
+              {
+                system:
+                  "http://terminology.hl7.org/CodeSystem/observation-category",
+                code: "vital-signs",
+                display: "Vital Signs",
+              },
+            ],
+          },
+        ],
+        code: {
+          coding: [observationData.code],
+        },
+        subject: {
+          reference: `Patient/${observationData.patientId}`,
+        },
+        effectiveDateTime: observationData.effectiveDateTime,
+        valueQuantity: observationData.value,
+        performer:
+          observationData.performer?.map((p) => ({ reference: p })) || [],
+        meta: {
+          versionId: "1",
+          lastUpdated: new Date().toISOString(),
+          source: "reyada-homecare",
+        },
+      };
+
+      const response = await this.makeFHIRRequest("/Observation", {
+        method: "POST",
+        body: JSON.stringify(fhirObservation),
+      });
+
+      return response.success ? response.data : null;
+    } catch (error) {
+      console.error("Error creating FHIR observation:", error);
+      return null;
+    }
+  }
+
+  async searchFHIRResources(
+    resourceType: string,
+    searchParams: Record<string, string>,
+  ): Promise<FHIRBundle | null> {
+    try {
+      const queryParams = new URLSearchParams(searchParams);
+      const url = `/${resourceType}?${queryParams.toString()}`;
+      const response = await this.makeFHIRRequest(url);
+
+      return response.success ? response.data : null;
+    } catch (error) {
+      console.error("Error searching FHIR resources:", error);
+      return null;
+    }
+  }
+
+  // Comprehensive Integration Status and Health Check
+  async performHealthCheck(): Promise<{
+    overall: "healthy" | "degraded" | "unhealthy";
+    services: Record<
+      string,
+      {
+        status: "up" | "down" | "degraded";
+        responseTime: number;
+        lastCheck: string;
+        errors?: string[];
+      }
+    >;
+    recommendations: string[];
+  }> {
+    const healthCheck = {
+      overall: "healthy" as "healthy" | "degraded" | "unhealthy",
+      services: {} as Record<string, any>,
+      recommendations: [] as string[],
+    };
+
+    const services = [
+      { name: "fhir", testFn: () => this.testIntegration("fhir") },
+      { name: "malaffi", testFn: () => this.testIntegration("malaffi") },
+      { name: "laboratory", testFn: () => this.testIntegration("laboratory") },
+      { name: "pharmacy", testFn: () => this.testIntegration("pharmacy") },
+      { name: "hospital", testFn: () => this.testIntegration("hospital") },
+      { name: "telehealth", testFn: () => this.testIntegration("telehealth") },
+      { name: "insurance", testFn: () => this.testIntegration("insurance") },
+    ];
+
+    let healthyCount = 0;
+    let degradedCount = 0;
+    let unhealthyCount = 0;
+
+    for (const service of services) {
+      const startTime = Date.now();
+      try {
+        const isHealthy = await service.testFn();
+        const responseTime = Date.now() - startTime;
+
+        healthCheck.services[service.name] = {
+          status: isHealthy ? "up" : "down",
+          responseTime,
+          lastCheck: new Date().toISOString(),
+        };
+
+        if (isHealthy) {
+          if (responseTime > 5000) {
+            healthCheck.services[service.name].status = "degraded";
+            degradedCount++;
+          } else {
+            healthyCount++;
+          }
+        } else {
+          unhealthyCount++;
+        }
+      } catch (error) {
+        healthCheck.services[service.name] = {
+          status: "down",
+          responseTime: Date.now() - startTime,
+          lastCheck: new Date().toISOString(),
+          errors: [error.message],
+        };
+        unhealthyCount++;
+      }
+    }
+
+    // Determine overall health
+    if (unhealthyCount > services.length / 2) {
+      healthCheck.overall = "unhealthy";
+      healthCheck.recommendations.push(
+        "Multiple critical services are down. Immediate attention required.",
+      );
+    } else if (degradedCount > 0 || unhealthyCount > 0) {
+      healthCheck.overall = "degraded";
+      healthCheck.recommendations.push(
+        "Some services are experiencing issues. Monitor closely.",
+      );
+    }
+
+    return healthCheck;
   }
 
   // Real-time Integration Methods

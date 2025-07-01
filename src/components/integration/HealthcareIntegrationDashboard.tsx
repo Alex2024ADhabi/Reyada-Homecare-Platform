@@ -40,6 +40,7 @@ import type {
   HospitalAdmission,
   TelehealthSession,
 } from "@/types/supabase";
+import RadiologySystemIntegration from "./RadiologySystemIntegration";
 
 interface HealthcareIntegrationDashboardProps {
   patientId?: string;
@@ -261,7 +262,7 @@ const HealthcareIntegrationDashboard: React.FC<
         </div>
 
         {/* Integration Status Overview */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
           {integrationStatus &&
             Object.entries(integrationStatus).map(([key, status]) => {
               const icons = {
@@ -270,6 +271,7 @@ const HealthcareIntegrationDashboard: React.FC<
                 pharmacy: Pill,
                 hospital: Building2,
                 telehealth: Video,
+                radiology: Monitor,
               };
               const Icon = icons[key as keyof typeof icons];
 
@@ -327,12 +329,13 @@ const HealthcareIntegrationDashboard: React.FC<
 
         {/* Detailed Integration Data */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="laboratory">Laboratory</TabsTrigger>
             <TabsTrigger value="pharmacy">Pharmacy</TabsTrigger>
             <TabsTrigger value="hospital">Hospital</TabsTrigger>
             <TabsTrigger value="telehealth">Telehealth</TabsTrigger>
+            <TabsTrigger value="radiology">Radiology</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-6">
@@ -703,6 +706,10 @@ const HealthcareIntegrationDashboard: React.FC<
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="radiology" className="space-y-6">
+            <RadiologySystemIntegration patientId={patientId} />
           </TabsContent>
         </Tabs>
       </div>

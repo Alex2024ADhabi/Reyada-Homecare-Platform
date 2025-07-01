@@ -2,11 +2,23 @@ import "@testing-library/jest-dom";
 import { vi } from "vitest";
 import { cleanup } from "@testing-library/react";
 import { afterEach, beforeAll, afterAll } from "vitest";
+import { globalTestReporter } from "./utils/test-reporting";
 
 // Cleanup after each test case
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+});
+
+// Initialize test reporting
+beforeAll(() => {
+  // Initialize global test reporter
+  globalTestReporter.startTesting();
+
+  // Set up test environment validation
+  if (process.env.NODE_ENV === "test") {
+    console.log("🧪 Healthcare Platform Test Environment Initialized");
+  }
 });
 
 // Mock IntersectionObserver
@@ -117,6 +129,11 @@ beforeAll(() => {
 
 afterAll(() => {
   vi.restoreAllMocks();
+
+  // Generate test completion report
+  if (process.env.NODE_ENV === "test") {
+    console.log("🏁 Test suite completed");
+  }
 });
 
 // Custom matchers

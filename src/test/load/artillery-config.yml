@@ -1,0 +1,311 @@
+# Artillery Load Testing Configuration for Healthcare Platform
+# Tests system performance under realistic healthcare workloads
+
+config:
+  target: 'http://localhost:3001'
+  phases:
+    # Warm-up phase
+    - duration: 60
+      arrivalRate: 5
+      name: "Warm-up"
+    # Ramp-up phase
+    - duration: 300
+      arrivalRate: 10
+      rampTo: 25
+      name: "Ramp-up"
+    # Sustained load
+    - duration: 600
+      arrivalRate: 25
+      name: "Sustained Load"
+    # Peak load
+    - duration: 300
+      arrivalRate: 25
+      rampTo: 50
+      name: "Peak Load"
+    # Cool-down
+    - duration: 120
+      arrivalRate: 50
+      rampTo: 5
+      name: "Cool-down"
+  
+  # Performance thresholds for healthcare applications
+  ensure:
+    p95: 2000  # 95th percentile response time under 2 seconds
+    p99: 5000  # 99th percentile response time under 5 seconds
+    maxErrorRate: 1  # Error rate under 1%
+  
+  # Load testing plugins
+  plugins:
+    expect: {}
+    metrics-by-endpoint: {}
+    
+  # Custom metrics for healthcare workflows
+  processor: "./src/test/load/artillery-processor.js"
+  
+  # HTTP configuration
+  http:
+    timeout: 30
+    pool: 50
+    
+  # Variables for test data
+  variables:
+    patientIds:
+      - "patient-001"
+      - "patient-002"
+      - "patient-003"
+      - "patient-004"
+      - "patient-005"
+    
+    clinicianIds:
+      - "clinician-001"
+      - "clinician-002"
+      - "clinician-003"
+    
+    serviceTypes:
+      - "nursing-care"
+      - "physiotherapy"
+      - "occupational-therapy"
+      - "wound-care"
+      - "medication-management"
+
+scenarios:
+  # Healthcare Authentication Flow
+  - name: "Healthcare Authentication"
+    weight: 20
+    flow:
+      - post:
+          url: "/api/auth/login"
+          json:
+            email: "{{ $randomString() }}@reyada.com"
+            password: "testpassword123"
+          capture:
+            - json: "$.token"
+              as: "authToken"
+          expect:
+            - statusCode: [200, 401]
+      
+      - think: 2
+      
+      - get:
+          url: "/api/auth/profile"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          expect:
+            - statusCode: [200, 401]
+
+  # Patient Management Workflow
+  - name: "Patient Management"
+    weight: 30
+    flow:
+      # Login
+      - post:
+          url: "/api/auth/login"
+          json:
+            email: "nurse@reyada.com"
+            password: "testpassword123"
+          capture:
+            - json: "$.token"
+              as: "authToken"
+      
+      # Search patients
+      - get:
+          url: "/api/patients/search"
+          qs:
+            q: "{{ $randomString() }}"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          expect:
+            - statusCode: 200
+            - hasProperty: "results"
+      
+      - think: 1
+      
+      # Get patient details
+      - get:
+          url: "/api/patients/{{ $randomPick(patientIds) }}"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          expect:
+            - statusCode: [200, 404]
+      
+      - think: 2
+      
+      # Create new patient (occasionally)
+      - post:
+          url: "/api/patients"
+          json:
+            name: "{{ $randomString() }} Test Patient"
+            emiratesId: "784-1990-{{ $randomInt(1000000, 9999999) }}-{{ $randomInt(1, 9) }}"
+            phone: "+971{{ $randomInt(500000000, 599999999) }}"
+            email: "{{ $randomString() }}@example.com"
+            address:
+              street: "{{ $randomInt(1, 999) }} Test Street"
+              city: "Dubai"
+              emirate: "Dubai"
+              country: "UAE"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          expect:
+            - statusCode: [201, 400]
+          ifTrue: "{{ $randomNumber(0, 1) < 0.1 }}"  # 10% chance
+
+  # Clinical Documentation Workflow
+  - name: "Clinical Documentation"
+    weight: 25
+    flow:
+      # Login as clinician
+      - post:
+          url: "/api/auth/login"
+          json:
+            email: "doctor@reyada.com"
+            password: "testpassword123"
+          capture:
+            - json: "$.token"
+              as: "authToken"
+      
+      # Get patient assessments
+      - get:
+          url: "/api/clinical/assessments"
+          qs:
+            patientId: "{{ $randomPick(patientIds) }}"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          expect:
+            - statusCode: 200
+      
+      - think: 3
+      
+      # Create clinical assessment
+      - post:
+          url: "/api/clinical/assessments"
+          json:
+            patientId: "{{ $randomPick(patientIds) }}"
+            assessmentType: "follow-up-assessment"
+            assessmentDate: "{{ new Date().toISOString() }}"
+            clinicianId: "{{ $randomPick(clinicianIds) }}"
+            domains:
+              domain1:
+                score: "{{ $randomInt(1, 5) }}"
+                notes: "Assessment notes for domain 1"
+              domain2:
+                score: "{{ $randomInt(1, 5) }}"
+                notes: "Assessment notes for domain 2"
+              domain3:
+                score: "{{ $randomInt(1, 5) }}"
+                notes: "Assessment notes for domain 3"
+              domain4:
+                score: "{{ $randomInt(1, 5) }}"
+                notes: "Assessment notes for domain 4"
+              domain5:
+                score: "{{ $randomInt(1, 5) }}"
+                notes: "Assessment notes for domain 5"
+              domain6:
+                score: "{{ $randomInt(1, 5) }}"
+                notes: "Assessment notes for domain 6"
+              domain7:
+                score: "{{ $randomInt(1, 5) }}"
+                notes: "Assessment notes for domain 7"
+              domain8:
+                score: "{{ $randomInt(1, 5) }}"
+                notes: "Assessment notes for domain 8"
+              domain9:
+                score: "{{ $randomInt(1, 5) }}"
+                notes: "Assessment notes for domain 9"
+            clinicalNotes: "Comprehensive clinical assessment completed during load test"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          expect:
+            - statusCode: [201, 400]
+      
+      - think: 2
+
+  # DAMAN Authorization Workflow
+  - name: "DAMAN Authorization"
+    weight: 15
+    flow:
+      # Login
+      - post:
+          url: "/api/auth/login"
+          json:
+            email: "admin@reyada.com"
+            password: "testpassword123"
+          capture:
+            - json: "$.token"
+              as: "authToken"
+      
+      # Check existing authorizations
+      - get:
+          url: "/api/revenue/daman/authorizations"
+          qs:
+            patientId: "{{ $randomPick(patientIds) }}"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          expect:
+            - statusCode: 200
+      
+      - think: 2
+      
+      # Submit new authorization (occasionally)
+      - post:
+          url: "/api/revenue/daman/authorizations"
+          json:
+            patientId: "{{ $randomPick(patientIds) }}"
+            serviceType: "{{ $randomPick(serviceTypes) }}"
+            requestedDuration: "30-days"
+            clinicalJustification: "Load test authorization request"
+            requestedServices:
+              - serviceCode: "NURSE-001"
+                description: "Skilled Nursing Visit"
+                frequency: "daily"
+                duration: "30-days"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          expect:
+            - statusCode: [201, 400]
+          ifTrue: "{{ $randomNumber(0, 1) < 0.2 }}"  # 20% chance
+
+  # Dashboard and Analytics
+  - name: "Dashboard Analytics"
+    weight: 10
+    flow:
+      # Login
+      - post:
+          url: "/api/auth/login"
+          json:
+            email: "manager@reyada.com"
+            password: "testpassword123"
+          capture:
+            - json: "$.token"
+              as: "authToken"
+      
+      # Load dashboard summary
+      - get:
+          url: "/api/dashboard/summary"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          expect:
+            - statusCode: 200
+      
+      - think: 1
+      
+      # Load analytics data
+      - get:
+          url: "/api/analytics/performance"
+          qs:
+            period: "30d"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          expect:
+            - statusCode: 200
+      
+      # Load compliance reports
+      - get:
+          url: "/api/compliance/doh/reports"
+          qs:
+            month: "2024-01"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          expect:
+            - statusCode: 200
+      
+      - think: 3
