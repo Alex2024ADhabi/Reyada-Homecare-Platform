@@ -1920,20 +1920,94 @@ FormGenerationEngine.prototype.generatePredictiveFields = function (
       "vital_signs_assessment",
       "medication_review",
       "care_plan_update",
+      "pain_assessment",
+      "functional_status",
+      "cognitive_assessment",
     ],
     conditionalFields: {
-      "patient.age > 65": ["geriatric_assessment", "fall_risk_evaluation"],
+      "patient.age > 65": [
+        "geriatric_assessment",
+        "fall_risk_evaluation",
+        "polypharmacy_review",
+      ],
       "patient.conditions.includes('diabetes')": [
         "glucose_monitoring",
         "diabetic_foot_check",
+        "hba1c_tracking",
+      ],
+      "patient.conditions.includes('hypertension')": [
+        "blood_pressure_monitoring",
+        "cardiovascular_risk_assessment",
+      ],
+      "patient.conditions.includes('heart_failure')": [
+        "fluid_balance_assessment",
+        "exercise_tolerance_test",
       ],
     },
     aiPredictions: {
-      completionTime: "15-20 minutes",
+      completionTime:
+        request.clinicalContext.careLevel === "complex"
+          ? "25-35 minutes"
+          : "15-20 minutes",
       complexityScore: request.clinicalContext.careLevel === "complex" ? 8 : 5,
       requiredApprovals: request.clinicalContext.complianceRequirements.length,
+      estimatedDataPoints: this.calculateRequiredDataPoints(request),
+      complianceRisk: this.assessComplianceRisk(request),
     },
   };
+};
+
+// Add healthcare-specific calculation methods
+FormGenerationEngine.prototype.calculateRequiredDataPoints = function (
+  request: IntelligentFormRequest,
+): number {
+  let basePoints = 10;
+
+  // Add points based on conditions
+  basePoints += request.clinicalContext.patientConditions.length * 3;
+
+  // Add points based on care level
+  switch (request.clinicalContext.careLevel) {
+    case "complex":
+      basePoints += 15;
+      break;
+    case "intermediate":
+      basePoints += 8;
+      break;
+    case "basic":
+      basePoints += 3;
+      break;
+  }
+
+  // Add points based on compliance requirements
+  basePoints += request.clinicalContext.complianceRequirements.length * 5;
+
+  return basePoints;
+};
+
+FormGenerationEngine.prototype.assessComplianceRisk = function (
+  request: IntelligentFormRequest,
+): "low" | "medium" | "high" | "critical" {
+  let riskScore = 0;
+
+  // Assess based on care level
+  if (request.clinicalContext.careLevel === "complex") riskScore += 3;
+  if (request.clinicalContext.careLevel === "intermediate") riskScore += 2;
+
+  // Assess based on urgency
+  if (request.clinicalContext.urgency === "critical") riskScore += 4;
+  if (request.clinicalContext.urgency === "high") riskScore += 3;
+
+  // Assess based on compliance requirements
+  if (request.clinicalContext.complianceRequirements.includes("DOH"))
+    riskScore += 2;
+  if (request.clinicalContext.complianceRequirements.includes("JAWDA"))
+    riskScore += 2;
+
+  if (riskScore >= 8) return "critical";
+  if (riskScore >= 6) return "high";
+  if (riskScore >= 3) return "medium";
+  return "low";
 };
 
 FormGenerationEngine.prototype.generateContextualHelp = function (

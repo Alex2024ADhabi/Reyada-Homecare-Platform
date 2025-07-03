@@ -2,7 +2,6 @@ import "@testing-library/jest-dom";
 import { vi } from "vitest";
 import { cleanup } from "@testing-library/react";
 import { afterEach, beforeAll, afterAll } from "vitest";
-import { globalTestReporter } from "./utils/test-reporting";
 
 // Cleanup after each test case
 afterEach(() => {
@@ -12,9 +11,6 @@ afterEach(() => {
 
 // Initialize test reporting
 beforeAll(() => {
-  // Initialize global test reporter
-  globalTestReporter.startTesting();
-
   // Set up test environment validation
   if (process.env.NODE_ENV === "test") {
     console.log("🧪 Healthcare Platform Test Environment Initialized");

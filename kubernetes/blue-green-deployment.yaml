@@ -1,0 +1,536 @@
+# Blue-Green Deployment Configuration for Healthcare Platform
+# Zero-downtime deployment strategy with healthcare compliance validation
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: reyada-frontend-blue
+  namespace: reyada-homecare
+  labels:
+    app: reyada-frontend
+    environment: blue
+    healthcare-compliance: "true"
+    doh-compliant: "true"
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: reyada-frontend
+      environment: blue
+  template:
+    metadata:
+      labels:
+        app: reyada-frontend
+        environment: blue
+        healthcare-compliance: "true"
+        doh-compliant: "true"
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "3000"
+        prometheus.io/path: "/metrics"
+        healthcare.reyada.ae/compliance-level: "doh-hipaa-gdpr"
+        healthcare.reyada.ae/data-classification: "sensitive"
+    spec:
+      serviceAccountName: reyada-frontend
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 2000
+      containers:
+      - name: frontend
+        image: ghcr.io/reyada-healthcare/reyada-homecare:IMAGE_TAG
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 3000
+          name: http
+          protocol: TCP
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: HEALTHCARE_COMPLIANCE
+          value: "true"
+        - name: DOH_VALIDATION
+          value: "true"
+        - name: HIPAA_COMPLIANCE
+          value: "true"
+        - name: GDPR_COMPLIANCE
+          value: "true"
+        - name: DAMAN_INTEGRATION
+          value: "true"
+        - name: ENVIRONMENT_COLOR
+          value: "blue"
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: reyada-database-secret
+              key: database-url
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: reyada-redis-secret
+              key: redis-url
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: reyada-auth-secret
+              key: jwt-secret
+        - name: ENCRYPTION_KEY
+          valueFrom:
+            secretKeyRef:
+              name: reyada-encryption-secret
+              key: encryption-key
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1Gi
+          limits:
+            cpu: 2000m
+            memory: 4Gi
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+            scheme: HTTP
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 3000
+            scheme: HTTP
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        startupProbe:
+          httpGet:
+            path: /startup
+            port: 3000
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 30
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+        - name: cache
+          mountPath: /app/.next/cache
+        - name: logs
+          mountPath: /app/logs
+      volumes:
+      - name: tmp
+        emptyDir: {}
+      - name: cache
+        emptyDir: {}
+      - name: logs
+        emptyDir: {}
+      nodeSelector:
+        kubernetes.io/arch: amd64
+        node-type: application
+      tolerations:
+      - key: "healthcare-workload"
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - reyada-frontend
+              topologyKey: kubernetes.io/hostname
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: reyada-frontend-green
+  namespace: reyada-homecare
+  labels:
+    app: reyada-frontend
+    environment: green
+    healthcare-compliance: "true"
+    doh-compliant: "true"
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: reyada-frontend
+      environment: green
+  template:
+    metadata:
+      labels:
+        app: reyada-frontend
+        environment: green
+        healthcare-compliance: "true"
+        doh-compliant: "true"
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "3000"
+        prometheus.io/path: "/metrics"
+        healthcare.reyada.ae/compliance-level: "doh-hipaa-gdpr"
+        healthcare.reyada.ae/data-classification: "sensitive"
+    spec:
+      serviceAccountName: reyada-frontend
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 2000
+      containers:
+      - name: frontend
+        image: ghcr.io/reyada-healthcare/reyada-homecare:IMAGE_TAG
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 3000
+          name: http
+          protocol: TCP
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: HEALTHCARE_COMPLIANCE
+          value: "true"
+        - name: DOH_VALIDATION
+          value: "true"
+        - name: HIPAA_COMPLIANCE
+          value: "true"
+        - name: GDPR_COMPLIANCE
+          value: "true"
+        - name: DAMAN_INTEGRATION
+          value: "true"
+        - name: ENVIRONMENT_COLOR
+          value: "green"
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: reyada-database-secret
+              key: database-url
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: reyada-redis-secret
+              key: redis-url
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: reyada-auth-secret
+              key: jwt-secret
+        - name: ENCRYPTION_KEY
+          valueFrom:
+            secretKeyRef:
+              name: reyada-encryption-secret
+              key: encryption-key
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1Gi
+          limits:
+            cpu: 2000m
+            memory: 4Gi
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+            scheme: HTTP
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 3000
+            scheme: HTTP
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        startupProbe:
+          httpGet:
+            path: /startup
+            port: 3000
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 30
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+        - name: cache
+          mountPath: /app/.next/cache
+        - name: logs
+          mountPath: /app/logs
+      volumes:
+      - name: tmp
+        emptyDir: {}
+      - name: cache
+        emptyDir: {}
+      - name: logs
+        emptyDir: {}
+      nodeSelector:
+        kubernetes.io/arch: amd64
+        node-type: application
+      tolerations:
+      - key: "healthcare-workload"
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - reyada-frontend
+              topologyKey: kubernetes.io/hostname
+---
+# Blue Environment Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: reyada-frontend-blue
+  namespace: reyada-homecare
+  labels:
+    app: reyada-frontend
+    environment: blue
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+    service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "3000"
+spec:
+  selector:
+    app: reyada-frontend
+    environment: blue
+  ports:
+  - port: 80
+    targetPort: 3000
+    protocol: TCP
+    name: http
+  type: ClusterIP
+---
+# Green Environment Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: reyada-frontend-green
+  namespace: reyada-homecare
+  labels:
+    app: reyada-frontend
+    environment: green
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+    service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "3000"
+spec:
+  selector:
+    app: reyada-frontend
+    environment: green
+  ports:
+  - port: 80
+    targetPort: 3000
+    protocol: TCP
+    name: http
+  type: ClusterIP
+---
+# Active Service (Traffic Router)
+apiVersion: v1
+kind: Service
+metadata:
+  name: reyada-frontend-active
+  namespace: reyada-homecare
+  labels:
+    app: reyada-frontend
+    role: active
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+    service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
+    service.beta.kubernetes.io/aws-load-balancer-ssl-cert: "${ACM_CERTIFICATE_ARN}"
+    service.beta.kubernetes.io/aws-load-balancer-ssl-ports: "https"
+    service.beta.kubernetes.io/aws-load-balancer-backend-protocol: "http"
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "3000"
+spec:
+  selector:
+    app: reyada-frontend
+    environment: blue  # This will be updated during deployment
+  ports:
+  - port: 80
+    targetPort: 3000
+    protocol: TCP
+    name: http
+  - port: 443
+    targetPort: 3000
+    protocol: TCP
+    name: https
+  type: LoadBalancer
+---
+# Ingress for Blue-Green Deployment
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: reyada-frontend-ingress
+  namespace: reyada-homecare
+  annotations:
+    kubernetes.io/ingress.class: "alb"
+    alb.ingress.kubernetes.io/scheme: "internet-facing"
+    alb.ingress.kubernetes.io/target-type: "ip"
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: '443'
+    alb.ingress.kubernetes.io/certificate-arn: "${ACM_CERTIFICATE_ARN}"
+    alb.ingress.kubernetes.io/healthcheck-path: "/health"
+    alb.ingress.kubernetes.io/healthcheck-interval-seconds: '15'
+    alb.ingress.kubernetes.io/healthcheck-timeout-seconds: '5'
+    alb.ingress.kubernetes.io/healthy-threshold-count: '2'
+    alb.ingress.kubernetes.io/unhealthy-threshold-count: '2'
+    alb.ingress.kubernetes.io/success-codes: '200'
+    # Healthcare-specific headers
+    alb.ingress.kubernetes.io/actions.ssl-redirect: |
+      {
+        "Type": "redirect",
+        "RedirectConfig": {
+          "Protocol": "HTTPS",
+          "Port": "443",
+          "StatusCode": "HTTP_301"
+        }
+      }
+    # Security headers for healthcare compliance
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      more_set_headers "X-Content-Type-Options: nosniff";
+      more_set_headers "X-Frame-Options: DENY";
+      more_set_headers "X-XSS-Protection: 1; mode=block";
+      more_set_headers "Strict-Transport-Security: max-age=31536000; includeSubDomains";
+      more_set_headers "Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:";
+      more_set_headers "Referrer-Policy: strict-origin-when-cross-origin";
+      more_set_headers "Permissions-Policy: geolocation=(), microphone=(), camera=()";
+spec:
+  rules:
+  - host: reyada-homecare.ae
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: reyada-frontend-active
+            port:
+              number: 80
+  - host: www.reyada-homecare.ae
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: reyada-frontend-active
+            port:
+              number: 80
+  tls:
+  - hosts:
+    - reyada-homecare.ae
+    - www.reyada-homecare.ae
+    secretName: reyada-tls-secret
+---
+# Network Policy for Healthcare Compliance
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: reyada-frontend-network-policy
+  namespace: reyada-homecare
+spec:
+  podSelector:
+    matchLabels:
+      app: reyada-frontend
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: reyada-homecare
+    - podSelector:
+        matchLabels:
+          app: nginx-ingress
+    ports:
+    - protocol: TCP
+      port: 3000
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: reyada-homecare
+    ports:
+    - protocol: TCP
+      port: 5432  # PostgreSQL
+    - protocol: TCP
+      port: 6379  # Redis
+    - protocol: TCP
+      port: 443   # HTTPS outbound
+    - protocol: TCP
+      port: 80    # HTTP outbound
+  - to: []  # DNS
+    ports:
+    - protocol: UDP
+      port: 53
+---
+# Pod Disruption Budget
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: reyada-frontend-pdb
+  namespace: reyada-homecare
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: reyada-frontend
+---
+# Service Monitor for Prometheus
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: reyada-frontend-monitor
+  namespace: reyada-homecare
+  labels:
+    app: reyada-frontend
+    healthcare-monitoring: "true"
+spec:
+  selector:
+    matchLabels:
+      app: reyada-frontend
+  endpoints:
+  - port: http
+    path: /metrics
+    interval: 30s
+    scrapeTimeout: 10s
+    honorLabels: true
+    metricRelabelings:
+    - sourceLabels: [__name__]
+      regex: 'healthcare_.*'
+      targetLabel: healthcare_metric
+      replacement: 'true'

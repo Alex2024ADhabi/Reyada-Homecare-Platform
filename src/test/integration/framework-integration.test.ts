@@ -27,6 +27,9 @@ import {
 } from "../utils/test-helpers";
 import IntegrationValidator from "../utils/integration-validator";
 import { frameworkSetup } from "../utils/framework-setup";
+import { frameworkPerformanceOptimizer } from "../utils/framework-performance-optimizer";
+import { errorRecoverySystem } from "../utils/error-recovery-system";
+import { frameworkHealthMonitor } from "../utils/framework-health-monitor";
 
 describe("Healthcare Testing Framework Integration", () => {
   let setupResult: any;
@@ -58,6 +61,9 @@ describe("Healthcare Testing Framework Integration", () => {
     }
     if (globalTestReporter.isActive()) {
       globalTestReporter.stopReporting();
+    }
+    if (frameworkHealthMonitor.isActive && frameworkHealthMonitor.isActive()) {
+      frameworkHealthMonitor.stopMonitoring();
     }
   });
 
@@ -293,6 +299,28 @@ describe("Healthcare Testing Framework Integration", () => {
       expect(report).toBeDefined();
       expect(report.measurements).toBeDefined();
     });
+
+    it("should integrate with performance optimizer", async () => {
+      // Test performance optimizer integration
+      const metrics = frameworkPerformanceOptimizer.getCurrentMetrics();
+      expect(metrics).toBeDefined();
+      expect(metrics.timestamp).toBeDefined();
+      expect(metrics.system).toBeDefined();
+      expect(metrics.testing).toBeDefined();
+      expect(metrics.optimization).toBeDefined();
+
+      // Test quick optimization
+      const optimizationResult =
+        await frameworkPerformanceOptimizer.quickOptimization();
+      expect(optimizationResult).toBeDefined();
+      expect(typeof optimizationResult.success).toBe("boolean");
+      expect(optimizationResult.duration).toBeGreaterThan(0);
+
+      // Test performance validation
+      const performanceValid =
+        await frameworkPerformanceOptimizer.validatePerformance();
+      expect(typeof performanceValid).toBe("boolean");
+    });
   });
 
   describe("Error Handling Integration", () => {
@@ -333,6 +361,56 @@ describe("Healthcare Testing Framework Integration", () => {
 
       const status = frameworkSetup.getFrameworkStatus();
       expect(status.healthy).toBe(true);
+    });
+
+    it("should integrate with error recovery system", async () => {
+      // Test error recovery system integration
+      const testError = new Error("Integration test error");
+      const recovered = await errorRecoverySystem.handleError(testError, {
+        component: "integration-test",
+        operation: "test-recovery",
+        timestamp: new Date().toISOString(),
+        environment: "test",
+      });
+
+      const systemHealth = errorRecoverySystem.getSystemHealth();
+      expect(systemHealth).toBeDefined();
+      expect(systemHealth.overall).toBeDefined();
+
+      const errorSummary = errorRecoverySystem.getErrorSummary();
+      expect(errorSummary).toBeDefined();
+      expect(errorSummary.total).toBeGreaterThan(0);
+    });
+  });
+
+  describe("Health Monitoring Integration", () => {
+    it("should integrate with framework health monitor", async () => {
+      // Start health monitoring
+      frameworkHealthMonitor.startMonitoring({
+        checkInterval: 5000,
+        enableAutoRecovery: false,
+      });
+
+      // Wait for at least one health check
+      await new Promise((resolve) => setTimeout(resolve, 6000));
+
+      const currentHealth = frameworkHealthMonitor.getCurrentHealth();
+      expect(currentHealth).toBeDefined();
+      expect(currentHealth.components).toBeDefined();
+      expect(currentHealth.components.length).toBeGreaterThan(0);
+
+      const finalHealth = frameworkHealthMonitor.stopMonitoring();
+      expect(finalHealth).toBeDefined();
+      expect(frameworkHealthMonitor.isActive()).toBe(false);
+    });
+
+    it("should monitor component health continuously", async () => {
+      const healthCheck = await frameworkSetup.validateFrameworkHealth();
+      expect(healthCheck).toBe(true);
+
+      const status = frameworkSetup.getFrameworkStatus();
+      expect(status.lastHealthCheck).toBeDefined();
+      expect(status.issues).toHaveLength(0);
     });
   });
 
@@ -421,6 +499,132 @@ describe("Healthcare Testing Framework Integration", () => {
       const savedFiles = await globalTestReporter.saveReports(reporterReport);
       expect(savedFiles.length).toBeGreaterThan(0);
     });
+
+    it("should handle stress testing scenarios", async () => {
+      const monitorId = testExecutionMonitor.startMonitoring();
+      const reporterId = globalTestReporter.startReporting();
+
+      // Simulate high-load scenario
+      const stressTestPromises = [];
+      for (let i = 0; i < 50; i++) {
+        stressTestPromises.push(
+          new Promise<void>((resolve) => {
+            setTimeout(() => {
+              testExecutionMonitor.recordTestEvent({
+                type: "start",
+                testName: `stress-test-${i}`,
+                suiteName: "stress",
+              });
+
+              globalTestReporter.addTestResult({
+                name: `stress-test-${i}`,
+                suite: "stress",
+                status: "passed",
+                duration: Math.floor(Math.random() * 100) + 10,
+              });
+
+              testExecutionMonitor.recordTestEvent({
+                type: "pass",
+                testName: `stress-test-${i}`,
+                suiteName: "stress",
+                duration: Math.floor(Math.random() * 100) + 10,
+              });
+
+              resolve();
+            }, Math.random() * 100);
+          }),
+        );
+      }
+
+      await Promise.all(stressTestPromises);
+
+      const monitorReport = testExecutionMonitor.stopMonitoring();
+      const reporterReport = globalTestReporter.stopReporting();
+
+      expect(monitorReport.overallMetrics.totalTests).toBe(50);
+      expect(reporterReport.summary.totalTests).toBe(50);
+      expect(monitorReport.overallMetrics.passedTests).toBe(50);
+    });
+
+    it("should validate healthcare compliance workflows", async () => {
+      const monitorId = testExecutionMonitor.startMonitoring({
+        enableHealthcareMetrics: true,
+      });
+      const reporterId = globalTestReporter.startReporting({
+        includeHealthcareMetrics: true,
+      });
+
+      // Test DOH compliance
+      const dohTests = [
+        { name: "patient-consent-validation", standard: "DOH", risk: "high" },
+        { name: "clinical-documentation", standard: "DOH", risk: "medium" },
+        { name: "provider-licensing", standard: "DOH", risk: "high" },
+      ];
+
+      // Test DAMAN compliance
+      const damanTests = [
+        { name: "insurance-verification", standard: "DAMAN", risk: "medium" },
+        { name: "claims-processing", standard: "DAMAN", risk: "high" },
+        { name: "coverage-validation", standard: "DAMAN", risk: "medium" },
+      ];
+
+      // Test JAWDA compliance
+      const jawdaTests = [
+        { name: "quality-metrics", standard: "JAWDA", risk: "medium" },
+        { name: "patient-safety", standard: "JAWDA", risk: "high" },
+        { name: "clinical-governance", standard: "JAWDA", risk: "high" },
+      ];
+
+      const allComplianceTests = [...dohTests, ...damanTests, ...jawdaTests];
+
+      for (const test of allComplianceTests) {
+        testExecutionMonitor.recordTestEvent({
+          type: "start",
+          testName: test.name,
+          suiteName: "compliance",
+        });
+
+        const complianceResult = ComplianceTestHelper.validateDOHCompliance({
+          patientConsent: true,
+          clinicianSignature: true,
+          timestamp: new Date().toISOString(),
+        });
+
+        globalTestReporter.addTestResult({
+          name: test.name,
+          suite: "compliance",
+          status: complianceResult.valid ? "passed" : "failed",
+          duration: Math.floor(Math.random() * 150) + 50,
+          metadata: {
+            category: "compliance",
+            healthcare: {
+              complianceStandard: test.standard as any,
+              riskLevel: test.risk as any,
+              patientDataInvolved: true,
+              violations: complianceResult.violations,
+            },
+          },
+        });
+
+        testExecutionMonitor.recordTestEvent({
+          type: complianceResult.valid ? "pass" : "fail",
+          testName: test.name,
+          suiteName: "compliance",
+          duration: Math.floor(Math.random() * 150) + 50,
+        });
+      }
+
+      const monitorReport = testExecutionMonitor.stopMonitoring();
+      const reporterReport = globalTestReporter.stopReporting();
+
+      expect(monitorReport.overallMetrics.totalTests).toBe(
+        allComplianceTests.length,
+      );
+      expect(reporterReport.healthcareMetrics).toBeDefined();
+      expect(
+        reporterReport.healthcareMetrics?.complianceBreakdown,
+      ).toBeDefined();
+    });
   });
 
   describe("Integration Validation", () => {
@@ -436,6 +640,166 @@ describe("Healthcare Testing Framework Integration", () => {
     it("should perform quick health checks", async () => {
       const healthCheck = await validator.quickHealthCheck();
       expect(healthCheck).toBe(true);
+    });
+
+    it("should validate performance optimization integration", async () => {
+      // Test performance validation
+      const performanceValid =
+        await frameworkPerformanceOptimizer.validatePerformance();
+      expect(typeof performanceValid).toBe("boolean");
+
+      // Test quick optimization
+      const optimizationResult =
+        await frameworkPerformanceOptimizer.quickOptimization();
+      expect(optimizationResult).toBeDefined();
+      expect(typeof optimizationResult.success).toBe("boolean");
+      expect(optimizationResult.duration).toBeGreaterThan(0);
+
+      // Test metrics collection
+      const metrics = frameworkPerformanceOptimizer.getCurrentMetrics();
+      expect(metrics).toBeDefined();
+      expect(metrics.timestamp).toBeDefined();
+      expect(metrics.system).toBeDefined();
+      expect(metrics.testing).toBeDefined();
+      expect(metrics.optimization).toBeDefined();
+
+      // Test performance report generation
+      const performanceReport =
+        await frameworkPerformanceOptimizer.generatePerformanceReport();
+      expect(performanceReport).toBeDefined();
+      expect(performanceReport.currentMetrics).toBeDefined();
+      expect(performanceReport.healthcareSpecific).toBeDefined();
+    });
+
+    it("should validate error recovery mechanisms", async () => {
+      const monitorId = testExecutionMonitor.startMonitoring();
+      const reporterId = globalTestReporter.startReporting();
+
+      // Simulate various error scenarios
+      const errorScenarios = [
+        { type: "timeout", message: "Test timeout" },
+        { type: "assertion", message: "Assertion failed" },
+        { type: "network", message: "Network error" },
+        { type: "memory", message: "Out of memory" },
+        { type: "healthcare", message: "Healthcare compliance error" },
+      ];
+
+      for (const scenario of errorScenarios) {
+        testExecutionMonitor.recordTestEvent({
+          type: "start",
+          testName: `error-recovery-${scenario.type}`,
+          suiteName: "error-recovery",
+        });
+
+        testExecutionMonitor.recordTestEvent({
+          type: "error",
+          testName: `error-recovery-${scenario.type}`,
+          suiteName: "error-recovery",
+          error: new Error(scenario.message),
+        });
+
+        globalTestReporter.addTestResult({
+          name: `error-recovery-${scenario.type}`,
+          suite: "error-recovery",
+          status: "failed",
+          duration: 100,
+          error: {
+            message: scenario.message,
+            type: scenario.type,
+          },
+        });
+      }
+
+      const monitorReport = testExecutionMonitor.stopMonitoring();
+      const reporterReport = globalTestReporter.stopReporting();
+
+      // Validate error handling
+      expect(monitorReport.overallMetrics.failedTests).toBe(
+        errorScenarios.length,
+      );
+      expect(reporterReport.summary.failed).toBe(errorScenarios.length);
+
+      // Test framework repair
+      const repairResult = await frameworkSetup.repairFramework();
+      expect(repairResult).toBe(true);
+    });
+
+    it("should validate concurrent test execution", async () => {
+      const concurrentPromises = [];
+      const testCount = 20;
+
+      for (let i = 0; i < testCount; i++) {
+        concurrentPromises.push(
+          new Promise<void>(async (resolve) => {
+            const monitorId = testExecutionMonitor.startMonitoring();
+            const reporterId = globalTestReporter.startReporting();
+
+            testExecutionMonitor.recordTestEvent({
+              type: "start",
+              testName: `concurrent-test-${i}`,
+              suiteName: "concurrent",
+            });
+
+            // Simulate some work
+            await new Promise((r) => setTimeout(r, Math.random() * 50));
+
+            globalTestReporter.addTestResult({
+              name: `concurrent-test-${i}`,
+              suite: "concurrent",
+              status: "passed",
+              duration: Math.floor(Math.random() * 100) + 10,
+            });
+
+            testExecutionMonitor.recordTestEvent({
+              type: "pass",
+              testName: `concurrent-test-${i}`,
+              suiteName: "concurrent",
+              duration: Math.floor(Math.random() * 100) + 10,
+            });
+
+            testExecutionMonitor.stopMonitoring();
+            globalTestReporter.stopReporting();
+            resolve();
+          }),
+        );
+      }
+
+      // Execute all concurrent tests
+      await Promise.all(concurrentPromises);
+
+      // Validate framework stability after concurrent execution
+      const status = frameworkSetup.getFrameworkStatus();
+      expect(status.healthy).toBe(true);
+    });
+
+    it("should validate healthcare-specific integrations", async () => {
+      // Test healthcare data generation integration
+      const patient = HealthcareTestDataGenerator.generatePatientData();
+      expect(patient).toBeDefined();
+      expect(patient.id).toBeDefined();
+      expect(patient.emiratesId).toBeDefined();
+
+      // Test compliance validation integration
+      const complianceResult = ComplianceTestHelper.validateDOHCompliance({
+        patientConsent: true,
+        clinicianSignature: true,
+        timestamp: new Date().toISOString(),
+      });
+      expect(complianceResult).toBeDefined();
+      expect(typeof complianceResult.valid).toBe("boolean");
+
+      // Test performance measurement integration
+      const measurementId = "healthcare-integration-test";
+      const startTime = PerformanceTestHelper.startMeasurement(measurementId);
+
+      // Simulate healthcare workflow
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      const duration = PerformanceTestHelper.endMeasurement(
+        measurementId,
+        startTime,
+      );
+      expect(duration).toBeGreaterThan(0);
     });
   });
 
@@ -460,6 +824,182 @@ describe("Healthcare Testing Framework Integration", () => {
       const status = frameworkSetup.getFrameworkStatus();
       expect(status.lastHealthCheck).toBeDefined();
       expect(status.issues).toHaveLength(0);
+    });
+
+    it("should integrate all monitoring systems", async () => {
+      // Test framework health monitor
+      frameworkHealthMonitor.startMonitoring({
+        checkInterval: 2000,
+        enableAutoRecovery: false,
+      });
+
+      // Test performance optimizer
+      const optimizerMetrics =
+        frameworkPerformanceOptimizer.getCurrentMetrics();
+      expect(optimizerMetrics).toBeDefined();
+
+      // Test error recovery system
+      const systemHealth = errorRecoverySystem.getSystemHealth();
+      expect(systemHealth).toBeDefined();
+
+      // Wait for monitoring cycle
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+
+      const currentHealth = frameworkHealthMonitor.getCurrentHealth();
+      expect(currentHealth).toBeDefined();
+      expect(currentHealth.components.length).toBeGreaterThan(0);
+
+      frameworkHealthMonitor.stopMonitoring();
+    });
+  });
+
+  describe("Advanced Integration Scenarios", () => {
+    it("should handle complex healthcare workflows", async () => {
+      const monitorId = testExecutionMonitor.startMonitoring({
+        enableHealthcareMetrics: true,
+      });
+      const reporterId = globalTestReporter.startReporting({
+        includeHealthcareMetrics: true,
+      });
+
+      // Simulate complex healthcare workflow
+      const workflows = [
+        { name: "patient-registration", complexity: "high", duration: 300 },
+        { name: "clinical-assessment", complexity: "critical", duration: 500 },
+        { name: "treatment-planning", complexity: "high", duration: 400 },
+        {
+          name: "medication-management",
+          complexity: "critical",
+          duration: 350,
+        },
+        { name: "discharge-planning", complexity: "medium", duration: 200 },
+      ];
+
+      for (const workflow of workflows) {
+        testExecutionMonitor.recordTestEvent({
+          type: "start",
+          testName: workflow.name,
+          suiteName: "healthcare-workflow",
+        });
+
+        // Simulate workflow execution
+        await new Promise((resolve) => setTimeout(resolve, 50));
+
+        const success = Math.random() > 0.1; // 90% success rate
+
+        globalTestReporter.addTestResult({
+          name: workflow.name,
+          suite: "healthcare-workflow",
+          status: success ? "passed" : "failed",
+          duration: workflow.duration,
+          metadata: {
+            category: "healthcare",
+            healthcare: {
+              complianceStandard: "DOH",
+              riskLevel: workflow.complexity as any,
+              patientDataInvolved: true,
+              workflowType: workflow.name,
+            },
+          },
+        });
+
+        testExecutionMonitor.recordTestEvent({
+          type: success ? "pass" : "fail",
+          testName: workflow.name,
+          suiteName: "healthcare-workflow",
+          duration: workflow.duration,
+        });
+      }
+
+      const monitorReport = testExecutionMonitor.stopMonitoring();
+      const reporterReport = globalTestReporter.stopReporting();
+
+      expect(monitorReport.overallMetrics.totalTests).toBe(workflows.length);
+      expect(reporterReport.healthcareMetrics).toBeDefined();
+      expect(reporterReport.healthcareMetrics?.complianceScore).toBeGreaterThan(
+        0,
+      );
+    });
+
+    it("should validate end-to-end framework resilience", async () => {
+      // Test framework under stress with error injection
+      const stressTestCount = 100;
+      const errorInjectionRate = 0.15; // 15% error rate
+
+      const monitorId = testExecutionMonitor.startMonitoring();
+      const reporterId = globalTestReporter.startReporting();
+
+      const promises = [];
+      for (let i = 0; i < stressTestCount; i++) {
+        promises.push(
+          new Promise<void>((resolve) => {
+            setTimeout(() => {
+              const shouldError = Math.random() < errorInjectionRate;
+              const testName = `resilience-test-${i}`;
+
+              testExecutionMonitor.recordTestEvent({
+                type: "start",
+                testName,
+                suiteName: "resilience",
+              });
+
+              if (shouldError) {
+                testExecutionMonitor.recordTestEvent({
+                  type: "error",
+                  testName,
+                  suiteName: "resilience",
+                  error: new Error(`Injected error ${i}`),
+                });
+
+                globalTestReporter.addTestResult({
+                  name: testName,
+                  suite: "resilience",
+                  status: "failed",
+                  duration: Math.floor(Math.random() * 100) + 50,
+                  error: {
+                    message: `Injected error ${i}`,
+                    type: "InjectedError",
+                  },
+                });
+              } else {
+                testExecutionMonitor.recordTestEvent({
+                  type: "pass",
+                  testName,
+                  suiteName: "resilience",
+                  duration: Math.floor(Math.random() * 100) + 50,
+                });
+
+                globalTestReporter.addTestResult({
+                  name: testName,
+                  suite: "resilience",
+                  status: "passed",
+                  duration: Math.floor(Math.random() * 100) + 50,
+                });
+              }
+
+              resolve();
+            }, Math.random() * 200);
+          }),
+        );
+      }
+
+      await Promise.all(promises);
+
+      const monitorReport = testExecutionMonitor.stopMonitoring();
+      const reporterReport = globalTestReporter.stopReporting();
+
+      // Validate framework handled stress test
+      expect(monitorReport.overallMetrics.totalTests).toBe(stressTestCount);
+      expect(reporterReport.summary.totalTests).toBe(stressTestCount);
+
+      // Validate error rate is within expected range
+      const actualErrorRate =
+        (monitorReport.overallMetrics.failedTests / stressTestCount) * 100;
+      expect(actualErrorRate).toBeLessThan(25); // Should be less than 25%
+
+      // Validate framework is still healthy after stress test
+      const status = frameworkSetup.getFrameworkStatus();
+      expect(status.healthy).toBe(true);
     });
   });
 });

@@ -34,6 +34,23 @@ import {
   AlertCircle,
   CheckCircle,
   XCircle,
+  RefreshCw,
+  AlertTriangle,
+  MapPin,
+  Smartphone,
+  Fingerprint,
+  Camera,
+  Wifi,
+  WifiOff,
+  Navigation,
+  Car,
+  Truck,
+  Route,
+  Fuel,
+  Settings,
+  Shield,
+  Activity,
+  BarChart3,
 } from "lucide-react";
 import {
   getAttendanceRecords,
@@ -73,12 +90,80 @@ export default function AttendanceTracker({
     availableForEmergency: 12,
     currentEmergencies: 2,
     averageResponseTime: 15, // minutes
+    emergencyProtocols: [
+      {
+        level: 1,
+        description: "Critical - Life threatening",
+        responseTime: 15,
+      },
+      { level: 2, description: "Urgent - Serious condition", responseTime: 30 },
+      { level: 3, description: "Standard - Non-urgent", responseTime: 120 },
+    ],
+    recentEmergencies: [
+      {
+        id: "EMR-001",
+        type: "Respiratory Distress",
+        level: 1,
+        patient: "John Doe",
+        responder: "Sarah Johnson",
+        responseTime: 12,
+        status: "Resolved",
+      },
+    ],
+  });
+  const [trueInFeatures, setTrueInFeatures] = useState({
+    biometricEnabled: true,
+    gpsTracking: true,
+    realTimeSync: true,
+    offlineCapable: true,
+    faceRecognition: false,
+    voiceRecognition: false,
+    geofencing: true,
+    smartScheduling: true,
+  });
+  const [locationData, setLocationData] = useState({
+    currentLocation: "Dubai Healthcare City",
+    coordinates: { lat: 25.2048, lng: 55.2708 },
+    accuracy: "High (±3m)",
+    altitude: 12.5,
+    speed: 0,
+    heading: 0,
+    lastUpdate: new Date().toLocaleTimeString(),
+    isInsideGeofence: true,
+    nearbyStaff: 5,
+    geofenceRadius: 100, // meters
+    locationHistory: [],
+    batteryOptimized: true,
+    highAccuracyMode: true,
+  });
+  const [biometricData, setBiometricData] = useState({
+    fingerprintEnabled: true,
+    faceIdEnabled: true,
+    voiceRecognitionEnabled: false,
+    irisRecognitionEnabled: false,
+    lastBiometricAuth: new Date().toLocaleTimeString(),
+    authenticationScore: 98.5,
+    failedAttempts: 0,
+    biometricTemplate: "encrypted_template_hash",
+    multiFactorEnabled: true,
+    livelinessDetection: true,
+    antiSpoofingEnabled: true,
   });
   const [schedulingOptimization, setSchedulingOptimization] = useState({
-    optimizedShifts: 0,
-    constraintViolations: 0,
-    efficiencyGain: 0,
-    costSavings: 0,
+    optimizedShifts: 24,
+    constraintViolations: 2,
+    efficiencyGain: 18,
+    costSavings: 12500,
+    aiRecommendations: [
+      "Reduce travel time by 23% with optimized routing",
+      "Balance workload across team members",
+      "Minimize overtime costs through better planning",
+    ],
+    predictiveInsights: {
+      demandForecast: "High demand expected next week",
+      staffingGaps: 3,
+      recommendedHires: 2,
+    },
   });
   const { isOnline, saveFormData } = useOfflineSync();
 
@@ -246,9 +331,11 @@ export default function AttendanceTracker({
         </div>
 
         <Tabs defaultValue="clock" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-6">
+          <TabsList className="grid w-full grid-cols-8">
             <TabsTrigger value="clock">Clock In/Out</TabsTrigger>
             <TabsTrigger value="records">Attendance Records</TabsTrigger>
+            <TabsTrigger value="truein">TrueIn Features</TabsTrigger>
+            <TabsTrigger value="cartrack">CarTrack Fleet</TabsTrigger>
             <TabsTrigger value="scheduling">Smart Scheduling</TabsTrigger>
             <TabsTrigger value="emergency">Emergency Staffing</TabsTrigger>
             <TabsTrigger value="analytics">Analytics</TabsTrigger>
@@ -578,6 +665,526 @@ export default function AttendanceTracker({
                     </TableBody>
                   </Table>
                 </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* TrueIn Features Tab */}
+          <TabsContent value="truein" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Smartphone className="w-5 h-5" />
+                  TrueIn Advanced Attendance Features
+                </CardTitle>
+                <CardDescription>
+                  Biometric authentication, GPS tracking, and real-time
+                  synchronization
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                  <Card className="border-green-200 bg-green-50">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm font-medium text-green-800 flex items-center gap-2">
+                        <Fingerprint className="w-4 h-4" />
+                        Biometric Auth
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold text-green-900">
+                        {biometricData.authenticationScore}%
+                      </div>
+                      <p className="text-xs text-green-600">Success Rate</p>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="border-blue-200 bg-blue-50">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm font-medium text-blue-800 flex items-center gap-2">
+                        <MapPin className="w-4 h-4" />
+                        GPS Tracking
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold text-blue-900">
+                        {locationData.accuracy}
+                      </div>
+                      <p className="text-xs text-blue-600">Location Accuracy</p>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="border-purple-200 bg-purple-50">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm font-medium text-purple-800 flex items-center gap-2">
+                        {isOnline ? (
+                          <Wifi className="w-4 h-4" />
+                        ) : (
+                          <WifiOff className="w-4 h-4" />
+                        )}
+                        Real-Time Sync
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold text-purple-900">
+                        {isOnline ? "Online" : "Offline"}
+                      </div>
+                      <p className="text-xs text-purple-600">
+                        Connection Status
+                      </p>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="border-orange-200 bg-orange-50">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm font-medium text-orange-800 flex items-center gap-2">
+                        <Users className="w-4 h-4" />
+                        Nearby Staff
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold text-orange-900">
+                        {locationData.nearbyStaff}
+                      </div>
+                      <p className="text-xs text-orange-600">Within 1km</p>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Fingerprint className="w-5 h-5" />
+                        Biometric Authentication
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm">Fingerprint Scanner:</span>
+                        <Badge
+                          variant={
+                            biometricData.fingerprintEnabled
+                              ? "default"
+                              : "secondary"
+                          }
+                        >
+                          {biometricData.fingerprintEnabled
+                            ? "Enabled"
+                            : "Disabled"}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm">Face Recognition:</span>
+                        <Badge
+                          variant={
+                            biometricData.faceIdEnabled
+                              ? "default"
+                              : "secondary"
+                          }
+                        >
+                          {biometricData.faceIdEnabled ? "Enabled" : "Disabled"}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm">Voice Recognition:</span>
+                        <Badge
+                          variant={
+                            biometricData.voiceRecognitionEnabled
+                              ? "default"
+                              : "secondary"
+                          }
+                        >
+                          {biometricData.voiceRecognitionEnabled
+                            ? "Enabled"
+                            : "Disabled"}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm">Anti-Spoofing:</span>
+                        <Badge
+                          variant={
+                            biometricData.antiSpoofingEnabled
+                              ? "default"
+                              : "secondary"
+                          }
+                        >
+                          {biometricData.antiSpoofingEnabled
+                            ? "Active"
+                            : "Inactive"}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm">Multi-Factor Auth:</span>
+                        <Badge
+                          variant={
+                            biometricData.multiFactorEnabled
+                              ? "default"
+                              : "secondary"
+                          }
+                        >
+                          {biometricData.multiFactorEnabled
+                            ? "Enabled"
+                            : "Disabled"}
+                        </Badge>
+                      </div>
+                      <Button className="w-full" variant="outline">
+                        <Camera className="w-4 h-4 mr-2" />
+                        Test Biometric Auth
+                      </Button>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Navigation className="w-5 h-5" />
+                        Location & Geofencing
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm">Current Location:</span>
+                        <span className="text-sm font-medium">
+                          {locationData.currentLocation}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm">GPS Accuracy:</span>
+                        <Badge variant="default">{locationData.accuracy}</Badge>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm">Inside Geofence:</span>
+                        <Badge
+                          variant={
+                            locationData.isInsideGeofence
+                              ? "default"
+                              : "destructive"
+                          }
+                        >
+                          {locationData.isInsideGeofence ? "Yes" : "No"}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm">Last Update:</span>
+                        <span className="text-sm font-medium">
+                          {locationData.lastUpdate}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm">Coordinates:</span>
+                        <span className="text-xs font-mono">
+                          {locationData.coordinates.lat.toFixed(4)},{" "}
+                          {locationData.coordinates.lng.toFixed(4)}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm">Altitude:</span>
+                        <span className="text-sm font-medium">
+                          {locationData.altitude}m
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm">Geofence Radius:</span>
+                        <span className="text-sm font-medium">
+                          {locationData.geofenceRadius}m
+                        </span>
+                      </div>
+                      <Button className="w-full" variant="outline">
+                        <MapPin className="w-4 h-4 mr-2" />
+                        Update Location
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                <Card className="mt-6">
+                  <CardHeader>
+                    <CardTitle>TrueIn Feature Configuration</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          id="biometric"
+                          checked={trueInFeatures.biometricEnabled}
+                          onChange={(e) =>
+                            setTrueInFeatures({
+                              ...trueInFeatures,
+                              biometricEnabled: e.target.checked,
+                            })
+                          }
+                        />
+                        <label htmlFor="biometric" className="text-sm">
+                          Biometric Auth
+                        </label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          id="gps"
+                          checked={trueInFeatures.gpsTracking}
+                          onChange={(e) =>
+                            setTrueInFeatures({
+                              ...trueInFeatures,
+                              gpsTracking: e.target.checked,
+                            })
+                          }
+                        />
+                        <label htmlFor="gps" className="text-sm">
+                          GPS Tracking
+                        </label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          id="realtime"
+                          checked={trueInFeatures.realTimeSync}
+                          onChange={(e) =>
+                            setTrueInFeatures({
+                              ...trueInFeatures,
+                              realTimeSync: e.target.checked,
+                            })
+                          }
+                        />
+                        <label htmlFor="realtime" className="text-sm">
+                          Real-Time Sync
+                        </label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          id="geofencing"
+                          checked={trueInFeatures.geofencing}
+                          onChange={(e) =>
+                            setTrueInFeatures({
+                              ...trueInFeatures,
+                              geofencing: e.target.checked,
+                            })
+                          }
+                        />
+                        <label htmlFor="geofencing" className="text-sm">
+                          Geofencing
+                        </label>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* CarTrack Fleet Management Tab */}
+          <TabsContent value="cartrack" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Car className="w-5 h-5" />
+                  CarTrack Fleet Management & Asset Tracking
+                </CardTitle>
+                <CardDescription>
+                  Real-time vehicle tracking, route optimization, and asset
+                  management
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                  <Card className="border-blue-200 bg-blue-50">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm font-medium text-blue-800 flex items-center gap-2">
+                        <Car className="w-4 h-4" />
+                        Active Vehicles
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold text-blue-900">12</div>
+                      <p className="text-xs text-blue-600">Out of 15 total</p>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="border-green-200 bg-green-50">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm font-medium text-green-800 flex items-center gap-2">
+                        <Route className="w-4 h-4" />
+                        Routes Optimized
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold text-green-900">8</div>
+                      <p className="text-xs text-green-600">Today</p>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="border-orange-200 bg-orange-50">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm font-medium text-orange-800 flex items-center gap-2">
+                        <Fuel className="w-4 h-4" />
+                        Fuel Efficiency
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold text-orange-900">
+                        8.5L
+                      </div>
+                      <p className="text-xs text-orange-600">Per 100km avg</p>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="border-purple-200 bg-purple-50">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm font-medium text-purple-800 flex items-center gap-2">
+                        <Settings className="w-4 h-4" />
+                        Maintenance Due
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold text-purple-900">
+                        3
+                      </div>
+                      <p className="text-xs text-purple-600">Vehicles</p>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Live Vehicle Tracking</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between p-3 border rounded-lg">
+                          <div className="flex items-center gap-3">
+                            <Car className="w-5 h-5 text-blue-600" />
+                            <div>
+                              <div className="font-medium">Vehicle HC-001</div>
+                              <div className="text-sm text-gray-600">
+                                Driver: Ahmed Al Mansouri
+                              </div>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <Badge variant="default">En Route</Badge>
+                            <div className="text-xs text-gray-600 mt-1">
+                              ETA: 15 min
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between p-3 border rounded-lg">
+                          <div className="flex items-center gap-3">
+                            <Truck className="w-5 h-5 text-green-600" />
+                            <div>
+                              <div className="font-medium">Vehicle HC-002</div>
+                              <div className="text-sm text-gray-600">
+                                Driver: Sarah Johnson
+                              </div>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <Badge variant="secondary">Parked</Badge>
+                            <div className="text-xs text-gray-600 mt-1">
+                              Dubai Mall
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between p-3 border rounded-lg">
+                          <div className="flex items-center gap-3">
+                            <Car className="w-5 h-5 text-orange-600" />
+                            <div>
+                              <div className="font-medium">Vehicle HC-003</div>
+                              <div className="text-sm text-gray-600">
+                                Driver: Maria Garcia
+                              </div>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <Badge variant="destructive">Maintenance</Badge>
+                            <div className="text-xs text-gray-600 mt-1">
+                              Service Center
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Fleet Analytics</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm">Total Distance Today:</span>
+                          <span className="font-medium">1,247 km</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm">Average Speed:</span>
+                          <span className="font-medium">45 km/h</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm">Fuel Consumption:</span>
+                          <span className="font-medium">106 L</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm">Driver Score:</span>
+                          <Badge variant="default">92/100</Badge>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm">Route Efficiency:</span>
+                          <span className="font-medium text-green-600">
+                            +12%
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm">Cost Savings:</span>
+                          <span className="font-medium text-green-600">
+                            AED 2,340
+                          </span>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                <Card className="mt-6">
+                  <CardHeader>
+                    <CardTitle>Vehicle Management Actions</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <Button
+                        variant="outline"
+                        className="flex flex-col items-center gap-2 h-20"
+                      >
+                        <Route className="w-6 h-6" />
+                        <span className="text-sm">Optimize Routes</span>
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="flex flex-col items-center gap-2 h-20"
+                      >
+                        <Settings className="w-6 h-6" />
+                        <span className="text-sm">Schedule Maintenance</span>
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="flex flex-col items-center gap-2 h-20"
+                      >
+                        <BarChart3 className="w-6 h-6" />
+                        <span className="text-sm">View Reports</span>
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="flex flex-col items-center gap-2 h-20"
+                      >
+                        <Shield className="w-6 h-6" />
+                        <span className="text-sm">Security Alerts</span>
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
               </CardContent>
             </Card>
           </TabsContent>

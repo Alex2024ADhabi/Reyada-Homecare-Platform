@@ -183,6 +183,9 @@ class RulesEngine {
       // Load safety rules
       await this.loadSafetyRules();
 
+      // Load enhanced compliance rules
+      await this.loadEnhancedComplianceRules();
+
       // Initialize rule sets
       await this.initializeRuleSets();
 
@@ -972,6 +975,163 @@ class RulesEngine {
     }
 
     console.log(`✅ Loaded ${clinicalRules.length} clinical decision rules`);
+  }
+
+  /**
+   * Load enhanced healthcare compliance rules
+   */
+  private async loadEnhancedComplianceRules(): Promise<void> {
+    console.log("🏥 Loading enhanced healthcare compliance rules...");
+
+    const enhancedRules: Omit<Rule, "id" | "metadata">[] = [
+      {
+        name: "DOH 9-Domain Assessment Validation",
+        description:
+          "Ensure all 9 DOH domains are properly assessed and documented",
+        category: "compliance",
+        priority: "critical",
+        conditions: [
+          {
+            id: "assessment_type_9domain",
+            field: "clinical.assessmentType",
+            operator: "equals",
+            value: "doh_9_domain",
+          },
+        ],
+        actions: [
+          {
+            id: "validate_all_domains",
+            type: "validate",
+            parameters: {
+              validationType: "doh_9_domain_complete",
+              criteria: "all_domains_documented",
+              requiredDomains: [
+                "physical_health",
+                "cognitive_mental",
+                "psychosocial",
+                "spiritual_cultural",
+                "financial",
+                "legal",
+                "cultural_ethnic",
+                "environmental",
+                "caregiver_support",
+              ],
+            },
+            priority: 1,
+          },
+          {
+            id: "block_incomplete_assessment",
+            type: "block",
+            parameters: {
+              reason:
+                "DOH 9-domain assessment incomplete - all domains must be documented",
+              severity: "critical",
+            },
+            priority: 2,
+            condition: "domains_incomplete",
+          },
+        ],
+      },
+      {
+        name: "JAWDA Quality Indicator Compliance",
+        description:
+          "Ensure JAWDA quality indicators are met for homecare services",
+        category: "compliance",
+        priority: "high",
+        conditions: [
+          {
+            id: "homecare_service",
+            field: "data.serviceType",
+            operator: "equals",
+            value: "homecare",
+          },
+        ],
+        actions: [
+          {
+            id: "validate_jawda_indicators",
+            type: "validate",
+            parameters: {
+              validationType: "jawda_quality_indicators",
+              criteria: "homecare_standards_v8.3",
+              indicators: [
+                "patient_satisfaction",
+                "clinical_outcomes",
+                "safety_measures",
+                "care_coordination",
+                "staff_competency",
+              ],
+            },
+            priority: 1,
+          },
+          {
+            id: "trigger_quality_improvement",
+            type: "trigger_workflow",
+            parameters: {
+              workflowId: "jawda_quality_improvement",
+              data: {
+                serviceId: "{{data.serviceId}}",
+                indicators: "{{validation_results}}",
+              },
+            },
+            priority: 2,
+            condition: "indicators_below_threshold",
+          },
+        ],
+      },
+      {
+        name: "Healthcare Data Encryption Compliance",
+        description:
+          "Ensure all healthcare data is properly encrypted according to standards",
+        category: "compliance",
+        priority: "critical",
+        conditions: [
+          {
+            id: "sensitive_data_access",
+            field: "data.containsPHI",
+            operator: "equals",
+            value: true,
+          },
+        ],
+        actions: [
+          {
+            id: "validate_encryption",
+            type: "validate",
+            parameters: {
+              validationType: "data_encryption",
+              criteria: "aes_256_gcm",
+              standard: "HIPAA_HITECH",
+            },
+            priority: 1,
+          },
+          {
+            id: "log_phi_access",
+            type: "log_event",
+            parameters: {
+              level: "info",
+              message: "PHI data accessed - encryption validated",
+              category: "compliance",
+            },
+            priority: 2,
+          },
+          {
+            id: "block_unencrypted_access",
+            type: "block",
+            parameters: {
+              reason: "PHI data must be encrypted - access denied",
+              severity: "critical",
+            },
+            priority: 3,
+            condition: "encryption_validation_failed",
+          },
+        ],
+      },
+    ];
+
+    for (const ruleData of enhancedRules) {
+      await this.createRule(ruleData);
+    }
+
+    console.log(`✅ Loaded ${enhancedRules.length} enhanced compliance rules`);
   }
 
   /**

@@ -1,0 +1,358 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: elasticsearch
+  namespace: reyada-homecare
+  labels:
+    app: elasticsearch
+    healthcare-platform: "true"
+    doh-compliant: "true"
+spec:
+  serviceName: elasticsearch
+  replicas: 3
+  selector:
+    matchLabels:
+      app: elasticsearch
+  template:
+    metadata:
+      labels:
+        app: elasticsearch
+        healthcare-platform: "true"
+    spec:
+      initContainers:
+      - name: increase-vm-max-map
+        image: busybox:1.35
+        command: ['sh', '-c', 'sysctl -w vm.max_map_count=262144']
+        securityContext:
+          privileged: true
+      - name: increase-fd-ulimit
+        image: busybox:1.35
+        command: ['sh', '-c', 'ulimit -n 65536']
+        securityContext:
+          privileged: true
+      containers:
+      - name: elasticsearch
+        image: docker.elastic.co/elasticsearch/elasticsearch:8.8.0
+        ports:
+        - containerPort: 9200
+          name: rest
+          protocol: TCP
+        - containerPort: 9300
+          name: inter-node
+          protocol: TCP
+        env:
+        - name: cluster.name
+          value: "reyada-healthcare-logs"
+        - name: node.name
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: discovery.seed_hosts
+          value: "elasticsearch-0.elasticsearch,elasticsearch-1.elasticsearch,elasticsearch-2.elasticsearch"
+        - name: cluster.initial_master_nodes
+          value: "elasticsearch-0,elasticsearch-1,elasticsearch-2"
+        - name: ES_JAVA_OPTS
+          value: "-Xms2g -Xmx2g"
+        - name: xpack.security.enabled
+          value: "true"
+        - name: xpack.security.transport.ssl.enabled
+          value: "true"
+        - name: xpack.security.transport.ssl.verification_mode
+          value: "certificate"
+        - name: xpack.security.transport.ssl.keystore.path
+          value: "/usr/share/elasticsearch/config/certs/elastic-certificates.p12"
+        - name: xpack.security.transport.ssl.truststore.path
+          value: "/usr/share/elasticsearch/config/certs/elastic-certificates.p12"
+        - name: xpack.security.http.ssl.enabled
+          value: "true"
+        - name: xpack.security.http.ssl.keystore.path
+          value: "/usr/share/elasticsearch/config/certs/elastic-certificates.p12"
+        - name: ELASTIC_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: elasticsearch-secret
+              key: password
+        - name: xpack.monitoring.collection.enabled
+          value: "true"
+        - name: indices.query.bool.max_clause_count
+          value: "10000"
+        - name: action.destructive_requires_name
+          value: "true"
+        volumeMounts:
+        - name: elasticsearch-data
+          mountPath: /usr/share/elasticsearch/data
+        - name: elasticsearch-config
+          mountPath: /usr/share/elasticsearch/config/elasticsearch.yml
+          subPath: elasticsearch.yml
+        - name: elasticsearch-certs
+          mountPath: /usr/share/elasticsearch/config/certs
+        resources:
+          requests:
+            memory: "4Gi"
+            cpu: "1000m"
+          limits:
+            memory: "6Gi"
+            cpu: "2000m"
+        readinessProbe:
+          httpGet:
+            scheme: HTTPS
+            path: /_cluster/health?local=true
+            port: 9200
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        livenessProbe:
+          httpGet:
+            scheme: HTTPS
+            path: /_cluster/health?local=true
+            port: 9200
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+      volumes:
+      - name: elasticsearch-config
+        configMap:
+          name: elasticsearch-config
+      - name: elasticsearch-certs
+        secret:
+          secretName: elasticsearch-certs
+  volumeClaimTemplates:
+  - metadata:
+      name: elasticsearch-data
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      storageClassName: "gp2"
+      resources:
+        requests:
+          storage: 100Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: elasticsearch
+  namespace: reyada-homecare
+  labels:
+    app: elasticsearch
+spec:
+  clusterIP: None
+  selector:
+    app: elasticsearch
+  ports:
+  - port: 9200
+    name: rest
+  - port: 9300
+    name: inter-node
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: elasticsearch-client
+  namespace: reyada-homecare
+  labels:
+    app: elasticsearch
+spec:
+  selector:
+    app: elasticsearch
+  ports:
+  - port: 9200
+    name: rest
+    targetPort: 9200
+  type: ClusterIP
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: elasticsearch-config
+  namespace: reyada-homecare
+data:
+  elasticsearch.yml: |
+    cluster.name: "reyada-healthcare-logs"
+    network.host: 0.0.0.0
+    
+    # Healthcare-specific index templates
+    index.number_of_shards: 1
+    index.number_of_replicas: 1
+    index.refresh_interval: 30s
+    
+    # Security settings for healthcare compliance
+    xpack.security.enabled: true
+    xpack.security.transport.ssl.enabled: true
+    xpack.security.http.ssl.enabled: true
+    
+    # Audit logging for DOH compliance
+    xpack.security.audit.enabled: true
+    xpack.security.audit.logfile.events.include:
+      - access_denied
+      - access_granted
+      - anonymous_access_denied
+      - authentication_failed
+      - authentication_success
+      - connection_denied
+      - connection_granted
+      - tampered_request
+      - run_as_denied
+      - run_as_granted
+    
+    # Healthcare data retention policies
+    action.auto_create_index: "+healthcare-*,-*"
+    
+    # Performance tuning for healthcare workloads
+    indices.memory.index_buffer_size: 20%
+    indices.memory.min_index_buffer_size: 96mb
+    
+    # Thread pool settings
+    thread_pool.write.queue_size: 1000
+    thread_pool.search.queue_size: 1000
+    
+    # Circuit breaker settings
+    indices.breaker.total.limit: 70%
+    indices.breaker.request.limit: 40%
+    indices.breaker.fielddata.limit: 40%
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: elasticsearch-secret
+  namespace: reyada-homecare
+type: Opaque
+data:
+  password: ZWxhc3RpY3NlYXJjaA== # elasticsearch base64 encoded
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: elasticsearch-certs
+  namespace: reyada-homecare
+type: Opaque
+data:
+  elastic-certificates.p12: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0t # placeholder cert
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: elasticsearch-setup
+  namespace: reyada-homecare
+spec:
+  template:
+    spec:
+      containers:
+      - name: setup
+        image: curlimages/curl:8.1.0
+        command:
+        - /bin/sh
+        - -c
+        - |
+          # Wait for Elasticsearch to be ready
+          until curl -k -u elastic:elasticsearch https://elasticsearch-client:9200/_cluster/health; do
+            echo "Waiting for Elasticsearch..."
+            sleep 10
+          done
+          
+          # Create healthcare-specific index templates
+          curl -k -u elastic:elasticsearch -X PUT "https://elasticsearch-client:9200/_index_template/healthcare-logs" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "index_patterns": ["healthcare-*"],
+              "template": {
+                "settings": {
+                  "number_of_shards": 1,
+                  "number_of_replicas": 1,
+                  "index.lifecycle.name": "healthcare-policy",
+                  "index.lifecycle.rollover_alias": "healthcare-logs"
+                },
+                "mappings": {
+                  "properties": {
+                    "@timestamp": {
+                      "type": "date"
+                    },
+                    "patient_id": {
+                      "type": "keyword"
+                    },
+                    "user_id": {
+                      "type": "keyword"
+                    },
+                    "session_id": {
+                      "type": "keyword"
+                    },
+                    "action": {
+                      "type": "keyword"
+                    },
+                    "resource": {
+                      "type": "keyword"
+                    },
+                    "compliance_flag": {
+                      "type": "keyword"
+                    },
+                    "doh_category": {
+                      "type": "keyword"
+                    },
+                    "severity": {
+                      "type": "keyword"
+                    },
+                    "message": {
+                      "type": "text",
+                      "analyzer": "standard"
+                    },
+                    "ip_address": {
+                      "type": "ip"
+                    },
+                    "user_agent": {
+                      "type": "text"
+                    },
+                    "response_time": {
+                      "type": "float"
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              },
+              "priority": 100,
+              "version": 1,
+              "_meta": {
+                "description": "Healthcare platform log template for DOH compliance"
+              }
+            }'
+          
+          # Create ILM policy for healthcare data retention
+          curl -k -u elastic:elasticsearch -X PUT "https://elasticsearch-client:9200/_ilm/policy/healthcare-policy" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "policy": {
+                "phases": {
+                  "hot": {
+                    "actions": {
+                      "rollover": {
+                        "max_size": "10GB",
+                        "max_age": "7d"
+                      }
+                    }
+                  },
+                  "warm": {
+                    "min_age": "7d",
+                    "actions": {
+                      "allocate": {
+                        "number_of_replicas": 0
+                      }
+                    }
+                  },
+                  "cold": {
+                    "min_age": "30d",
+                    "actions": {
+                      "allocate": {
+                        "number_of_replicas": 0
+                      }
+                    }
+                  },
+                  "delete": {
+                    "min_age": "2555d"
+                  }
+                }
+              }
+            }'
+          
+          echo "Elasticsearch setup completed"
+      restartPolicy: OnFailure

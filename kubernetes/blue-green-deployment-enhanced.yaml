@@ -1,0 +1,345 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: reyada-frontend-service
+  namespace: reyada-homecare
+  labels:
+    app: reyada-frontend
+    environment: production
+    compliance: doh-uae
+    tier: frontend
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: nlb
+    service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
+    service.beta.kubernetes.io/aws-load-balancer-ssl-cert: "${SSL_CERT_ARN}"
+    service.beta.kubernetes.io/aws-load-balancer-ssl-ports: "https"
+    service.beta.kubernetes.io/aws-load-balancer-backend-protocol: "http"
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9090"
+    prometheus.io/path: "/metrics"
+spec:
+  selector:
+    app: reyada-frontend
+    environment: production
+    # This selector will be updated during deployment to point to either blue or green
+    deployment: blue
+  ports:
+  - port: 80
+    targetPort: 80
+    protocol: TCP
+    name: http
+  - port: 443
+    targetPort: 80
+    protocol: TCP
+    name: https
+  - port: 9090
+    targetPort: 9090
+    protocol: TCP
+    name: metrics
+  type: LoadBalancer
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 3600
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: reyada-frontend-blue
+  namespace: reyada-homecare
+  labels:
+    app: reyada-frontend
+    environment: production
+    deployment: blue
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: reyada-frontend
+      environment: production
+      deployment: blue
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: reyada-frontend
+        environment: production
+        deployment: blue
+    spec:
+      containers:
+      - name: reyada-frontend
+        image: reyada/frontend:${VERSION}
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 80
+          name: http
+          protocol: TCP
+        - containerPort: 9090
+          name: metrics
+          protocol: TCP
+        resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+            ephemeral-storage: 1Gi
+          limits:
+            cpu: 1500m
+            memory: 2Gi
+            ephemeral-storage: 2Gi
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: HEALTHCARE_COMPLIANCE
+          value: "DOH-UAE"
+        - name: SECURITY_LEVEL
+          value: "HIGH"
+        - name: MONITORING_ENABLED
+          value: "true"
+        readinessProbe:
+          httpGet:
+            path: /api/health
+            port: 80
+            scheme: HTTP
+            httpHeaders:
+            - name: User-Agent
+              value: "Kubernetes-Readiness-Probe"
+          initialDelaySeconds: 15
+          periodSeconds: 10
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+        livenessProbe:
+          httpGet:
+            path: /api/health
+            port: 80
+            scheme: HTTP
+            httpHeaders:
+            - name: User-Agent
+              value: "Kubernetes-Liveness-Probe"
+          initialDelaySeconds: 30
+          periodSeconds: 15
+          timeoutSeconds: 10
+          successThreshold: 1
+          failureThreshold: 5
+        startupProbe:
+          httpGet:
+            path: /api/health
+            port: 80
+            scheme: HTTP
+            httpHeaders:
+            - name: User-Agent
+              value: "Kubernetes-Startup-Probe"
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          successThreshold: 1
+          failureThreshold: 15
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          runAsUser: 1001
+          runAsGroup: 1001
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        volumeMounts:
+        - name: tmp-volume
+          mountPath: /tmp
+        - name: cache-volume
+          mountPath: /var/cache/nginx
+        - name: run-volume
+          mountPath: /var/run
+      volumes:
+      - name: tmp-volume
+        emptyDir: {}
+      - name: cache-volume
+        emptyDir: {}
+      - name: run-volume
+        emptyDir: {}
+      securityContext:
+        fsGroup: 1001
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - reyada-frontend
+              topologyKey: "kubernetes.io/hostname"
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 50
+            preference:
+              matchExpressions:
+              - key: node-type
+                operator: In
+                values:
+                - healthcare-optimized
+      tolerations:
+      - key: "healthcare-workload"
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: reyada-frontend-green
+  namespace: reyada-homecare
+  labels:
+    app: reyada-frontend
+    environment: production
+    deployment: green
+spec:
+  replicas: 0  # Initially set to 0, will be scaled up during deployment
+  selector:
+    matchLabels:
+      app: reyada-frontend
+      environment: production
+      deployment: green
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: reyada-frontend
+        environment: production
+        deployment: green
+    spec:
+      containers:
+      - name: reyada-frontend
+        image: reyada/frontend:${VERSION}
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 80
+          name: http
+          protocol: TCP
+        - containerPort: 9090
+          name: metrics
+          protocol: TCP
+        resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+            ephemeral-storage: 1Gi
+          limits:
+            cpu: 1500m
+            memory: 2Gi
+            ephemeral-storage: 2Gi
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: HEALTHCARE_COMPLIANCE
+          value: "DOH-UAE"
+        - name: SECURITY_LEVEL
+          value: "HIGH"
+        - name: MONITORING_ENABLED
+          value: "true"
+        readinessProbe:
+          httpGet:
+            path: /api/health
+            port: 80
+            scheme: HTTP
+            httpHeaders:
+            - name: User-Agent
+              value: "Kubernetes-Readiness-Probe"
+          initialDelaySeconds: 15
+          periodSeconds: 10
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+        livenessProbe:
+          httpGet:
+            path: /api/health
+            port: 80
+            scheme: HTTP
+            httpHeaders:
+            - name: User-Agent
+              value: "Kubernetes-Liveness-Probe"
+          initialDelaySeconds: 30
+          periodSeconds: 15
+          timeoutSeconds: 10
+          successThreshold: 1
+          failureThreshold: 5
+        startupProbe:
+          httpGet:
+            path: /api/health
+            port: 80
+            scheme: HTTP
+            httpHeaders:
+            - name: User-Agent
+              value: "Kubernetes-Startup-Probe"
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          successThreshold: 1
+          failureThreshold: 15
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          runAsUser: 1001
+          runAsGroup: 1001
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        volumeMounts:
+        - name: tmp-volume
+          mountPath: /tmp
+        - name: cache-volume
+          mountPath: /var/cache/nginx
+        - name: run-volume
+          mountPath: /var/run
+      volumes:
+      - name: tmp-volume
+        emptyDir: {}
+      - name: cache-volume
+        emptyDir: {}
+      - name: run-volume
+        emptyDir: {}
+      securityContext:
+        fsGroup: 1001
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - reyada-frontend
+              topologyKey: "kubernetes.io/hostname"
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 50
+            preference:
+              matchExpressions:
+              - key: node-type
+                operator: In
+                values:
+                - healthcare-optimized
+      tolerations:
+      - key: "healthcare-workload"
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"

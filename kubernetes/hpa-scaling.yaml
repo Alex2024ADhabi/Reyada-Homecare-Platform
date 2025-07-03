@@ -1,0 +1,436 @@
+# Horizontal Pod Autoscaler for Reyada Healthcare Platform
+# Healthcare-specific scaling policies with compliance considerations
+
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: reyada-frontend-hpa
+  namespace: reyada-homecare
+  labels:
+    app: reyada-frontend
+    healthcare-scaling: "true"
+    doh-compliant: "true"
+  annotations:
+    healthcare.reyada.ae/scaling-policy: "healthcare-optimized"
+    healthcare.reyada.ae/patient-load-aware: "true"
+    healthcare.reyada.ae/compliance-maintained: "true"
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: reyada-frontend-blue
+  minReplicas: 3  # Minimum for healthcare availability requirements
+  maxReplicas: 20 # Maximum to control costs while ensuring capacity
+  metrics:
+  # CPU-based scaling
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70  # Conservative for healthcare workloads
+  
+  # Memory-based scaling
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 75
+  
+  # Custom healthcare metrics
+  - type: Pods
+    pods:
+      metric:
+        name: healthcare_active_patient_sessions
+      target:
+        type: AverageValue
+        averageValue: "50"  # Scale when more than 50 active sessions per pod
+  
+  - type: Pods
+    pods:
+      metric:
+        name: healthcare_clinical_forms_per_second
+      target:
+        type: AverageValue
+        averageValue: "10"  # Scale when more than 10 forms per second per pod
+  
+  - type: Pods
+    pods:
+      metric:
+        name: healthcare_daman_requests_per_second
+      target:
+        type: AverageValue
+        averageValue: "5"   # Scale when more than 5 DAMAN requests per second per pod
+  
+  # Response time based scaling
+  - type: Object
+    object:
+      metric:
+        name: healthcare_response_time_p95
+      describedObject:
+        apiVersion: v1
+        kind: Service
+        name: reyada-frontend-active
+      target:
+        type: Value
+        value: "2000m"  # Scale when P95 response time > 2 seconds
+  
+  # Queue depth based scaling
+  - type: Object
+    object:
+      metric:
+        name: healthcare_processing_queue_depth
+      describedObject:
+        apiVersion: v1
+        kind: Service
+        name: reyada-frontend-active
+      target:
+        type: Value
+        value: "100"    # Scale when queue depth > 100 items
+  
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300  # 5 minutes stabilization for healthcare
+      policies:
+      - type: Percent
+        value: 25      # Scale down by max 25% at a time
+        periodSeconds: 60
+      - type: Pods
+        value: 2       # Scale down by max 2 pods at a time
+        periodSeconds: 60
+      selectPolicy: Min  # Use the more conservative policy
+    
+    scaleUp:
+      stabilizationWindowSeconds: 60   # Faster scale up for patient care
+      policies:
+      - type: Percent
+        value: 50      # Scale up by max 50% at a time
+        periodSeconds: 30
+      - type: Pods
+        value: 4       # Scale up by max 4 pods at a time
+        periodSeconds: 30
+      selectPolicy: Max  # Use the more aggressive policy for scale up
+
+---
+# HPA for Green Environment
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: reyada-frontend-hpa-green
+  namespace: reyada-homecare
+  labels:
+    app: reyada-frontend
+    environment: green
+    healthcare-scaling: "true"
+    doh-compliant: "true"
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: reyada-frontend-green
+  minReplicas: 1   # Standby environment can have fewer replicas
+  maxReplicas: 15
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 75
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 600  # Longer stabilization for standby
+      policies:
+      - type: Percent
+        value: 50
+        periodSeconds: 120
+    scaleUp:
+      stabilizationWindowSeconds: 30   # Quick scale up when activated
+      policies:
+      - type: Percent
+        value: 100
+        periodSeconds: 15
+
+---
+# Vertical Pod Autoscaler for Resource Optimization
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: reyada-frontend-vpa
+  namespace: reyada-homecare
+  labels:
+    app: reyada-frontend
+    healthcare-optimization: "true"
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: reyada-frontend-blue
+  updatePolicy:
+    updateMode: "Auto"  # Automatically apply recommendations
+  resourcePolicy:
+    containerPolicies:
+    - containerName: frontend
+      minAllowed:
+        cpu: 200m
+        memory: 512Mi
+      maxAllowed:
+        cpu: 4000m
+        memory: 8Gi
+      controlledResources: ["cpu", "memory"]
+      controlledValues: RequestsAndLimits
+
+---
+# Custom Resource for Healthcare-Specific Scaling
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: healthcarescalers.healthcare.reyada.ae
+spec:
+  group: healthcare.reyada.ae
+  versions:
+  - name: v1
+    served: true
+    storage: true
+    schema:
+      openAPIV3Schema:
+        type: object
+        properties:
+          spec:
+            type: object
+            properties:
+              patientLoadThreshold:
+                type: integer
+                minimum: 1
+                maximum: 1000
+              clinicalWorkflowCapacity:
+                type: integer
+                minimum: 1
+                maximum: 100
+              damanIntegrationLoad:
+                type: integer
+                minimum: 1
+                maximum: 50
+              complianceRequirements:
+                type: object
+                properties:
+                  dohCompliant:
+                    type: boolean
+                  hipaaCompliant:
+                    type: boolean
+                  gdprCompliant:
+                    type: boolean
+          status:
+            type: object
+            properties:
+              currentLoad:
+                type: integer
+              scalingDecision:
+                type: string
+              lastScaleTime:
+                type: string
+                format: date-time
+  scope: Namespaced
+  names:
+    plural: healthcarescalers
+    singular: healthcarescaler
+    kind: HealthcareScaler
+    shortNames:
+    - hcs
+
+---
+# Healthcare Scaler Instance
+apiVersion: healthcare.reyada.ae/v1
+kind: HealthcareScaler
+metadata:
+  name: reyada-main-scaler
+  namespace: reyada-homecare
+spec:
+  patientLoadThreshold: 200
+  clinicalWorkflowCapacity: 50
+  damanIntegrationLoad: 20
+  complianceRequirements:
+    dohCompliant: true
+    hipaaCompliant: true
+    gdprCompliant: true
+
+---
+# Pod Disruption Budget for Healthcare Availability
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: reyada-frontend-pdb-healthcare
+  namespace: reyada-homecare
+  labels:
+    app: reyada-frontend
+    healthcare-availability: "critical"
+spec:
+  minAvailable: 2  # Always maintain at least 2 pods for healthcare continuity
+  selector:
+    matchLabels:
+      app: reyada-frontend
+      healthcare-compliance: "true"
+
+---
+# Healthcare-Specific Scaling Policies ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: healthcare-scaling-policies
+  namespace: reyada-homecare
+  labels:
+    app: reyada-frontend
+    config-type: scaling-policies
+data:
+  scaling-policies.yaml: |
+    healthcare:
+      scaling:
+        policies:
+          # Peak hours scaling (8 AM - 6 PM UAE time)
+          peak_hours:
+            min_replicas: 5
+            max_replicas: 25
+            target_cpu: 60
+            target_memory: 70
+            scale_up_factor: 2.0
+            scale_down_factor: 0.5
+          
+          # Off-peak hours scaling (6 PM - 8 AM UAE time)
+          off_peak_hours:
+            min_replicas: 3
+            max_replicas: 15
+            target_cpu: 75
+            target_memory: 80
+            scale_up_factor: 1.5
+            scale_down_factor: 0.3
+          
+          # Emergency scaling (high patient load)
+          emergency:
+            min_replicas: 8
+            max_replicas: 50
+            target_cpu: 50
+            target_memory: 60
+            scale_up_factor: 3.0
+            scale_down_factor: 0.1
+          
+          # Maintenance mode scaling
+          maintenance:
+            min_replicas: 2
+            max_replicas: 5
+            target_cpu: 90
+            target_memory: 90
+            scale_up_factor: 1.0
+            scale_down_factor: 0.8
+        
+        triggers:
+          patient_registration_spike:
+            threshold: 100  # registrations per minute
+            action: emergency_scaling
+            duration: 300   # seconds
+          
+          clinical_assessment_load:
+            threshold: 50   # assessments per minute
+            action: peak_hours_scaling
+            duration: 180   # seconds
+          
+          daman_authorization_burst:
+            threshold: 25   # authorizations per minute
+            action: scale_up
+            duration: 120   # seconds
+          
+          system_health_degradation:
+            cpu_threshold: 85     # percentage
+            memory_threshold: 90  # percentage
+            response_time_threshold: 3000  # milliseconds
+            action: emergency_scaling
+            duration: 60    # seconds
+        
+        compliance:
+          doh_requirements:
+            min_availability: 99.9  # percentage
+            max_response_time: 2000 # milliseconds
+            data_processing_sla: 1000 # milliseconds
+          
+          hipaa_requirements:
+            audit_logging: enabled
+            encryption_at_rest: required
+            encryption_in_transit: required
+          
+          business_continuity:
+            rto: 300  # Recovery Time Objective in seconds
+            rpo: 60   # Recovery Point Objective in seconds
+            min_geographic_distribution: 2  # regions
+
+---
+# Healthcare Metrics Server Configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: healthcare-metrics-config
+  namespace: reyada-homecare
+data:
+  metrics.yaml: |
+    metrics:
+      healthcare_specific:
+        - name: healthcare_active_patient_sessions
+          description: "Number of active patient sessions"
+          type: gauge
+          labels: ["session_type", "user_role"]
+        
+        - name: healthcare_clinical_forms_per_second
+          description: "Rate of clinical form submissions"
+          type: counter
+          labels: ["form_type", "completion_status"]
+        
+        - name: healthcare_daman_requests_per_second
+          description: "Rate of DAMAN integration requests"
+          type: counter
+          labels: ["request_type", "status"]
+        
+        - name: healthcare_response_time_p95
+          description: "95th percentile response time"
+          type: histogram
+          labels: ["endpoint", "method"]
+        
+        - name: healthcare_processing_queue_depth
+          description: "Depth of processing queues"
+          type: gauge
+          labels: ["queue_type", "priority"]
+        
+        - name: healthcare_compliance_score
+          description: "DOH compliance score"
+          type: gauge
+          labels: ["compliance_type", "assessment_period"]
+        
+        - name: healthcare_error_rate
+          description: "Application error rate"
+          type: gauge
+          labels: ["error_type", "severity"]
+        
+        - name: healthcare_data_processing_latency
+          description: "Data processing latency for healthcare workflows"
+          type: histogram
+          labels: ["workflow_type", "data_type"]
+      
+      scaling_decisions:
+        - name: healthcare_scaling_events_total
+          description: "Total number of scaling events"
+          type: counter
+          labels: ["direction", "trigger", "policy"]
+        
+        - name: healthcare_scaling_duration_seconds
+          description: "Duration of scaling operations"
+          type: histogram
+          labels: ["direction", "success"]
+        
+        - name: healthcare_pod_startup_time_seconds
+          description: "Time taken for pods to become ready"
+          type: histogram
+          labels: ["environment", "deployment_type"]

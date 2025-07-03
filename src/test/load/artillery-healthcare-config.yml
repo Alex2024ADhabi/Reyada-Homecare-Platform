@@ -1,0 +1,392 @@
+# Artillery Load Testing Configuration for Healthcare Workflows
+# Comprehensive healthcare-specific load testing scenarios
+
+config:
+  target: 'http://localhost:3001'
+  phases:
+    - duration: 60
+      arrivalRate: 5
+      name: "Warm-up phase"
+    - duration: 300
+      arrivalRate: 10
+      name: "Baseline healthcare load"
+    - duration: 180
+      arrivalRate: 20
+      name: "Peak healthcare hours"
+    - duration: 120
+      arrivalRate: 5
+      name: "Cool-down phase"
+  
+  # Healthcare-specific payload configuration
+  payload:
+    path: "./test-data/healthcare-test-data.csv"
+    fields:
+      - "emiratesId"
+      - "patientName"
+      - "clinicianId"
+      - "insuranceProvider"
+    order: sequence
+    skipHeader: true
+  
+  # Custom variables for healthcare testing
+  variables:
+    baseUrl: "http://localhost:3001"
+    apiVersion: "v1"
+    testMode: "healthcare-load-test"
+    dohCompliance: "enabled"
+    damanIntegration: "enabled"
+  
+  # Healthcare-specific plugins
+  plugins:
+    expect: {}
+    metrics-by-endpoint: {}
+    hdrhistogram: {}
+    
+  # Performance thresholds for healthcare platform
+  ensure:
+    p99: 3000  # 99th percentile response time < 3s
+    p95: 2000  # 95th percentile response time < 2s
+    p50: 1000  # Median response time < 1s
+    maxErrorRate: 1  # Error rate < 1%
+
+scenarios:
+  # Patient Management Workflow
+  - name: "Patient Management Workflow"
+    weight: 40
+    flow:
+      - post:
+          url: "/api/auth/login"
+          json:
+            email: "loadtest@reyada.ae"
+            password: "LoadTest123!"
+            deviceInfo:
+              userAgent: "Artillery-LoadTest/1.0"
+              platform: "Load Testing"
+          capture:
+            - json: "$.token"
+              as: "authToken"
+            - json: "$.sessionId"
+              as: "sessionId"
+          expect:
+            - statusCode: 200
+            - hasProperty: "token"
+      
+      - think: 2
+      
+      # Search patients with Emirates ID
+      - get:
+          url: "/api/patients/search"
+          qs:
+            q: "{{ emiratesId }}"
+            limit: 20
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+            X-Session-ID: "{{ sessionId }}"
+          expect:
+            - statusCode: 200
+            - contentType: json
+      
+      - think: 1
+      
+      # Validate Emirates ID
+      - post:
+          url: "/api/patients/validate-emirates-id"
+          json:
+            emiratesId: "{{ emiratesId }}"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+            X-Session-ID: "{{ sessionId }}"
+          expect:
+            - statusCode: 200
+            - hasProperty: "isValid"
+      
+      - think: 2
+      
+      # Create patient (20% probability)
+      - function: "createPatientIfNeeded"
+  
+  # Clinical Assessment Workflow
+  - name: "Clinical Assessment Workflow"
+    weight: 25
+    flow:
+      - post:
+          url: "/api/auth/login"
+          json:
+            email: "clinician@reyada.ae"
+            password: "Clinician123!"
+          capture:
+            - json: "$.token"
+              as: "authToken"
+            - json: "$.sessionId"
+              as: "sessionId"
+          expect:
+            - statusCode: 200
+      
+      - think: 1
+      
+      # Get patient for assessment
+      - get:
+          url: "/api/patients"
+          qs:
+            limit: 1
+            active: true
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          capture:
+            - json: "$[0].id"
+              as: "patientId"
+          expect:
+            - statusCode: 200
+      
+      - think: 3
+      
+      # Create DOH 9-domain assessment
+      - post:
+          url: "/api/clinical/assessments"
+          json:
+            patientId: "{{ patientId }}"
+            clinicianId: "{{ clinicianId }}"
+            assessmentType: "comprehensive"
+            assessmentDate: "{{ $timestamp }}"
+            domains:
+              cognitive:
+                score: "{{ $randomInt(1, 4) }}"
+                notes: "Cognitive assessment completed during load testing"
+              mobility:
+                score: "{{ $randomInt(1, 4) }}"
+                notes: "Mobility assessment completed during load testing"
+              adl:
+                score: "{{ $randomInt(1, 4) }}"
+                notes: "ADL assessment completed during load testing"
+              medication:
+                score: "{{ $randomInt(1, 4) }}"
+                notes: "Medication assessment completed during load testing"
+              social:
+                score: "{{ $randomInt(1, 4) }}"
+                notes: "Social assessment completed during load testing"
+              environment:
+                score: "{{ $randomInt(1, 4) }}"
+                notes: "Environment assessment completed during load testing"
+              nutrition:
+                score: "{{ $randomInt(1, 4) }}"
+                notes: "Nutrition assessment completed during load testing"
+              pain:
+                score: "{{ $randomInt(1, 4) }}"
+                notes: "Pain assessment completed during load testing"
+              psychological:
+                score: "{{ $randomInt(1, 4) }}"
+                notes: "Psychological assessment completed during load testing"
+            clinicalNotes: "Comprehensive clinical assessment completed during Artillery load testing"
+            dohCompliance:
+              allDomainsCompleted: true
+              clinicianLicenseVerified: true
+              patientConsentObtained: true
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+            X-Session-ID: "{{ sessionId }}"
+          expect:
+            - statusCode: 201
+            - hasProperty: "id"
+            - hasProperty: "overallScore"
+      
+      - think: 2
+      
+      # Validate DOH compliance
+      - get:
+          url: "/api/compliance/doh/validate/{{ patientId }}"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          expect:
+            - statusCode: 200
+            - hasProperty: "overallScore"
+  
+  # DAMAN Authorization Workflow
+  - name: "DAMAN Authorization Workflow"
+    weight: 20
+    flow:
+      - post:
+          url: "/api/auth/login"
+          json:
+            email: "revenue@reyada.ae"
+            password: "Revenue123!"
+          capture:
+            - json: "$.token"
+              as: "authToken"
+          expect:
+            - statusCode: 200
+      
+      - think: 1
+      
+      # Get patient for authorization
+      - get:
+          url: "/api/patients"
+          qs:
+            insuranceProvider: "{{ insuranceProvider }}"
+            limit: 1
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          capture:
+            - json: "$[0].id"
+              as: "patientId"
+          expect:
+            - statusCode: 200
+      
+      - think: 2
+      
+      # Create DAMAN authorization
+      - post:
+          url: "/api/revenue/daman/authorizations"
+          json:
+            patientId: "{{ patientId }}"
+            serviceType: "nursing-care"
+            requestedDuration: "30-days"
+            estimatedCost: "{{ $randomInt(5000, 15000) }}"
+            clinicalJustification: "Artillery load testing authorization request with comprehensive clinical justification for home healthcare services. Patient requires skilled nursing care based on detailed clinical assessment."
+            requestedServices:
+              - serviceCode: "17-25-1"
+                description: "Skilled Nursing Visit"
+                frequency: "daily"
+                unitPrice: 300
+                estimatedUnits: 30
+            urgencyLevel: "routine"
+            digitalSignatures: true
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          expect:
+            - statusCode: 201
+            - hasProperty: "referenceNumber"
+      
+      - think: 1
+      
+      # Check authorization status
+      - get:
+          url: "/api/revenue/daman/authorizations/status"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          expect:
+            - statusCode: 200
+  
+  # Dashboard Analytics Workflow
+  - name: "Dashboard Analytics Workflow"
+    weight: 10
+    flow:
+      - post:
+          url: "/api/auth/login"
+          json:
+            email: "admin@reyada.ae"
+            password: "Admin123!"
+          capture:
+            - json: "$.token"
+              as: "authToken"
+          expect:
+            - statusCode: 200
+      
+      - think: 1
+      
+      # Load dashboard metrics
+      - get:
+          url: "/api/analytics/dashboard"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          expect:
+            - statusCode: 200
+            - hasProperty: "totalPatients"
+            - hasProperty: "activeAssessments"
+      
+      - think: 1
+      
+      # Load DOH compliance metrics
+      - get:
+          url: "/api/compliance/doh/metrics"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          expect:
+            - statusCode: 200
+            - hasProperty: "overallScore"
+      
+      - think: 1
+      
+      # Load DAMAN integration status
+      - get:
+          url: "/api/revenue/daman/integration-status"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          expect:
+            - statusCode: 200
+            - hasProperty: "isConnected"
+  
+  # Emergency Workflow
+  - name: "Emergency Workflow"
+    weight: 5
+    flow:
+      - post:
+          url: "/api/auth/login"
+          json:
+            email: "emergency@reyada.ae"
+            password: "Emergency123!"
+          capture:
+            - json: "$.token"
+              as: "authToken"
+          expect:
+            - statusCode: 200
+      
+      # Emergency patient registration
+      - post:
+          url: "/api/patients/emergency-registration"
+          json:
+            emiratesId: "784-{{ $randomInt(1990, 2005) }}-{{ $randomInt(1000000, 9999999) }}-{{ $randomInt(1, 9) }}"
+            name:
+              first: "Emergency"
+              last: "Patient"
+            priority: "emergency"
+            triageLevel: "urgent"
+            admissionType: "emergency"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          expect:
+            - statusCode: 201
+            - hasProperty: "priority"
+
+# Custom JavaScript functions
+functions:
+  createPatientIfNeeded: |
+    function(context, events, done) {
+      if (Math.random() < 0.2) {
+        // 20% chance to create a new patient
+        const patientData = {
+          emiratesId: context.vars.emiratesId,
+          name: {
+            first: context.vars.patientName.split(' ')[0],
+            last: context.vars.patientName.split(' ')[1] || 'Test'
+          },
+          dateOfBirth: '1990-01-01',
+          gender: Math.random() > 0.5 ? 'male' : 'female',
+          nationality: 'UAE',
+          contact: {
+            phone: '+971501234567',
+            email: 'test@example.com'
+          },
+          insurance: {
+            provider: context.vars.insuranceProvider,
+            policyNumber: 'TEST123456789'
+          }
+        };
+        
+        context.vars.createPatient = true;
+        context.vars.patientData = patientData;
+      }
+      return done();
+    }
+
+# Test data for healthcare scenarios
+before:
+  flow:
+    - log: "Starting Artillery healthcare load test"
+    - log: "Target: {{ target }}"
+    - log: "DOH Compliance: {{ dohCompliance }}"
+    - log: "DAMAN Integration: {{ damanIntegration }}"
+
+after:
+  flow:
+    - log: "Artillery healthcare load test completed"
+    - log: "Check the generated report for detailed metrics"

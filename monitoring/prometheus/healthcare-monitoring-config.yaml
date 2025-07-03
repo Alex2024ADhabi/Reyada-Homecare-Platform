@@ -1,0 +1,390 @@
+# Enhanced Prometheus Configuration for Reyada Homecare Platform
+# Comprehensive monitoring for healthcare applications with DOH compliance
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-healthcare-config
+  namespace: reyada-homecare
+  labels:
+    app: prometheus
+    component: healthcare-monitoring
+  annotations:
+    config.version: "2024.1"
+    last.updated: "2024-01-15T10:00:00Z"
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+      external_labels:
+        cluster: 'reyada-homecare-production'
+        environment: 'production'
+        compliance: 'doh-uae'
+    
+    rule_files:
+      - "/etc/prometheus/rules/*.yml"
+    
+    alerting:
+      alertmanagers:
+        - static_configs:
+            - targets:
+              - alertmanager:9093
+    
+    scrape_configs:
+      # Kubernetes API Server
+      - job_name: 'kubernetes-apiservers'
+        kubernetes_sd_configs:
+        - role: endpoints
+        scheme: https
+        tls_config:
+          ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+        relabel_configs:
+        - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
+          action: keep
+          regex: default;kubernetes;https
+      
+      # Kubernetes Nodes
+      - job_name: 'kubernetes-nodes'
+        kubernetes_sd_configs:
+        - role: node
+        scheme: https
+        tls_config:
+          ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+        relabel_configs:
+        - action: labelmap
+          regex: __meta_kubernetes_node_label_(.+)
+        - target_label: __address__
+          replacement: kubernetes.default.svc:443
+        - source_labels: [__meta_kubernetes_node_name]
+          regex: (.+)
+          target_label: __metrics_path__
+          replacement: /api/v1/nodes/${1}/proxy/metrics
+      
+      # Kubernetes Pods
+      - job_name: 'kubernetes-pods'
+        kubernetes_sd_configs:
+        - role: pod
+        relabel_configs:
+        - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+          action: keep
+          regex: true
+        - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+          action: replace
+          target_label: __metrics_path__
+          regex: (.+)
+        - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+          action: replace
+          regex: ([^:]+)(?::\d+)?;(\d+)
+          replacement: $1:$2
+          target_label: __address__
+        - action: labelmap
+          regex: __meta_kubernetes_pod_label_(.+)
+        - source_labels: [__meta_kubernetes_namespace]
+          action: replace
+          target_label: kubernetes_namespace
+        - source_labels: [__meta_kubernetes_pod_name]
+          action: replace
+          target_label: kubernetes_pod_name
+      
+      # Reyada Frontend Application
+      - job_name: 'reyada-frontend'
+        kubernetes_sd_configs:
+        - role: pod
+          namespaces:
+            names:
+            - reyada-homecare
+        relabel_configs:
+        - source_labels: [__meta_kubernetes_pod_label_app]
+          action: keep
+          regex: reyada-frontend
+        - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+          action: keep
+          regex: true
+        - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+          action: replace
+          target_label: __metrics_path__
+          regex: (.+)
+        - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+          action: replace
+          regex: ([^:]+)(?::\d+)?;(\d+)
+          replacement: $1:$2
+          target_label: __address__
+        metric_relabel_configs:
+        - source_labels: [__name__]
+          regex: 'http_request_duration_seconds.*'
+          target_label: healthcare_metric
+          replacement: 'response_time'
+        - source_labels: [__name__]
+          regex: 'http_requests_total.*'
+          target_label: healthcare_metric
+          replacement: 'request_count'
+      
+      # Database Monitoring
+      - job_name: 'postgresql'
+        static_configs:
+        - targets: ['postgres-exporter:9187']
+        scrape_interval: 30s
+        metrics_path: /metrics
+        relabel_configs:
+        - source_labels: [__address__]
+          target_label: instance
+        - target_label: service
+          replacement: 'postgresql'
+        - target_label: environment
+          replacement: 'production'
+      
+      # Redis Monitoring
+      - job_name: 'redis'
+        static_configs:
+        - targets: ['redis-exporter:9121']
+        scrape_interval: 30s
+        relabel_configs:
+        - target_label: service
+          replacement: 'redis'
+        - target_label: environment
+          replacement: 'production'
+      
+      # NGINX Ingress Controller
+      - job_name: 'nginx-ingress'
+        kubernetes_sd_configs:
+        - role: pod
+          namespaces:
+            names:
+            - ingress-nginx
+        relabel_configs:
+        - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+          action: keep
+          regex: ingress-nginx
+        - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+          action: keep
+          regex: true
+        - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_port]
+          action: replace
+          target_label: __address__
+          regex: (.+)
+          replacement: $1:10254
+      
+      # Healthcare-specific Metrics
+      - job_name: 'healthcare-compliance'
+        static_configs:
+        - targets: ['reyada-compliance-service:8080']
+        scrape_interval: 60s
+        metrics_path: /metrics/compliance
+        relabel_configs:
+        - target_label: service
+          replacement: 'compliance'
+        - target_label: compliance_standard
+          replacement: 'doh-uae'
+        - target_label: environment
+          replacement: 'production'
+      
+      # Patient Data Access Monitoring
+      - job_name: 'patient-data-access'
+        static_configs:
+        - targets: ['reyada-audit-service:8080']
+        scrape_interval: 30s
+        metrics_path: /metrics/audit
+        relabel_configs:
+        - target_label: service
+          replacement: 'audit-trail'
+        - target_label: data_type
+          replacement: 'patient-data'
+        - target_label: environment
+          replacement: 'production'
+      
+      # Clinical Assessment Monitoring
+      - job_name: 'clinical-assessments'
+        static_configs:
+        - targets: ['reyada-clinical-service:8080']
+        scrape_interval: 45s
+        metrics_path: /metrics/clinical
+        relabel_configs:
+        - target_label: service
+          replacement: 'clinical-assessments'
+        - target_label: assessment_type
+          replacement: 'doh-nine-domains'
+        - target_label: environment
+          replacement: 'production'
+      
+      # External Health Checks
+      - job_name: 'blackbox'
+        metrics_path: /probe
+        params:
+          module: [http_2xx]
+        static_configs:
+        - targets:
+          - https://reyada-homecare.ae/health
+          - https://api.reyada-homecare.ae/health
+          - https://auth.reyada-homecare.ae/health
+        relabel_configs:
+        - source_labels: [__address__]
+          target_label: __param_target
+        - source_labels: [__param_target]
+          target_label: instance
+        - target_label: __address__
+          replacement: blackbox-exporter:9115
+      
+      # SSL Certificate Monitoring
+      - job_name: 'ssl-certificates'
+        metrics_path: /probe
+        params:
+          module: [ssl_expire]
+        static_configs:
+        - targets:
+          - reyada-homecare.ae:443
+          - api.reyada-homecare.ae:443
+          - auth.reyada-homecare.ae:443
+        relabel_configs:
+        - source_labels: [__address__]
+          target_label: __param_target
+        - source_labels: [__param_target]
+          target_label: instance
+        - target_label: __address__
+          replacement: blackbox-exporter:9115
+      
+      # Custom Healthcare Metrics
+      - job_name: 'healthcare-kpis'
+        static_configs:
+        - targets: ['reyada-kpi-service:8080']
+        scrape_interval: 120s
+        metrics_path: /metrics/kpis
+        relabel_configs:
+        - target_label: service
+          replacement: 'healthcare-kpis'
+        - target_label: metric_category
+          replacement: 'clinical-outcomes'
+        - target_label: environment
+          replacement: 'production'
+
+  healthcare-alerts.yml: |
+    groups:
+    - name: healthcare.rules
+      rules:
+      # High-level application alerts
+      - alert: HighErrorRate
+        expr: |
+          (
+            rate(http_requests_total{job="reyada-frontend",code=~"5.."}[5m])
+            /
+            rate(http_requests_total{job="reyada-frontend"}[5m])
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          service: reyada-frontend
+          compliance: doh-uae
+        annotations:
+          summary: "High error rate detected in Reyada Homecare application"
+          description: "Error rate is {{ $value | humanizePercentage }} for the last 5 minutes"
+      
+      - alert: HighResponseTime
+        expr: |
+          histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job="reyada-frontend"}[5m])) > 2
+        for: 10m
+        labels:
+          severity: warning
+          service: reyada-frontend
+        annotations:
+          summary: "High response time in Reyada Homecare application"
+          description: "95th percentile response time is {{ $value }}s"
+      
+      # Healthcare-specific alerts
+      - alert: PatientDataAccessAnomaly
+        expr: |
+          rate(patient_data_access_total[5m]) > 100
+        for: 2m
+        labels:
+          severity: critical
+          compliance: doh-uae
+          data_type: patient-data
+        annotations:
+          summary: "Unusual patient data access pattern detected"
+          description: "Patient data access rate is {{ $value }} requests/second"
+      
+      - alert: ClinicalAssessmentFailure
+        expr: |
+          rate(clinical_assessment_failures_total[5m]) > 0.1
+        for: 1m
+        labels:
+          severity: critical
+          compliance: doh-uae
+          assessment_type: nine-domains
+        annotations:
+          summary: "Clinical assessment failures detected"
+          description: "Clinical assessment failure rate: {{ $value }} failures/second"
+      
+      - alert: DOHComplianceViolation
+        expr: |
+          doh_compliance_violations_total > 0
+        for: 0m
+        labels:
+          severity: critical
+          compliance: doh-uae
+          regulatory: true
+        annotations:
+          summary: "DOH compliance violation detected"
+          description: "{{ $value }} compliance violations detected"
+      
+      # Infrastructure alerts
+      - alert: PodCrashLooping
+        expr: |
+          rate(kube_pod_container_status_restarts_total{namespace="reyada-homecare"}[15m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+          service: kubernetes
+        annotations:
+          summary: "Pod is crash looping"
+          description: "Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} is crash looping"
+      
+      - alert: HighMemoryUsage
+        expr: |
+          (
+            container_memory_usage_bytes{namespace="reyada-homecare",container!="POD",container!=""}
+            /
+            container_spec_memory_limit_bytes{namespace="reyada-homecare",container!="POD",container!=""}
+          ) > 0.9
+        for: 10m
+        labels:
+          severity: warning
+          service: kubernetes
+        annotations:
+          summary: "High memory usage detected"
+          description: "Container {{ $labels.container }} in pod {{ $labels.pod }} is using {{ $value | humanizePercentage }} of memory"
+      
+      - alert: DatabaseConnectionFailure
+        expr: |
+          pg_up == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: postgresql
+        annotations:
+          summary: "Database connection failure"
+          description: "PostgreSQL database is not responding"
+      
+      # Security alerts
+      - alert: UnauthorizedAccess
+        expr: |
+          rate(http_requests_total{code="401"}[5m]) > 10
+        for: 2m
+        labels:
+          severity: warning
+          security: true
+        annotations:
+          summary: "High rate of unauthorized access attempts"
+          description: "{{ $value }} unauthorized access attempts per second"
+      
+      - alert: SSLCertificateExpiry
+        expr: |
+          probe_ssl_earliest_cert_expiry - time() < 86400 * 30
+        for: 1h
+        labels:
+          severity: warning
+          security: true
+        annotations:
+          summary: "SSL certificate expiring soon"
+          description: "SSL certificate for {{ $labels.instance }} expires in {{ $value | humanizeDuration }}"

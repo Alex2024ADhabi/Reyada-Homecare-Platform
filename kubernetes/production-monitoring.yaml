@@ -1,0 +1,484 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: reyada-homecare
+  labels:
+    app: prometheus
+    component: monitoring
+    version: enhanced
+    healthcare-compliance: doh-uae
+    data-residency: uae
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 5s
+      evaluation_interval: 5s
+      external_labels:
+        cluster: 'reyada-homecare-production'
+        environment: 'production'
+        compliance: 'doh-uae'
+        platform: 'healthcare'
+        region: 'uae-north-1'
+        data_residency: 'uae'
+        healthcare_tier: 'critical'
+    
+    rule_files:
+      - "/etc/prometheus/rules/*.yml"
+    
+    alerting:
+      alertmanagers:
+        - static_configs:
+            - targets:
+              - alertmanager:9093
+          timeout: 10s
+          api_version: v2
+    
+    scrape_configs:
+      # Enhanced Frontend Monitoring
+      - job_name: 'reyada-frontend'
+        static_configs:
+          - targets: ['reyada-frontend-service:80']
+        metrics_path: '/api/metrics'
+        scrape_interval: 5s
+        scrape_timeout: 4s
+        honor_labels: true
+        metric_relabel_configs:
+          - source_labels: [__name__]
+            regex: 'http_request_duration_seconds.*'
+            target_label: healthcare_metric
+            replacement: 'response_time'
+          - source_labels: [__name__]
+            regex: 'http_requests_total.*'
+            target_label: healthcare_metric
+            replacement: 'request_count'
+      
+      # Kubernetes API Server
+      - job_name: 'kubernetes-apiservers'
+        kubernetes_sd_configs:
+        - role: endpoints
+        scheme: https
+        tls_config:
+          ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+        relabel_configs:
+        - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
+          action: keep
+          regex: default;kubernetes;https
+      
+      # Kubernetes Nodes
+      - job_name: 'kubernetes-nodes'
+        kubernetes_sd_configs:
+        - role: node
+        scheme: https
+        tls_config:
+          ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+        relabel_configs:
+        - action: labelmap
+          regex: __meta_kubernetes_node_label_(.+)
+        - target_label: __address__
+          replacement: kubernetes.default.svc:443
+        - source_labels: [__meta_kubernetes_node_name]
+          regex: (.+)
+          target_label: __metrics_path__
+          replacement: /api/v1/nodes/${1}/proxy/metrics
+      
+      # Enhanced Pod Monitoring
+      - job_name: 'kubernetes-pods'
+        kubernetes_sd_configs:
+        - role: pod
+        relabel_configs:
+        - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+          action: keep
+          regex: true
+        - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+          action: replace
+          target_label: __metrics_path__
+          regex: (.+)
+        - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+          action: replace
+          regex: ([^:]+)(?::\d+)?;(\d+)
+          replacement: $1:$2
+          target_label: __address__
+        - action: labelmap
+          regex: __meta_kubernetes_pod_label_(.+)
+        - source_labels: [__meta_kubernetes_namespace]
+          action: replace
+          target_label: kubernetes_namespace
+        - source_labels: [__meta_kubernetes_pod_name]
+          action: replace
+          target_label: kubernetes_pod_name
+        
+      - job_name: 'kubernetes-pods'
+        kubernetes_sd_configs:
+          - role: pod
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+            action: keep
+            regex: true
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+            action: replace
+            target_label: __metrics_path__
+            regex: (.+)
+            
+      - job_name: 'node-exporter'
+        static_configs:
+          - targets: ['node-exporter:9100']
+            
+    alerting:
+      alertmanagers:
+        - static_configs:
+            - targets:
+              - alertmanager:9093
+
+  healthcare_alerts.yml: |
+    groups:
+      - name: healthcare.rules
+        rules:
+          # Critical Healthcare Alerts
+          - alert: HealthcareSystemDown
+            expr: up{job="reyada-frontend"} == 0
+            for: 1m
+            labels:
+              severity: critical
+              team: platform
+            annotations:
+              summary: "Healthcare system is down"
+              description: "Healthcare platform {{ $labels.instance }} has been down for more than 1 minute"
+              runbook_url: "https://docs.reyada-homecare.ae/runbooks/system-down"
+              
+          - alert: DOHComplianceFailure
+            expr: doh_compliance_check_failures_total > 0
+            for: 1m
+            labels:
+              severity: critical
+              team: compliance
+            annotations:
+              summary: "DOH compliance check failed"
+              description: "DOH compliance validation has failed on {{ $labels.instance }}"
+              runbook_url: "https://docs.reyada-homecare.ae/runbooks/doh-compliance"
+              
+          - alert: PatientDataAccessFailure
+            expr: rate(patient_data_access_errors_total[5m]) > 0.1
+            for: 2m
+            labels:
+              severity: critical
+              team: clinical
+            annotations:
+              summary: "Patient data access failures detected"
+              description: "Patient data access error rate is {{ $value }} errors per second"
+              
+          - alert: ClinicalAssessmentSubmissionFailure
+            expr: rate(clinical_assessment_submission_failures_total[5m]) > 0.05
+            for: 3m
+            labels:
+              severity: critical
+              team: clinical
+            annotations:
+              summary: "Clinical assessment submission failures"
+              description: "Clinical assessment submission failure rate is {{ $value }} failures per second"
+              
+          - alert: DatabaseConnectionFailure
+            expr: database_connections_active == 0
+            for: 2m
+            labels:
+              severity: critical
+              team: infrastructure
+            annotations:
+              summary: "Database connection lost"
+              description: "No active database connections detected on {{ $labels.instance }}"
+              
+          - alert: HighErrorRate
+            expr: rate(http_requests_total{status=~"5.."}[5m]) > 0.1
+            for: 5m
+            labels:
+              severity: critical
+              team: platform
+            annotations:
+              summary: "High error rate detected"
+              description: "HTTP 5xx error rate is {{ $value }} errors per second on {{ $labels.instance }}"
+              
+          # Warning Level Alerts
+          - alert: HighMemoryUsage
+            expr: (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes > 0.85
+            for: 5m
+            labels:
+              severity: warning
+              team: infrastructure
+            annotations:
+              summary: "High memory usage"
+              description: "Memory usage is {{ $value | humanizePercentage }} on {{ $labels.instance }}"
+              
+          - alert: HighCPUUsage
+            expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 75
+            for: 5m
+            labels:
+              severity: warning
+              team: infrastructure
+            annotations:
+              summary: "High CPU usage"
+              description: "CPU usage is {{ $value | humanizePercentage }} on {{ $labels.instance }}"
+              
+          - alert: HighDiskUsage
+            expr: (node_filesystem_size_bytes - node_filesystem_avail_bytes) / node_filesystem_size_bytes > 0.85
+            for: 5m
+            labels:
+              severity: warning
+              team: infrastructure
+            annotations:
+              summary: "High disk usage"
+              description: "Disk usage is {{ $value | humanizePercentage }} on {{ $labels.instance }}"
+              
+          - alert: SlowResponseTime
+            expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 2
+            for: 5m
+            labels:
+              severity: warning
+              team: platform
+            annotations:
+              summary: "Slow response times detected"
+              description: "95th percentile response time is {{ $value }}s on {{ $labels.instance }}"
+              
+          - alert: AuditTrailFailure
+            expr: rate(audit_trail_failures_total[5m]) > 0.01
+            for: 3m
+            labels:
+              severity: warning
+              team: compliance
+            annotations:
+              summary: "Audit trail logging failures"
+              description: "Audit trail failure rate is {{ $value }} failures per second"
+              
+          # Healthcare-Specific Alerts
+          - alert: PatientEpisodeCreationFailure
+            expr: rate(patient_episode_creation_failures_total[10m]) > 0.02
+            for: 5m
+            labels:
+              severity: warning
+              team: clinical
+            annotations:
+              summary: "Patient episode creation failures"
+              description: "Patient episode creation failure rate is {{ $value }} failures per second"
+              
+          - alert: InsuranceVerificationFailure
+            expr: rate(insurance_verification_failures_total[10m]) > 0.05
+            for: 5m
+            labels:
+              severity: warning
+              team: revenue
+            annotations:
+              summary: "Insurance verification failures"
+              description: "Insurance verification failure rate is {{ $value }} failures per second"
+              
+          - alert: BackupFailure
+            expr: time() - last_successful_backup_timestamp > 86400
+            for: 1m
+            labels:
+              severity: critical
+              team: infrastructure
+            annotations:
+              summary: "Backup failure detected"
+              description: "Last successful backup was more than 24 hours ago"
+              
+          - alert: CertificateExpiringSoon
+            expr: (x509_cert_expiry - time()) / 86400 < 30
+            for: 1h
+            labels:
+              severity: warning
+              team: infrastructure
+            annotations:
+              summary: "SSL certificate expiring soon"
+              description: "SSL certificate for {{ $labels.instance }} expires in {{ $value }} days"
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+  namespace: reyada-homecare
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prometheus
+  template:
+    metadata:
+      labels:
+        app: prometheus
+    spec:
+      containers:
+      - name: prometheus
+        image: prom/prometheus:v2.45.0
+        ports:
+        - containerPort: 9090
+        volumeMounts:
+        - name: config-volume
+          mountPath: /etc/prometheus
+        - name: storage-volume
+          mountPath: /prometheus
+        args:
+          - '--config.file=/etc/prometheus/prometheus.yml'
+          - '--storage.tsdb.path=/prometheus'
+          - '--web.console.libraries=/etc/prometheus/console_libraries'
+          - '--web.console.templates=/etc/prometheus/consoles'
+          - '--storage.tsdb.retention.time=30d'
+          - '--web.enable-lifecycle'
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+      volumes:
+      - name: config-volume
+        configMap:
+          name: prometheus-config
+      - name: storage-volume
+        persistentVolumeClaim:
+          claimName: prometheus-storage
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: prometheus-storage
+  namespace: reyada-homecare
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 50Gi
+  storageClassName: gp2
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+  namespace: reyada-homecare
+spec:
+  selector:
+    app: prometheus
+  ports:
+  - port: 9090
+    targetPort: 9090
+  type: ClusterIP
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: reyada-homecare
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+    spec:
+      containers:
+      - name: grafana
+        image: grafana/grafana:10.0.0
+        ports:
+        - containerPort: 3000
+        env:
+        - name: GF_SECURITY_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: grafana-secret
+              key: admin-password
+        - name: GF_INSTALL_PLUGINS
+          value: "grafana-piechart-panel,grafana-worldmap-panel"
+        volumeMounts:
+        - name: grafana-storage
+          mountPath: /var/lib/grafana
+        - name: grafana-config
+          mountPath: /etc/grafana/provisioning
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "200m"
+      volumes:
+      - name: grafana-storage
+        persistentVolumeClaim:
+          claimName: grafana-storage
+      - name: grafana-config
+        configMap:
+          name: grafana-config
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: grafana-storage
+  namespace: reyada-homecare
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: gp2
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: reyada-homecare
+spec:
+  selector:
+    app: grafana
+  ports:
+  - port: 3000
+    targetPort: 3000
+  type: LoadBalancer
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: grafana-secret
+  namespace: reyada-homecare
+type: Opaque
+data:
+  admin-password: YWRtaW4xMjM= # admin123 base64 encoded
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-config
+  namespace: reyada-homecare
+data:
+  datasources.yml: |
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        access: proxy
+        url: http://prometheus:9090
+        isDefault: true
+        
+  dashboards.yml: |
+    apiVersion: 1
+    providers:
+      - name: 'healthcare-dashboards'
+        orgId: 1
+        folder: 'Healthcare'
+        type: file
+        disableDeletion: false
+        updateIntervalSeconds: 10
+        allowUiUpdates: true
+        options:
+          path: /etc/grafana/provisioning/dashboards

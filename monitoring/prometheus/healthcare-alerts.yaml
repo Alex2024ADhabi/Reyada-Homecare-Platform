@@ -1,0 +1,369 @@
+# Healthcare Platform Prometheus Alerting Rules
+# DOH-compliant monitoring and alerting for critical healthcare metrics
+
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: reyada-healthcare-alerts
+  namespace: reyada-homecare
+  labels:
+    app: reyada-frontend
+    healthcare-monitoring: "true"
+    doh-compliant: "true"
+spec:
+  groups:
+  # Critical Healthcare System Alerts
+  - name: healthcare.critical
+    interval: 30s
+    rules:
+    - alert: HealthcareSystemDown
+      expr: up{job="reyada-frontend"} == 0
+      for: 1m
+      labels:
+        severity: critical
+        healthcare_impact: "high"
+        doh_compliance: "affected"
+        team: "healthcare-ops"
+      annotations:
+        summary: "Healthcare platform is down"
+        description: "The Reyada healthcare platform has been down for more than 1 minute. This affects patient care delivery and DOH compliance."
+        runbook_url: "https://docs.reyada.ae/runbooks/system-down"
+        patient_impact: "Patient registration and clinical documentation unavailable"
+        compliance_impact: "DOH reporting and compliance monitoring affected"
+
+    - alert: HighErrorRate
+      expr: |
+        (
+          rate(http_requests_total{job="reyada-frontend",code=~"5.."}[5m]) /
+          rate(http_requests_total{job="reyada-frontend"}[5m])
+        ) * 100 > 5
+      for: 2m
+      labels:
+        severity: critical
+        healthcare_impact: "high"
+        team: "healthcare-ops"
+      annotations:
+        summary: "High error rate detected in healthcare platform"
+        description: "Error rate is {{ $value }}% for the last 5 minutes, exceeding the 5% threshold."
+        patient_impact: "Patients may experience issues with registration and clinical forms"
+        action_required: "Investigate application logs and consider rollback if necessary"
+
+    - alert: DatabaseConnectionFailure
+      expr: healthcare_database_connections_failed_total > 0
+      for: 30s
+      labels:
+        severity: critical
+        healthcare_impact: "high"
+        doh_compliance: "at_risk"
+        team: "healthcare-ops"
+      annotations:
+        summary: "Database connection failures detected"
+        description: "{{ $value }} database connection failures in the last 30 seconds."
+        patient_impact: "Patient data access and clinical documentation may be affected"
+        compliance_impact: "DOH compliance data integrity at risk"
+
+  # Healthcare Performance Alerts
+  - name: healthcare.performance
+    interval: 60s
+    rules:
+    - alert: HighResponseTime
+      expr: |
+        histogram_quantile(0.95,
+          rate(http_request_duration_seconds_bucket{job="reyada-frontend"}[5m])
+        ) > 2
+      for: 3m
+      labels:
+        severity: warning
+        healthcare_impact: "medium"
+        team: "healthcare-ops"
+      annotations:
+        summary: "High response time for healthcare platform"
+        description: "95th percentile response time is {{ $value }}s, exceeding 2s threshold."
+        patient_impact: "Slower patient registration and clinical form completion"
+        action_required: "Monitor system resources and consider scaling"
+
+    - alert: MemoryUsageHigh
+      expr: |
+        (
+          node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes
+        ) / node_memory_MemTotal_bytes * 100 > 85
+      for: 5m
+      labels:
+        severity: warning
+        healthcare_impact: "medium"
+        team: "healthcare-ops"
+      annotations:
+        summary: "High memory usage on healthcare platform nodes"
+        description: "Memory usage is {{ $value }}% on {{ $labels.instance }}."
+        action_required: "Consider scaling up or investigating memory leaks"
+
+    - alert: CPUUsageHigh
+      expr: |
+        100 - (avg by(instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+      for: 5m
+      labels:
+        severity: warning
+        healthcare_impact: "medium"
+        team: "healthcare-ops"
+      annotations:
+        summary: "High CPU usage on healthcare platform nodes"
+        description: "CPU usage is {{ $value }}% on {{ $labels.instance }}."
+        action_required: "Monitor workload and consider horizontal scaling"
+
+  # DOH Compliance Alerts
+  - name: healthcare.compliance
+    interval: 300s
+    rules:
+    - alert: DOHComplianceScoreLow
+      expr: healthcare_doh_compliance_score < 0.85
+      for: 1m
+      labels:
+        severity: warning
+        healthcare_impact: "high"
+        doh_compliance: "at_risk"
+        team: "healthcare-compliance"
+      annotations:
+        summary: "DOH compliance score below threshold"
+        description: "DOH compliance score is {{ $value }}, below the required 0.85 threshold."
+        compliance_impact: "Risk of DOH audit findings and regulatory issues"
+        action_required: "Review clinical documentation and assessment processes"
+
+    - alert: MissingClinicalDocumentation
+      expr: healthcare_missing_clinical_docs_total > 5
+      for: 2m
+      labels:
+        severity: warning
+        healthcare_impact: "medium"
+        doh_compliance: "at_risk"
+        team: "healthcare-compliance"
+      annotations:
+        summary: "Missing clinical documentation detected"
+        description: "{{ $value }} clinical documents are missing or incomplete."
+        compliance_impact: "DOH compliance requirements not met"
+        action_required: "Review and complete missing clinical documentation"
+
+    - alert: AuditTrailGaps
+      expr: healthcare_audit_trail_gaps_total > 0
+      for: 1m
+      labels:
+        severity: critical
+        healthcare_impact: "high"
+        doh_compliance: "violated"
+        team: "healthcare-security"
+      annotations:
+        summary: "Audit trail gaps detected"
+        description: "{{ $value }} gaps detected in audit trail logging."
+        compliance_impact: "Critical DOH compliance violation - audit trail integrity compromised"
+        action_required: "Immediate investigation required - potential security incident"
+
+  # DAMAN Integration Alerts
+  - name: healthcare.daman
+    interval: 120s
+    rules:
+    - alert: DAMANIntegrationDown
+      expr: healthcare_daman_connection_status == 0
+      for: 2m
+      labels:
+        severity: critical
+        healthcare_impact: "high"
+        integration: "daman"
+        team: "healthcare-integration"
+      annotations:
+        summary: "DAMAN integration is down"
+        description: "Connection to DAMAN insurance system has been down for more than 2 minutes."
+        patient_impact: "Insurance authorization and claims processing unavailable"
+        business_impact: "Revenue cycle disrupted - authorization delays"
+        action_required: "Check DAMAN API status and network connectivity"
+
+    - alert: DAMANAuthorizationFailures
+      expr: rate(healthcare_daman_authorization_failures_total[5m]) > 0.1
+      for: 3m
+      labels:
+        severity: warning
+        healthcare_impact: "medium"
+        integration: "daman"
+        team: "healthcare-integration"
+      annotations:
+        summary: "High DAMAN authorization failure rate"
+        description: "DAMAN authorization failure rate is {{ $value }} per second."
+        business_impact: "Potential revenue loss due to authorization failures"
+        action_required: "Review DAMAN integration logs and patient data quality"
+
+  # Patient Safety Alerts
+  - name: healthcare.patient_safety
+    interval: 60s
+    rules:
+    - alert: CriticalPatientDataLoss
+      expr: healthcare_patient_data_loss_events_total > 0
+      for: 0s
+      labels:
+        severity: critical
+        healthcare_impact: "critical"
+        patient_safety: "at_risk"
+        team: "healthcare-security"
+      annotations:
+        summary: "Critical patient data loss detected"
+        description: "{{ $value }} patient data loss events detected."
+        patient_impact: "Patient safety at risk due to missing clinical data"
+        compliance_impact: "Severe DOH compliance violation"
+        action_required: "IMMEDIATE: Activate data recovery procedures and notify management"
+
+    - alert: UnauthorizedPatientAccess
+      expr: healthcare_unauthorized_access_attempts_total > 3
+      for: 1m
+      labels:
+        severity: critical
+        healthcare_impact: "high"
+        patient_safety: "at_risk"
+        security: "breach_suspected"
+        team: "healthcare-security"
+      annotations:
+        summary: "Unauthorized patient data access attempts"
+        description: "{{ $value }} unauthorized access attempts to patient data in the last minute."
+        security_impact: "Potential HIPAA violation and patient privacy breach"
+        action_required: "IMMEDIATE: Investigate potential security breach and lock affected accounts"
+
+    - alert: MedicationAlertSystemDown
+      expr: healthcare_medication_alerts_system_status == 0
+      for: 30s
+      labels:
+        severity: critical
+        healthcare_impact: "critical"
+        patient_safety: "at_risk"
+        team: "healthcare-clinical"
+      annotations:
+        summary: "Medication alert system is down"
+        description: "Critical medication interaction and allergy alert system is offline."
+        patient_impact: "CRITICAL: Medication safety checks unavailable - patient safety at risk"
+        action_required: "IMMEDIATE: Restore medication alert system and notify clinical staff"
+
+  # Infrastructure Health Alerts
+  - name: healthcare.infrastructure
+    interval: 120s
+    rules:
+    - alert: DiskSpaceRunningLow
+      expr: |
+        (
+          node_filesystem_avail_bytes{mountpoint="/"} /
+          node_filesystem_size_bytes{mountpoint="/"}
+        ) * 100 < 15
+      for: 5m
+      labels:
+        severity: warning
+        healthcare_impact: "medium"
+        team: "healthcare-ops"
+      annotations:
+        summary: "Disk space running low on healthcare platform"
+        description: "Disk space is {{ $value }}% available on {{ $labels.instance }}."
+        system_impact: "Risk of system failure and data loss"
+        action_required: "Clean up logs and temporary files, or expand storage"
+
+    - alert: BackupFailure
+      expr: healthcare_backup_last_success_timestamp < (time() - 86400)
+      for: 1m
+      labels:
+        severity: critical
+        healthcare_impact: "high"
+        data_protection: "at_risk"
+        team: "healthcare-ops"
+      annotations:
+        summary: "Healthcare data backup failure"
+        description: "Last successful backup was more than 24 hours ago."
+        compliance_impact: "DOH data retention requirements at risk"
+        action_required: "IMMEDIATE: Investigate backup system and ensure data protection"
+
+    - alert: SSLCertificateExpiring
+      expr: probe_ssl_earliest_cert_expiry - time() < 86400 * 7
+      for: 1m
+      labels:
+        severity: warning
+        healthcare_impact: "medium"
+        security: "at_risk"
+        team: "healthcare-ops"
+      annotations:
+        summary: "SSL certificate expiring soon"
+        description: "SSL certificate for {{ $labels.instance }} expires in {{ $value | humanizeDuration }}."
+        security_impact: "Risk of service disruption and security warnings"
+        action_required: "Renew SSL certificate before expiration"
+
+  # Business Continuity Alerts
+  - name: healthcare.business_continuity
+    interval: 300s
+    rules:
+    - alert: DisasterRecoveryTestOverdue
+      expr: healthcare_dr_test_last_success_timestamp < (time() - 2592000)
+      for: 1m
+      labels:
+        severity: warning
+        healthcare_impact: "medium"
+        business_continuity: "at_risk"
+        team: "healthcare-ops"
+      annotations:
+        summary: "Disaster recovery test overdue"
+        description: "Last disaster recovery test was more than 30 days ago."
+        compliance_impact: "DOH business continuity requirements may not be met"
+        action_required: "Schedule and execute disaster recovery test"
+
+    - alert: MultiRegionFailover
+      expr: healthcare_active_regions_count < 2
+      for: 2m
+      labels:
+        severity: critical
+        healthcare_impact: "high"
+        business_continuity: "compromised"
+        team: "healthcare-ops"
+      annotations:
+        summary: "Multi-region failover capability compromised"
+        description: "Only {{ $value }} region(s) active, below minimum requirement of 2."
+        business_impact: "Reduced disaster recovery capability"
+        action_required: "IMMEDIATE: Restore multi-region deployment"
+
+  # Custom Healthcare Metrics Alerts
+  - name: healthcare.custom_metrics
+    interval: 180s
+    rules:
+    - alert: PatientRegistrationRateAnomaly
+      expr: |
+        abs(
+          rate(healthcare_patient_registrations_total[1h]) -
+          rate(healthcare_patient_registrations_total[1h] offset 24h)
+        ) / rate(healthcare_patient_registrations_total[1h] offset 24h) > 0.5
+      for: 10m
+      labels:
+        severity: warning
+        healthcare_impact: "medium"
+        anomaly: "detected"
+        team: "healthcare-analytics"
+      annotations:
+        summary: "Unusual patient registration rate detected"
+        description: "Patient registration rate differs by {{ $value }}% from same time yesterday."
+        business_impact: "Potential system issue or unusual patient load"
+        action_required: "Investigate cause of registration rate anomaly"
+
+    - alert: ClinicalWorkflowBottleneck
+      expr: healthcare_clinical_workflow_queue_size > 50
+      for: 5m
+      labels:
+        severity: warning
+        healthcare_impact: "medium"
+        workflow: "bottleneck"
+        team: "healthcare-clinical"
+      annotations:
+        summary: "Clinical workflow bottleneck detected"
+        description: "{{ $value }} items queued in clinical workflow, exceeding normal capacity."
+        patient_impact: "Delayed clinical assessments and documentation"
+        action_required: "Review workflow processes and consider additional resources"
+
+    - alert: RevenueImpactAlert
+      expr: healthcare_revenue_at_risk_amount > 10000
+      for: 2m
+      labels:
+        severity: warning
+        healthcare_impact: "high"
+        business_impact: "revenue"
+        team: "healthcare-revenue"
+      annotations:
+        summary: "Significant revenue at risk detected"
+        description: "AED {{ $value }} in revenue at risk due to authorization or billing issues."
+        business_impact: "Potential financial loss requiring immediate attention"
+        action_required: "Review authorization failures and billing processes"

@@ -1158,6 +1158,206 @@ class RealTimeSyncService {
   }
 
   /**
+   * PHASE 2 ENHANCEMENT: Healthcare-specific conflict resolution
+   */
+  private async resolveHealthcareConflict(
+    event: SyncEvent,
+  ): Promise<SyncEvent> {
+    console.log(
+      `🏥 Resolving healthcare-specific conflict for ${event.entity}:${event.id}`,
+    );
+
+    const resolver = this.conflictResolvers.get(event.entity);
+    if (!resolver) {
+      console.warn(
+        `⚠️ No healthcare conflict resolver for entity: ${event.entity}`,
+      );
+      return event;
+    }
+
+    let resolvedData: any;
+
+    // Healthcare-specific conflict resolution strategies
+    switch (event.entity) {
+      case "patient":
+        resolvedData = await this.resolvePatientDataConflict(event);
+        break;
+      case "clinical_assessments":
+        resolvedData = await this.resolveClinicalDataConflict(event);
+        break;
+      case "medications":
+        resolvedData = await this.resolveMedicationConflict(event);
+        break;
+      case "vital_signs":
+        resolvedData = await this.resolveVitalSignsConflict(event);
+        break;
+      default:
+        resolvedData = event.data;
+    }
+
+    return {
+      ...event,
+      data: resolvedData,
+      metadata: {
+        ...event.metadata,
+        healthcareConflictResolved: true,
+        resolutionTimestamp: new Date(),
+        resolutionMethod: "healthcare_specific",
+      },
+    };
+  }
+
+  /**
+   * Resolve patient data conflicts with healthcare priorities
+   */
+  private async resolvePatientDataConflict(event: SyncEvent): Promise<any> {
+    const { clientData, serverData } = event.data;
+
+    // Patient safety takes priority
+    const resolved = {
+      ...serverData,
+      ...clientData,
+      // Always use most recent vital signs
+      vitalSigns: this.getMostRecentVitalSigns(
+        clientData.vitalSigns,
+        serverData.vitalSigns,
+      ),
+      // Merge allergies (union of both)
+      allergies: this.mergeAllergies(
+        clientData.allergies,
+        serverData.allergies,
+      ),
+      // Use most recent emergency contacts
+      emergencyContacts:
+        clientData.emergencyContacts || serverData.emergencyContacts,
+      // Preserve critical flags
+      criticalFlags: [
+        ...(clientData.criticalFlags || []),
+        ...(serverData.criticalFlags || []),
+      ],
+    };
+
+    return resolved;
+  }
+
+  /**
+   * Resolve clinical data conflicts with medical accuracy priority
+   */
+  private async resolveClinicalDataConflict(event: SyncEvent): Promise<any> {
+    const { clientData, serverData } = event.data;
+
+    // Clinical data requires clinician review for conflicts
+    if (this.hasCriticalClinicalConflict(clientData, serverData)) {
+      // Flag for manual clinician review
+      return {
+        ...serverData,
+        conflictFlags: {
+          requiresClinicianReview: true,
+          conflictReason: "Critical clinical data mismatch",
+          clientVersion: clientData,
+          serverVersion: serverData,
+          flaggedAt: new Date(),
+        },
+      };
+    }
+
+    // Use timestamp-based resolution for non-critical conflicts
+    const clientTimestamp = new Date(clientData.timestamp || 0);
+    const serverTimestamp = new Date(serverData.timestamp || 0);
+
+    return clientTimestamp > serverTimestamp ? clientData : serverData;
+  }
+
+  /**
+   * PHASE 2 ENHANCEMENT: Patient safety monitoring integration
+   */
+  private async integratePatientSafetyMonitoring(
+    event: SyncEvent,
+  ): Promise<void> {
+    console.log(`🛡️ Integrating patient safety monitoring for ${event.id}`);
+
+    // Real-time safety alerts
+    const safetyAlerts = await this.checkPatientSafetyAlerts(event);
+    if (safetyAlerts.length > 0) {
+      // Trigger emergency sync for safety alerts
+      await this.triggerEmergencySafetySync(event, safetyAlerts);
+    }
+
+    // Medication interaction checks
+    if (event.entity === "medications" || event.data.medications) {
+      await this.performMedicationSafetyCheck(event);
+    }
+
+    // Vital signs monitoring
+    if (event.entity === "vital_signs" || event.data.vitalSigns) {
+      await this.performVitalSignsMonitoring(event);
+    }
+  }
+
+  /**
+   * PHASE 2 ENHANCEMENT: Emergency sync protocols
+   */
+  private async implementEmergencySyncProtocols(
+    event: SyncEvent,
+  ): Promise<void> {
+    console.log(`🚨 Implementing emergency sync protocols for ${event.id}`);
+
+    const emergencyTriggers = [
+      this.isCriticalVitalSigns(event),
+      this.isMedicationEmergency(event),
+      this.isPatientSafetyAlert(event),
+      this.isSystemFailure(event),
+    ];
+
+    if (emergencyTriggers.some((trigger) => trigger)) {
+      // Bypass normal queuing
+      event.priority = "critical";
+      event.metadata.emergencyProtocol = true;
+      event.metadata.emergencyTrigger = emergencyTriggers.findIndex((t) => t);
+
+      // Immediate processing
+      await this.processEmergencyEvent(event);
+
+      // Notify emergency contacts
+      await this.notifyEmergencyContacts(event);
+
+      // Log emergency event
+      await this.logEmergencyEvent(event);
+    }
+  }
+
+  /**
+   * PHASE 2 ENHANCEMENT: Clinical workflow validation
+   */
+  private async validateClinicalWorkflowIntegration(
+    event: SyncEvent,
+  ): Promise<void> {
+    console.log(`🏥 Validating clinical workflow integration for ${event.id}`);
+
+    const workflowValidation = {
+      hasValidClinicalSequence: await this.validateClinicalSequence(event),
+      hasRequiredApprovals: await this.validateClinicalApprovals(event),
+      hasProperDocumentation: await this.validateClinicalDocumentation(event),
+      hasComplianceFlags: await this.validateComplianceFlags(event),
+    };
+
+    const failedValidations = Object.entries(workflowValidation)
+      .filter(([_, valid]) => !valid)
+      .map(([validation]) => validation);
+
+    if (failedValidations.length > 0) {
+      event.metadata.clinicalWorkflowWarnings = failedValidations;
+
+      // Block critical workflow violations
+      if (failedValidations.includes("hasValidClinicalSequence")) {
+        throw new Error(
+          `Clinical workflow violation: Invalid sequence for ${event.entity}`,
+        );
+      }
+    }
+  }
+
+  /**
    * Handle healthcare-specific events with enhanced compliance and security
    */
   private async handleHealthcareEvent(
@@ -1224,6 +1424,22 @@ class RealTimeSyncService {
       if (this.isClinicalData(event)) {
         await this.validateClinicalWorkflow(event);
       }
+
+      // PHASE 2 ENHANCEMENTS: Apply healthcare-specific processing
+
+      // Healthcare-specific conflict resolution
+      if (hasConflict) {
+        event = await this.resolveHealthcareConflict(event);
+      }
+
+      // Patient safety monitoring integration
+      await this.integratePatientSafetyMonitoring(event);
+
+      // Emergency sync protocols
+      await this.implementEmergencySyncProtocols(event);
+
+      // Clinical workflow validation
+      await this.validateClinicalWorkflowIntegration(event);
 
       // Handle with enhanced conflict resolution
       await this.handleEventWithConflictResolution(event, callback);
@@ -2582,6 +2798,217 @@ class RealTimeSyncService {
         console.error("Failed to log critical validation failure:", error);
       }
     }
+  }
+
+  // PHASE 2 ENHANCEMENT: Helper methods for healthcare-specific processing
+
+  private getMostRecentVitalSigns(clientVitals: any, serverVitals: any): any {
+    if (!clientVitals && !serverVitals) return null;
+    if (!clientVitals) return serverVitals;
+    if (!serverVitals) return clientVitals;
+
+    const clientTime = new Date(clientVitals.timestamp || 0);
+    const serverTime = new Date(serverVitals.timestamp || 0);
+
+    return clientTime > serverTime ? clientVitals : serverVitals;
+  }
+
+  private mergeAllergies(
+    clientAllergies: any[],
+    serverAllergies: any[],
+  ): any[] {
+    const merged = [...(serverAllergies || [])];
+    const clientAllergyNames = (clientAllergies || []).map((a) => a.allergen);
+
+    (clientAllergies || []).forEach((allergy) => {
+      if (!merged.some((existing) => existing.allergen === allergy.allergen)) {
+        merged.push(allergy);
+      }
+    });
+
+    return merged;
+  }
+
+  private hasCriticalClinicalConflict(
+    clientData: any,
+    serverData: any,
+  ): boolean {
+    const criticalFields = [
+      "diagnosis",
+      "medications",
+      "allergies",
+      "vitalSigns",
+    ];
+    return criticalFields.some(
+      (field) =>
+        clientData[field] &&
+        serverData[field] &&
+        JSON.stringify(clientData[field]) !== JSON.stringify(serverData[field]),
+    );
+  }
+
+  private async checkPatientSafetyAlerts(event: SyncEvent): Promise<string[]> {
+    const alerts: string[] = [];
+
+    if (event.data.vitalSigns) {
+      const criticalVitals = this.checkCriticalVitalSigns(
+        event.data.vitalSigns,
+      );
+      alerts.push(...criticalVitals);
+    }
+
+    if (event.data.medications) {
+      const interactions = this.checkMedicationInteractions(
+        event.data.medications,
+      );
+      alerts.push(...interactions);
+    }
+
+    return alerts.filter((alert) => alert.includes("CRITICAL"));
+  }
+
+  private async triggerEmergencySafetySync(
+    event: SyncEvent,
+    alerts: string[],
+  ): Promise<void> {
+    console.log(`🚨 Triggering emergency safety sync for ${event.id}:`, alerts);
+
+    event.priority = "critical";
+    event.metadata.safetyEmergency = true;
+    event.metadata.safetyAlerts = alerts;
+
+    await this.emergencySync(event);
+  }
+
+  private async performMedicationSafetyCheck(event: SyncEvent): Promise<void> {
+    const medications = event.data.medications || [event.data];
+    const interactions = this.checkMedicationInteractions(medications);
+
+    if (interactions.some((i) => i.includes("CRITICAL"))) {
+      event.metadata.medicationSafetyAlert = true;
+      event.metadata.medicationInteractions = interactions;
+    }
+  }
+
+  private async performVitalSignsMonitoring(event: SyncEvent): Promise<void> {
+    const vitalSigns = event.data.vitalSigns || event.data;
+    const criticalFlags = this.checkCriticalVitalSigns(vitalSigns);
+
+    if (criticalFlags.length > 0) {
+      event.metadata.vitalSignsAlert = true;
+      event.metadata.criticalVitalSigns = criticalFlags;
+    }
+  }
+
+  private isCriticalVitalSigns(event: SyncEvent): boolean {
+    if (!event.data.vitalSigns) return false;
+    const flags = this.checkCriticalVitalSigns(event.data.vitalSigns);
+    return flags.some((flag) => flag.includes("CRITICAL"));
+  }
+
+  private isMedicationEmergency(event: SyncEvent): boolean {
+    if (!event.data.medications) return false;
+    const interactions = this.checkMedicationInteractions(
+      event.data.medications,
+    );
+    return interactions.some((i) => i.includes("CRITICAL"));
+  }
+
+  private isPatientSafetyAlert(event: SyncEvent): boolean {
+    return (
+      event.metadata.safetyFlags &&
+      event.metadata.safetyFlags.some((flag: string) =>
+        flag.includes("CRITICAL"),
+      )
+    );
+  }
+
+  private isSystemFailure(event: SyncEvent): boolean {
+    return event.type === "error" && event.metadata.systemFailure === true;
+  }
+
+  private async processEmergencyEvent(event: SyncEvent): Promise<void> {
+    console.log(`🚨 Processing emergency event: ${event.id}`);
+
+    // Bypass normal processing queue
+    await this.processEvent(event);
+
+    // Log emergency processing
+    this.logEmergencyEvent(event);
+  }
+
+  private async notifyEmergencyContacts(event: SyncEvent): Promise<void> {
+    console.log(`📞 Notifying emergency contacts for event: ${event.id}`);
+
+    // In production, this would send notifications to emergency contacts
+    // For now, we'll log the notification
+    const notification = {
+      eventId: event.id,
+      patientId: event.data.patientId,
+      emergencyType: event.metadata.emergencyTrigger,
+      timestamp: new Date(),
+      alerts: event.metadata.safetyAlerts || [],
+    };
+
+    console.log("📞 Emergency notification:", notification);
+  }
+
+  private async logEmergencyEvent(event: SyncEvent): Promise<void> {
+    const emergencyLog = {
+      timestamp: new Date().toISOString(),
+      eventId: event.id,
+      patientId: event.data.patientId,
+      emergencyType: event.metadata.emergencyTrigger,
+      safetyAlerts: event.metadata.safetyAlerts,
+      processingTime: Date.now() - event.timestamp.getTime(),
+      complianceFlags: [
+        "EMERGENCY_PROTOCOL",
+        "PATIENT_SAFETY",
+        "CRITICAL_ALERT",
+      ],
+    };
+
+    console.log("🚨 Emergency event logged:", emergencyLog);
+  }
+
+  private async validateClinicalSequence(event: SyncEvent): Promise<boolean> {
+    // Validate that clinical events follow proper sequence
+    // e.g., assessment before treatment, diagnosis before medication
+    return true; // Simplified for demo
+  }
+
+  private async validateClinicalApprovals(event: SyncEvent): Promise<boolean> {
+    // Check if required clinical approvals are in place
+    const requiresApproval = [
+      "high_risk_medications",
+      "surgical_procedures",
+      "discharge_planning",
+    ];
+
+    if (requiresApproval.includes(event.data.type)) {
+      return !!event.metadata.clinicianApproval;
+    }
+
+    return true;
+  }
+
+  private async validateClinicalDocumentation(
+    event: SyncEvent,
+  ): Promise<boolean> {
+    // Ensure proper clinical documentation is present
+    const requiredFields = ["clinicianId", "timestamp", "notes"];
+    return requiredFields.every(
+      (field) => event.data[field] || event.metadata[field],
+    );
+  }
+
+  private async validateComplianceFlags(event: SyncEvent): Promise<boolean> {
+    // Check DOH, JAWDA, and other compliance requirements
+    return (
+      event.metadata.dohCompliant &&
+      event.metadata.jawdaCompliant &&
+      event.metadata.hipaaCompliant
+    );
   }
 
   /**

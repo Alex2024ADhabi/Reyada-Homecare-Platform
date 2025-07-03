@@ -1028,6 +1028,134 @@ class WorkflowEngine {
       isActive: true,
     });
 
+    // Enhanced Clinical Assessment Workflow
+    this.createWorkflow({
+      name: "Enhanced Clinical Assessment Workflow",
+      description:
+        "AI-powered comprehensive clinical assessment with DOH compliance",
+      version: "2.0",
+      category: "clinical",
+      steps: [
+        {
+          id: "pre_assessment_screening",
+          name: "Pre-Assessment Screening",
+          type: "task",
+          description:
+            "AI-powered pre-assessment screening and risk stratification",
+          configuration: {
+            formId: "pre_assessment_form",
+            aiEnhanced: true,
+            riskStratification: true,
+          },
+          nextSteps: ["comprehensive_assessment"],
+          assignee: {
+            type: "role",
+            identifier: "triage_nurse",
+          },
+        },
+        {
+          id: "comprehensive_assessment",
+          name: "DOH 9-Domain Assessment",
+          type: "task",
+          description: "Complete DOH-compliant 9-domain assessment",
+          configuration: {
+            formId: "doh_9_domain_form",
+            validationRules: ["DOH_STANDARD_V2025"],
+            requiredDomains: 9,
+          },
+          nextSteps: ["clinical_decision_support"],
+          assignee: {
+            type: "role",
+            identifier: "clinical_assessor",
+          },
+        },
+        {
+          id: "clinical_decision_support",
+          name: "AI Clinical Decision Support",
+          type: "integration",
+          description:
+            "AI-powered clinical decision support and recommendations",
+          configuration: {
+            apiEndpoint: "/api/ai-hub/clinical-decision-support",
+            method: "POST",
+            aiModel: "clinical_decision_v2",
+          },
+          nextSteps: ["care_plan_generation"],
+        },
+        {
+          id: "care_plan_generation",
+          name: "Generate Care Plan",
+          type: "task",
+          description: "Generate comprehensive, personalized care plan",
+          configuration: {
+            formId: "care_plan_form",
+            aiAssisted: true,
+            evidenceBasedRecommendations: true,
+          },
+          nextSteps: ["physician_review"],
+          assignee: {
+            type: "role",
+            identifier: "care_coordinator",
+          },
+        },
+        {
+          id: "physician_review",
+          name: "Physician Review and Approval",
+          type: "approval",
+          description: "Physician review of assessment and care plan",
+          configuration: {
+            approvedStep: "finalize_assessment",
+            rejectedStep: "comprehensive_assessment",
+            requiresDigitalSignature: true,
+          },
+          nextSteps: [],
+          assignee: {
+            type: "role",
+            identifier: "attending_physician",
+          },
+        },
+        {
+          id: "finalize_assessment",
+          name: "Finalize Assessment",
+          type: "integration",
+          description: "Finalize assessment and update patient records",
+          configuration: {
+            apiEndpoint: "/api/clinical/finalize-assessment",
+            method: "POST",
+            updateEMR: true,
+            generateReport: true,
+          },
+          nextSteps: [],
+        },
+      ],
+      triggers: [
+        {
+          id: "patient_admission",
+          type: "event",
+          configuration: {
+            eventType: "patient_admitted",
+          },
+          isActive: true,
+        },
+        {
+          id: "scheduled_assessment",
+          type: "scheduled",
+          configuration: {
+            schedule: "0 9 * * *", // Daily at 9 AM
+          },
+          isActive: true,
+        },
+      ],
+      conditions: [],
+      metadata: {
+        dohCompliant: true,
+        jawdaCompliant: true,
+        aiEnhanced: true,
+        priority: "high",
+      },
+      isActive: true,
+    });
+
     // Patient Safety Incident Workflow
     this.createWorkflow({
       name: "Patient Safety Incident Workflow",

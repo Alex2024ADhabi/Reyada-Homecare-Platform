@@ -1,0 +1,259 @@
+# Artillery Load Testing Configuration for DAMAN Integration
+# Focused testing of DAMAN authorization and claims processing
+
+config:
+  target: 'http://localhost:3001'
+  phases:
+    - duration: 30
+      arrivalRate: 2
+      name: "DAMAN warm-up"
+    - duration: 120
+      arrivalRate: 5
+      name: "DAMAN baseline load"
+    - duration: 60
+      arrivalRate: 10
+      name: "DAMAN peak load"
+    - duration: 30
+      arrivalRate: 2
+      name: "DAMAN cool-down"
+  
+  # DAMAN-specific payload
+  payload:
+    path: "./test-data/daman-test-data.csv"
+    fields:
+      - "patientId"
+      - "policyNumber"
+      - "serviceType"
+      - "estimatedCost"
+    order: sequence
+    skipHeader: true
+  
+  variables:
+    damanApiUrl: "http://localhost:3001/api/revenue/daman"
+    testMode: "daman-integration-test"
+    complianceMode: "enabled"
+  
+  plugins:
+    expect: {}
+    metrics-by-endpoint:
+      useOnlyRequestNames: true
+    hdrhistogram: {}
+  
+  # DAMAN-specific performance thresholds
+  ensure:
+    p99: 5000  # DAMAN API can be slower due to external dependency
+    p95: 3000
+    p50: 1500
+    maxErrorRate: 2  # Slightly higher tolerance for external API
+
+scenarios:
+  # DAMAN Authorization Creation
+  - name: "DAMAN Authorization Creation"
+    weight: 50
+    flow:
+      - post:
+          url: "/api/auth/login"
+          json:
+            email: "daman@reyada.ae"
+            password: "Daman123!"
+          capture:
+            - json: "$.token"
+              as: "authToken"
+          expect:
+            - statusCode: 200
+      
+      - think: 1
+      
+      # Create comprehensive DAMAN authorization
+      - post:
+          url: "/api/revenue/daman/authorizations"
+          name: "Create DAMAN Authorization"
+          json:
+            patientId: "{{ patientId }}"
+            requestType: "new"
+            serviceType: "{{ serviceType }}"
+            requestedDuration: "60-days"
+            estimatedCost: "{{ estimatedCost }}"
+            clinicalJustification: "Comprehensive clinical justification for DAMAN authorization during load testing. Patient requires specialized home healthcare services including skilled nursing, physiotherapy, and medication management based on detailed clinical assessment and DOH-compliant care planning."
+            requestedServices:
+              - serviceCode: "17-25-1"
+                description: "Skilled Nursing Visit"
+                frequency: "daily"
+                unitPrice: 300
+                estimatedUnits: 60
+              - serviceCode: "17-25-2"
+                description: "Physiotherapy Session"
+                frequency: "three-times-weekly"
+                unitPrice: 250
+                estimatedUnits: 24
+            supportingDocuments:
+              - type: "medical_report"
+                filename: "medical_report.pdf"
+                size: 250000
+              - type: "physician_order"
+                filename: "physician_order.pdf"
+                size: 150000
+            clinicianDetails:
+              id: "CLIN001"
+              name: "Dr. Ahmed Al Rashid"
+              license: "DOH-12345"
+              specialty: "Internal Medicine"
+            urgencyLevel: "routine"
+            digitalSignatures: true
+            complianceChecks:
+              dohStandardsVerified: true
+              clinicalNecessityConfirmed: true
+              costEffectivenessAnalyzed: true
+              alternativesConsidered: true
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+            X-DAMAN-Test-Mode: "true"
+          capture:
+            - json: "$.referenceNumber"
+              as: "authorizationRef"
+            - json: "$.id"
+              as: "authorizationId"
+          expect:
+            - statusCode: 201
+            - hasProperty: "referenceNumber"
+            - hasProperty: "totalCost"
+            - hasProperty: "complianceStatus"
+      
+      - think: 2
+      
+      # Check authorization status
+      - get:
+          url: "/api/revenue/daman/authorizations/{{ authorizationId }}/status"
+          name: "Check Authorization Status"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          expect:
+            - statusCode: 200
+            - hasProperty: "status"
+            - hasProperty: "lastUpdated"
+  
+  # DAMAN Claims Processing
+  - name: "DAMAN Claims Processing"
+    weight: 30
+    flow:
+      - post:
+          url: "/api/auth/login"
+          json:
+            email: "claims@reyada.ae"
+            password: "Claims123!"
+          capture:
+            - json: "$.token"
+              as: "authToken"
+          expect:
+            - statusCode: 200
+      
+      - think: 1
+      
+      # Submit DAMAN claim
+      - post:
+          url: "/api/revenue/daman/claims"
+          name: "Submit DAMAN Claim"
+          json:
+            authorizationId: "AUTH-{{ $randomInt(100000, 999999) }}"
+            patientId: "{{ patientId }}"
+            serviceDate: "{{ $timestamp }}"
+            servicesProvided:
+              - serviceCode: "17-25-1"
+                description: "Skilled Nursing Visit"
+                quantity: 1
+                unitPrice: 300
+                totalAmount: 300
+                clinicianId: "CLIN001"
+                serviceNotes: "Comprehensive nursing assessment and medication administration"
+            totalClaimAmount: 300
+            supportingDocuments:
+              - type: "service_report"
+                filename: "service_report.pdf"
+                size: 180000
+            claimNotes: "DAMAN claim submission during load testing with comprehensive service documentation"
+            complianceVerification:
+              dohStandardsMet: true
+              serviceDocumented: true
+              patientConsentObtained: true
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          capture:
+            - json: "$.claimNumber"
+              as: "claimNumber"
+          expect:
+            - statusCode: 201
+            - hasProperty: "claimNumber"
+            - hasProperty: "submissionDate"
+      
+      - think: 1
+      
+      # Check claim status
+      - get:
+          url: "/api/revenue/daman/claims/{{ claimNumber }}/status"
+          name: "Check Claim Status"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          expect:
+            - statusCode: 200
+            - hasProperty: "status"
+  
+  # DAMAN Integration Health Check
+  - name: "DAMAN Integration Health Check"
+    weight: 20
+    flow:
+      - post:
+          url: "/api/auth/login"
+          json:
+            email: "admin@reyada.ae"
+            password: "Admin123!"
+          capture:
+            - json: "$.token"
+              as: "authToken"
+          expect:
+            - statusCode: 200
+      
+      # Check DAMAN integration status
+      - get:
+          url: "/api/revenue/daman/integration-status"
+          name: "DAMAN Integration Status"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          expect:
+            - statusCode: 200
+            - hasProperty: "isConnected"
+            - hasProperty: "lastHealthCheck"
+      
+      - think: 1
+      
+      # Get DAMAN analytics
+      - get:
+          url: "/api/revenue/daman/analytics"
+          name: "DAMAN Analytics"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          expect:
+            - statusCode: 200
+            - hasProperty: "totalAuthorizations"
+            - hasProperty: "approvalRate"
+            - hasProperty: "averageProcessingTime"
+      
+      - think: 1
+      
+      # Get pending authorizations
+      - get:
+          url: "/api/revenue/daman/authorizations/pending"
+          name: "Pending Authorizations"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          expect:
+            - statusCode: 200
+
+before:
+  flow:
+    - log: "Starting DAMAN integration load test"
+    - log: "Testing authorization and claims processing workflows"
+
+after:
+  flow:
+    - log: "DAMAN integration load test completed"
+    - log: "Review DAMAN-specific metrics in the report"

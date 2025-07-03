@@ -1,0 +1,111 @@
+# Healthcare-Optimized Multi-Stage Dockerfile for Reyada Platform
+# Compliant with DOH standards and HIPAA requirements
+
+# Build stage
+FROM node:18-alpine AS builder
+
+# Set healthcare-specific environment variables
+ENV NODE_ENV=production
+ENV HEALTHCARE_MODE=true
+ENV DOH_COMPLIANCE=enabled
+ENV HIPAA_COMPLIANCE=enabled
+ENV SECURITY_HARDENED=true
+
+# Create app directory with proper permissions
+WORKDIR /app
+
+# Add non-root user for security
+RUN addgroup -g 1001 -S healthcare && \
+    adduser -S healthcare -u 1001 -G healthcare
+
+# Copy package files
+COPY package*.json ./
+COPY tsconfig*.json ./
+COPY vite.config.ts ./
+COPY tailwind.config.js ./
+COPY postcss.config.cjs ./
+
+# Install dependencies with security audit
+RUN npm ci --only=production --audit-level=moderate && \
+    npm cache clean --force
+
+# Copy source code
+COPY src/ ./src/
+COPY public/ ./public/
+COPY index.html ./
+
+# Build application with healthcare optimizations
+RUN npm run build && \
+    npm run build:healthcare-optimized
+
+# Production stage
+FROM nginx:1.25-alpine AS production
+
+# Install security updates
+RUN apk update && \
+    apk upgrade && \
+    apk add --no-cache \
+        curl \
+        jq \
+        openssl && \
+    rm -rf /var/cache/apk/*
+
+# Create healthcare user
+RUN addgroup -g 1001 -S healthcare && \
+    adduser -S healthcare -u 1001 -G healthcare
+
+# Copy built application
+COPY --from=builder --chown=healthcare:healthcare /app/dist /usr/share/nginx/html
+
+# Copy healthcare-specific nginx configuration
+COPY nginx.healthcare.conf /etc/nginx/nginx.conf
+COPY nginx.security.conf /etc/nginx/conf.d/security.conf
+
+# Create necessary directories
+RUN mkdir -p /var/log/nginx/healthcare && \
+    mkdir -p /var/cache/nginx && \
+    mkdir -p /var/run/nginx && \
+    chown -R healthcare:healthcare /var/log/nginx/healthcare && \
+    chown -R healthcare:healthcare /var/cache/nginx && \
+    chown -R healthcare:healthcare /var/run/nginx && \
+    chown -R healthcare:healthcare /usr/share/nginx/html
+
+# Copy health check script
+COPY scripts/healthcare-healthcheck.sh /usr/local/bin/healthcheck.sh
+RUN chmod +x /usr/local/bin/healthcheck.sh && \
+    chown healthcare:healthcare /usr/local/bin/healthcheck.sh
+
+# Copy startup script
+COPY scripts/healthcare-startup.sh /usr/local/bin/startup.sh
+RUN chmod +x /usr/local/bin/startup.sh && \
+    chown healthcare:healthcare /usr/local/bin/startup.sh
+
+# Set security headers and permissions
+RUN chmod -R 755 /usr/share/nginx/html && \
+    find /usr/share/nginx/html -type f -exec chmod 644 {} \;
+
+# Switch to non-root user
+USER healthcare
+
+# Expose port
+EXPOSE 8080
+
+# Health check for healthcare compliance
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD /usr/local/bin/healthcheck.sh
+
+# Labels for healthcare compliance and traceability
+LABEL maintainer="Reyada Healthcare Platform Team" \
+      version="1.0.0" \
+      description="Healthcare-compliant frontend container" \
+      healthcare.compliance="DOH,HIPAA" \
+      healthcare.security="hardened" \
+      healthcare.audit="enabled" \
+      org.opencontainers.image.title="Reyada Healthcare Frontend" \
+      org.opencontainers.image.description="DOH and HIPAA compliant healthcare platform frontend" \
+      org.opencontainers.image.vendor="Reyada Healthcare" \
+      org.opencontainers.image.licenses="Proprietary" \
+      org.opencontainers.image.documentation="https://docs.reyada-homecare.ae"
+
+# Start the application
+CMD ["/usr/local/bin/startup.sh"]

@@ -9,7 +9,19 @@
     "build-no-errors": "tsc --noEmit && vite build",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
-    "types:supabase": "npx supabase gen types typescript --project-id $SUPABASE_PROJECT_ID > src/types/supabase.ts"
+    "types:supabase": "npx supabase gen types typescript --project-id $SUPABASE_PROJECT_ID > src/types/supabase.ts",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:run": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:doh-compliance": "vitest run src/test/compliance/doh-compliance-comprehensive.test.ts",
+    "test:watch": "vitest watch",
+    "test:e2e": "playwright test",
+    "test:load": "artillery run src/test/load/artillery-healthcare-config.yml",
+    "test:security": "npm run test:run -- src/test/security/",
+    "test:accessibility": "npm run test:run -- src/test/accessibility/",
+    "test:integration": "npm run test:run -- src/test/integration/",
+    "test:all": "npm run test:run && npm run test:e2e"
   },
   "dependencies": {
     "@aws-sdk/client-athena": "^3.830.0",

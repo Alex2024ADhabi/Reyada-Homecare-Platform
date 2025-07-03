@@ -1,465 +1,540 @@
 # Healthcare Testing Framework
 
-A comprehensive, intelligent testing framework specifically designed for healthcare applications, providing automated testing capabilities with built-in compliance validation, performance monitoring, and healthcare-specific metrics.
+A comprehensive, intelligent testing framework specifically designed for healthcare applications, ensuring DOH compliance, security, and production readiness.
 
 ## 🏥 Overview
 
-This framework transforms manual healthcare application testing into a fully automated, DOH-compliant testing ecosystem. It provides comprehensive testing capabilities including unit tests, integration tests, end-to-end tests, performance tests, and compliance validation.
+This framework provides a complete testing ecosystem for healthcare applications with:
+
+- **Healthcare Compliance**: DOH, DAMAN, JAWDA, and HIPAA validation
+- **Security Testing**: Comprehensive security validation and penetration testing
+- **Performance Testing**: Load testing, stress testing, and performance optimization
+- **Integration Testing**: Component integration and API testing
+- **Accessibility Testing**: WCAG compliance and accessibility validation
+- **End-to-End Testing**: Complete user journey testing
+- **Real-time Monitoring**: Live test execution monitoring and reporting
+- **Error Recovery**: Automated error detection and recovery systems
+- **Production Readiness**: Comprehensive validation for production deployment
 
 ## 🚀 Quick Start
 
-### Prerequisites
+### Master Test Executor
 
-- Node.js 16+ 
-- TypeScript 4.5+
-- Healthcare application codebase
-- DOH/DAMAN compliance requirements
-
-### Installation
+Run the complete testing framework with a single command:
 
 ```bash
-# Install dependencies
-npm install
+# Development mode (default)
+npx tsx src/test/utils/master-test-executor.ts
 
-# Initialize the framework
-npx tsx src/test/utils/framework-setup.ts
+# Production mode with full validation
+npx tsx src/test/utils/master-test-executor.ts --production
 
-# Validate framework installation
-npx tsx src/test/utils/validate-and-run-tests.ts
+# Staging mode
+npx tsx src/test/utils/master-test-executor.ts --staging
+
+# Custom configuration
+npx tsx src/test/utils/master-test-executor.ts --no-load-testing --debug
 ```
 
-### Basic Usage
+### Framework Validation
 
-```typescript
-import { HealthcareTestOrchestrator, COMPREHENSIVE_HEALTHCARE_PLAN } from './utils/healthcare-test-orchestrator';
-import { frameworkSetup } from './utils/framework-setup';
+Validate the framework setup and configuration:
 
-// Initialize framework
-await frameworkSetup.initializeFramework();
+```bash
+# Full framework validation
+npx tsx src/test/utils/framework-validation.ts
 
-// Run healthcare-specific tests
-const orchestrator = new HealthcareTestOrchestrator(COMPREHENSIVE_HEALTHCARE_PLAN);
-const result = await orchestrator.execute();
+# Quick validation (skip non-critical checks)
+npx tsx src/test/utils/framework-validation.ts --no-network --no-memory
+
+# Security-focused validation
+npx tsx src/test/utils/framework-validation.ts --no-performance --no-filesystem
+```
+
+### Master Healthcare Framework
+
+Run the core healthcare framework orchestration:
+
+```bash
+# Full healthcare framework execution
+npx tsx src/test/utils/master-healthcare-framework.ts
+
+# With custom settings
+npx tsx src/test/utils/master-healthcare-framework.ts --no-validation --debug
 ```
 
 ## 📋 Framework Components
 
 ### Core Components
 
-| Component | Description | File |
-|-----------|-------------|------|
-| **Framework Setup** | Initialization and configuration | `utils/framework-setup.ts` |
-| **Test Execution Monitor** | Real-time test monitoring | `utils/test-execution-monitor.ts` |
-| **Test Reporter** | Comprehensive reporting system | `utils/test-reporting.ts` |
-| **Integration Validator** | Component integration validation | `utils/integration-validator.ts` |
-| **Error Recovery System** | Automated error handling | `utils/error-recovery-system.ts` |
-| **Healthcare Test Orchestrator** | Healthcare-specific test coordination | `utils/healthcare-test-orchestrator.ts` |
-| **Comprehensive Test Runner** | Central test execution engine | `utils/comprehensive-test-runner.ts` |
-| **Framework Health Monitor** | Real-time health monitoring | `utils/framework-health-monitor.ts` |
-| **Test Environment Manager** | Environment setup and management | `utils/test-environment-manager.ts` |
-| **Main Validator** | Complete framework validation | `utils/validate-and-run-tests.ts` |
+1. **Master Test Executor** (`master-test-executor.ts`)
+   - Ultimate orchestration script
+   - Executes all test types in proper sequence
+   - Provides comprehensive reporting and metrics
+   - Supports multiple execution modes (development, staging, production)
 
-### Healthcare-Specific Features
+2. **Master Healthcare Framework** (`master-healthcare-framework.ts`)
+   - Healthcare-specific orchestration
+   - DOH compliance validation
+   - Clinical workflow testing
+   - Patient data protection validation
 
-- **DOH Compliance Validation**: Automated validation against DOH standards
-- **DAMAN Integration Testing**: Insurance system integration validation
-- **JAWDA Quality Metrics**: Healthcare quality assurance testing
-- **Patient Safety Taxonomy**: Safety-focused test scenarios
-- **Clinical Documentation Validation**: Medical record compliance testing
-- **Emirates ID Integration**: Identity verification testing
+3. **Framework Validation System** (`framework-validation.ts`)
+   - Comprehensive framework validation
+   - Dependency checking
+   - Component integration validation
+   - Security and compliance verification
+
+4. **Framework Setup** (`framework-setup.ts`)
+   - Framework initialization and configuration
+   - Dependency validation
+   - Component health checks
+   - Environment setup
+
+### Monitoring & Reporting
+
+5. **Test Execution Monitor** (`test-execution-monitor.ts`)
+   - Real-time test execution monitoring
+   - Performance metrics collection
+   - Live progress reporting
+
+6. **Global Test Reporter** (`test-reporting.ts`)
+   - Comprehensive test reporting
+   - Multiple output formats (JSON, HTML, JUnit, Markdown)
+   - Healthcare-specific metrics
+   - Compliance reporting
+
+7. **Framework Health Monitor** (`framework-health-monitor.ts`)
+   - Continuous health monitoring
+   - System resource tracking
+   - Automated alerts and notifications
+
+### Testing & Validation
+
+8. **Healthcare Test Orchestrator** (`healthcare-test-orchestrator.ts`)
+   - Healthcare-specific test orchestration
+   - Clinical workflow validation
+   - Compliance testing automation
+
+9. **Integration Validator** (`integration-validator.ts`)
+   - Component integration testing
+   - API validation
+   - Service communication testing
+
+10. **Comprehensive Test Runner** (`comprehensive-test-runner.ts`)
+    - Multi-type test execution
+    - Parallel test processing
+    - Advanced test configuration
+
+### Support Systems
+
+11. **Error Recovery System** (`error-recovery-system.ts`)
+    - Automated error detection
+    - Recovery mechanisms
+    - Error reporting and analysis
+
+12. **Test Environment Manager** (`test-environment-manager.ts`)
+    - Test environment setup and teardown
+    - Environment isolation
+    - Resource management
+
+13. **Test Helpers** (`test-helpers.ts`)
+    - Healthcare test data generation
+    - Compliance validation helpers
+    - Performance testing utilities
+
+## 🏥 Healthcare Compliance
+
+### DOH (Department of Health UAE) Compliance
+
+- Patient consent validation
+- Clinical documentation standards
+- Healthcare provider licensing verification
+- Medical record management compliance
+
+### DAMAN Integration
+
+- Insurance claim processing validation
+- Patient eligibility verification
+- Coverage validation
+- Claims submission testing
+
+### JAWDA Standards
+
+- Healthcare quality standards compliance
+- Patient safety protocols
+- Clinical governance validation
+- Quality improvement metrics
+
+### HIPAA Compliance
+
+- Patient data privacy protection
+- Access control validation
+- Audit logging verification
+- Data encryption compliance
+
+## 🔒 Security Testing
+
+### Security Validation
+
+- Input sanitization testing
+- Authentication and authorization validation
+- Data encryption verification
+- Vulnerability scanning
+- Penetration testing
+
+### Security Features
+
+- Multi-factor authentication testing
+- Role-based access control validation
+- Session management testing
+- API security validation
+- Data transmission security
+
+## ⚡ Performance Testing
+
+### Performance Metrics
+
+- Response time measurement
+- Throughput analysis
+- Resource utilization monitoring
+- Memory usage tracking
+- CPU performance analysis
+
+### Load Testing
+
+- Concurrent user simulation
+- Stress testing
+- Spike testing
+- Volume testing
+- Endurance testing
+
+## 🧪 Test Types
+
+### Unit Tests
+
+```bash
+# Run unit tests
+npm run test:unit
+
+# With coverage
+npm run test:unit:coverage
+```
+
+### Integration Tests
+
+```bash
+# Run integration tests
+npm run test:integration
+
+# Healthcare-specific integration tests
+npm run test:integration:healthcare
+```
+
+### End-to-End Tests
+
+```bash
+# Run E2E tests with Playwright
+npm run test:e2e
+
+# Run E2E tests with Cypress
+npm run test:e2e:cypress
+```
+
+### Performance Tests
+
+```bash
+# Run performance tests
+npm run test:performance
+
+# Load testing with Artillery
+npm run test:load
+```
+
+### Security Tests
+
+```bash
+# Run security tests
+npm run test:security
+
+# Vulnerability scanning
+npm run test:security:scan
+```
+
+### Accessibility Tests
+
+```bash
+# Run accessibility tests
+npm run test:accessibility
+
+# WCAG compliance testing
+npm run test:accessibility:wcag
+```
+
+## 📊 Reporting
+
+### Report Formats
+
+- **JSON**: Machine-readable test results
+- **HTML**: Interactive web reports
+- **JUnit**: CI/CD integration
+- **Markdown**: Documentation-friendly reports
+- **CSV**: Data analysis and metrics
+
+### Healthcare Reports
+
+- Compliance summary reports
+- Risk assessment reports
+- Security audit reports
+- Performance benchmark reports
+- Production readiness reports
 
 ## 🔧 Configuration
 
-### Framework Configuration
+### Environment Variables
 
-```typescript
-// framework.config.ts
-export const frameworkConfig = {
-  healthcare: {
-    enableDOHValidation: true,
-    enableDAMANIntegration: true,
-    enableJAWDACompliance: true,
-    enableHIPAAValidation: true,
-    complianceStandards: ['DOH', 'DAMAN', 'JAWDA']
-  },
-  testing: {
-    timeoutMs: 30000,
-    maxRetries: 3,
-    enablePerformanceMonitoring: true,
-    enableSecurityValidation: true
-  },
-  reporting: {
-    formats: ['json', 'html', 'xml'],
-    includeHealthcareMetrics: true,
-    enableRealTimeReporting: true
-  }
-};
+```bash
+# Test environment
+NODE_ENV=test
+
+# Healthcare compliance
+ENABLE_DOH_VALIDATION=true
+ENABLE_DAMAN_INTEGRATION=true
+ENABLE_JAWDA_COMPLIANCE=true
+ENABLE_HIPAA_VALIDATION=true
+
+# Security settings
+ENABLE_SECURITY_TESTING=true
+ENABLE_PENETRATION_TESTING=false
+
+# Performance settings
+ENABLE_LOAD_TESTING=false
+MAX_CONCURRENT_TESTS=4
+TEST_TIMEOUT=300000
 ```
 
-### Test Environment Setup
+### Configuration Files
 
-```typescript
-import { testEnvironmentManager } from './utils/test-environment-manager';
+- `vitest.config.ts` - Unit test configuration
+- `vitest.config.integration.ts` - Integration test configuration
+- `vitest.config.comprehensive.ts` - Comprehensive test configuration
+- `playwright.config.ts` - E2E test configuration
+- `cypress.config.ts` - Alternative E2E configuration
 
-// Setup healthcare test environment
-const environmentId = await testEnvironmentManager.initialize({
-  testType: 'integration',
-  healthcare: {
-    enableDOHValidation: true,
-    enableDAMANIntegration: true,
-    mockPatientData: true,
-    mockClinicalData: true,
-    complianceLevel: 'strict'
-  }
-});
+## 🚀 CI/CD Integration
+
+### GitHub Actions
+
+```yaml
+name: Healthcare Testing Framework
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      - run: npm ci
+      - run: npx tsx src/test/utils/master-test-executor.ts --production
 ```
 
-## 📊 Test Types
+### Docker Support
 
-### 1. Unit Tests
+```dockerfile
+FROM node:18-alpine
 
-```typescript
-import { HealthcareTestDataGenerator } from './utils/test-helpers';
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
 
-describe('Patient Management', () => {
-  it('should validate patient data', () => {
-    const patient = HealthcareTestDataGenerator.generatePatientData();
-    expect(patient.emiratesId).toMatch(/^784-\d{4}-\d{7}-\d{1}$/);
-  });
-});
+COPY . .
+
+# Run comprehensive testing
+RUN npx tsx src/test/utils/master-test-executor.ts --production
+
+CMD ["npm", "start"]
 ```
 
-### 2. Integration Tests
-
-```typescript
-import { HealthcareTestOrchestrator, COMPREHENSIVE_HEALTHCARE_PLAN } from './utils/healthcare-test-orchestrator';
-
-const orchestrator = new HealthcareTestOrchestrator(COMPREHENSIVE_HEALTHCARE_PLAN);
-const integrationResult = await orchestrator.execute();
-```
-
-### 3. Compliance Tests
-
-```typescript
-import { ComplianceTestHelper } from './utils/test-helpers';
-
-const dohCompliance = ComplianceTestHelper.validateDOHCompliance({
-  patientConsent: true,
-  clinicianSignature: true,
-  timestamp: new Date().toISOString()
-});
-```
-
-### 4. Performance Tests
-
-```typescript
-import { PerformanceTestHelper } from './utils/test-helpers';
-
-const performanceTest = PerformanceTestHelper.measurePerformance(
-  'patient-search',
-  async () => {
-    // Your performance test code
-  }
-);
-```
-
-## 📈 Monitoring and Reporting
+## 📈 Monitoring & Alerts
 
 ### Real-time Monitoring
 
-```typescript
-import { testExecutionMonitor } from './utils/test-execution-monitor';
+- Test execution progress
+- System resource usage
+- Error rate monitoring
+- Performance metrics
+- Compliance status
 
-// Start monitoring
-const sessionId = testExecutionMonitor.startMonitoring({
-  enableHealthcareMetrics: true,
-  reportInterval: 5000
-});
+### Alert Configuration
 
-// Get real-time metrics
-const metrics = testExecutionMonitor.getCurrentMetrics();
-console.log(`Tests: ${metrics.totalTests}, Passed: ${metrics.passedTests}`);
-```
+- Slack notifications
+- Email alerts
+- Webhook integrations
+- Custom notification handlers
 
-### Health Monitoring
+## 🛠️ Development
 
-```typescript
-import { frameworkHealthMonitor } from './utils/framework-health-monitor';
+### Adding New Tests
 
-// Start health monitoring
-frameworkHealthMonitor.startMonitoring({
-  checkInterval: 30000,
-  enableAutoRecovery: true
-});
+1. Create test files in appropriate directories:
+   - `src/test/unit/` - Unit tests
+   - `src/test/integration/` - Integration tests
+   - `src/test/e2e/` - End-to-end tests
+   - `src/test/performance/` - Performance tests
+   - `src/test/security/` - Security tests
+   - `src/test/accessibility/` - Accessibility tests
+   - `src/test/compliance/` - Healthcare compliance tests
 
-// Get current health status
-const health = frameworkHealthMonitor.getCurrentHealth();
-console.log(`Health Score: ${health.score}/100`);
-```
+2. Follow naming conventions:
+   - `*.test.ts` - Unit tests
+   - `*.integration.test.ts` - Integration tests
+   - `*.e2e.test.ts` - E2E tests
+   - `*.performance.test.ts` - Performance tests
+   - `*.security.test.ts` - Security tests
+   - `*.accessibility.test.ts` - Accessibility tests
+   - `*.compliance.test.ts` - Compliance tests
 
-### Comprehensive Reporting
-
-```typescript
-import { globalTestReporter } from './utils/test-reporting';
-
-// Generate comprehensive report
-const report = await globalTestReporter.generateComprehensiveReport({
-  includeHealthcareMetrics: true,
-  includeComplianceReport: true,
-  includePerformanceMetrics: true
-});
-
-// Save reports in multiple formats
-const savedFiles = await globalTestReporter.saveReports(report);
-```
-
-## 🛡️ Error Handling and Recovery
-
-### Automated Error Recovery
+### Custom Test Helpers
 
 ```typescript
-import { errorRecoverySystem } from './utils/error-recovery-system';
+import {
+  HealthcareTestDataGenerator,
+  ComplianceTestHelper,
+  PerformanceTestHelper,
+  TestEnvironmentHelper,
+} from './utils/test-helpers';
 
-// Handle errors automatically
-errorRecoverySystem.on('error', (error) => {
-  console.log(`Error detected: ${error.message}`);
-});
+// Generate healthcare test data
+const patient = HealthcareTestDataGenerator.generatePatientData();
 
-errorRecoverySystem.on('recovered', (error) => {
-  console.log(`Error recovered: ${error.id}`);
-});
+// Validate DOH compliance
+const complianceResult = ComplianceTestHelper.validateDOHCompliance(data);
+
+// Performance testing
+const performanceResult = await PerformanceTestHelper.measureResponseTime(fn);
+
+// Environment setup
+const environment = await TestEnvironmentHelper.setupTestEnvironment();
 ```
 
-### Manual Error Handling
+## 📚 Best Practices
 
-```typescript
-try {
-  // Your test code
-} catch (error) {
-  const recovered = await errorRecoverySystem.handleError(error, {
-    component: 'TestSuite',
-    operation: 'testExecution',
-    timestamp: new Date().toISOString(),
-    environment: 'test'
-  });
-  
-  if (!recovered) {
-    // Handle unrecoverable error
-  }
-}
-```
+### Healthcare Testing
 
-## 🏥 Healthcare-Specific Testing
+1. **Patient Data Protection**
+   - Always use synthetic test data
+   - Never use real patient information
+   - Implement data masking for sensitive fields
 
-### DOH Compliance Testing
+2. **Compliance Testing**
+   - Test all compliance requirements regularly
+   - Maintain audit trails for all tests
+   - Document compliance validation results
 
-```typescript
-import { ComplianceTestHelper } from './utils/test-helpers';
+3. **Security Testing**
+   - Test authentication and authorization
+   - Validate data encryption
+   - Perform regular vulnerability scans
 
-// Validate DOH 9-domain assessment
-const nineDomainsResult = ComplianceTestHelper.validateDOHCompliance({
-  patientAssessment: assessmentData,
-  clinicianSignature: true,
-  timestamp: new Date().toISOString()
-});
-```
+### Performance Testing
 
-### DAMAN Integration Testing
+1. **Load Testing**
+   - Test with realistic user loads
+   - Monitor system resources
+   - Identify performance bottlenecks
 
-```typescript
-// Test DAMAN authorization workflow
-const orchestrator = new HealthcareTestOrchestrator({
-  name: "DAMAN Integration Tests",
-  phases: [
-    {
-      id: "daman-auth",
-      name: "DAMAN Authorization",
-      category: "integration",
-      healthcareSpecific: true,
-      complianceStandards: ["DAMAN"]
-    }
-  ]
-});
-```
+2. **Stress Testing**
+   - Test beyond normal capacity
+   - Validate system recovery
+   - Monitor error rates
 
-### Patient Safety Testing
+### Test Organization
 
-```typescript
-// Test patient safety taxonomy
-const safetyTest = ComplianceTestHelper.validateJAWDACompliance({
-  patientSafetyMetrics: { incidents: 0, preventions: 5 },
-  clinicalEffectiveness: { outcomes: "positive" }
-});
-```
+1. **Test Structure**
+   - Group related tests together
+   - Use descriptive test names
+   - Implement proper test isolation
 
-## 📋 Test Data Management
+2. **Test Data Management**
+   - Use factories for test data generation
+   - Implement data cleanup procedures
+   - Maintain test data consistency
 
-### Healthcare Test Data Generation
-
-```typescript
-import { HealthcareTestDataGenerator } from './utils/test-helpers';
-
-// Generate realistic patient data
-const patient = HealthcareTestDataGenerator.generatePatientData({
-  includeInsurance: true,
-  includeMedicalHistory: true
-});
-
-// Generate clinical assessment data
-const assessment = HealthcareTestDataGenerator.generateAssessmentData(
-  "initial",
-  { patientId: patient.id }
-);
-```
-
-### Test Fixtures
-
-```typescript
-import { HealthcareTestDataFixtures } from './fixtures/healthcare-test-data';
-
-// Use predefined test data
-const testPatients = HealthcareTestDataFixtures.SAMPLE_PATIENTS;
-const testClinicians = HealthcareTestDataFixtures.SAMPLE_CLINICAL_ASSESSMENTS;
-const complianceScenarios = HealthcareTestDataFixtures.COMPLIANCE_TEST_SCENARIOS;
-```
-
-## 🔍 Framework Validation
-
-### Complete Framework Validation
-
-```bash
-# Run complete validation
-npx tsx src/test/utils/validate-and-run-tests.ts
-
-# Skip specific phases
-npx tsx src/test/utils/validate-and-run-tests.ts --skip-performance-tests
-
-# Verbose output
-npx tsx src/test/utils/validate-and-run-tests.ts --verbose
-```
-
-### Health Checks
-
-```typescript
-import { frameworkSetup } from './utils/framework-setup';
-
-// Check framework health
-const isHealthy = await frameworkSetup.validateFrameworkHealth();
-
-// Get detailed status
-const status = frameworkSetup.getFrameworkStatus();
-console.log(`Framework initialized: ${status.initialized}`);
-console.log(`Framework healthy: ${status.healthy}`);
-```
-
-## 📊 Performance Optimization
-
-### Performance Monitoring
-
-```typescript
-import { PerformanceTestHelper } from './utils/test-helpers';
-
-// Monitor test performance
-const performanceReport = PerformanceTestHelper.generatePerformanceReport();
-console.log(`Average test duration: ${performanceReport.averageDuration}ms`);
-```
-
-### Resource Management
-
-```typescript
-// Monitor memory usage
-const memoryUsage = process.memoryUsage();
-console.log(`Heap used: ${(memoryUsage.heapUsed / 1024 / 1024).toFixed(2)}MB`);
-
-// Cleanup resources
-if (testExecutionMonitor.isActive()) {
-  testExecutionMonitor.stopMonitoring();
-}
-```
-
-## 🔧 Troubleshooting
+## 🔍 Troubleshooting
 
 ### Common Issues
 
-1. **Framework Setup Fails**
+1. **Framework Initialization Failures**
    ```bash
-   # Check dependencies
-   npm install
+   # Run framework setup
+   npx tsx src/test/utils/framework-setup.ts
    
-   # Validate Node.js version
-   node --version  # Should be 16+
-   
-   # Run setup with verbose logging
-   DEBUG=* npx tsx src/test/utils/framework-setup.ts
+   # Validate framework health
+   npx tsx src/test/utils/framework-validation.ts
    ```
 
-2. **Tests Timeout**
-   ```typescript
-   // Increase timeout in configuration
-   const config = {
-     timeoutMs: 60000, // 1 minute
-     maxRetries: 5
-   };
+2. **Test Environment Issues**
+   ```bash
+   # Reset test environment
+   npx tsx src/test/utils/test-environment-manager.ts --reset
+   
+   # Validate environment setup
+   npx tsx src/test/utils/test-environment-manager.ts --validate
    ```
 
-3. **Memory Issues**
+3. **Performance Issues**
    ```bash
-   # Run with increased memory
-   node --max-old-space-size=4096 src/test/utils/validate-and-run-tests.ts
+   # Run performance diagnostics
+   npx tsx src/test/utils/master-test-executor.ts --no-load-testing --debug
+   
+   # Monitor system resources
+   npx tsx src/test/utils/framework-health-monitor.ts
    ```
 
 ### Debug Mode
 
+Enable debug mode for detailed logging:
+
 ```bash
 # Enable debug logging
-DEBUG=healthcare-testing:* npx tsx src/test/utils/validate-and-run-tests.ts
+DEBUG=healthcare:* npx tsx src/test/utils/master-test-executor.ts --debug
 
-# Enable verbose error reporting
-NODE_ENV=development npx tsx src/test/utils/validate-and-run-tests.ts --verbose
+# Verbose logging
+npx tsx src/test/utils/master-test-executor.ts --debug --verbose
 ```
 
-## 📚 API Reference
+### Log Files
 
-### Core Classes
+Check log files for detailed information:
 
-- `FrameworkSetup`: Framework initialization and configuration
-- `TestExecutionMonitor`: Real-time test monitoring and metrics
-- `GlobalTestReporter`: Comprehensive test reporting
-- `IntegrationValidator`: Component integration validation
-- `ErrorRecoverySystem`: Automated error handling and recovery
-- `HealthcareTestOrchestrator`: Healthcare-specific test coordination
-- `ComprehensiveTestRunner`: Central test execution engine
-- `FrameworkHealthMonitor`: Real-time health monitoring
-- `TestEnvironmentManager`: Test environment management
-- `FrameworkValidator`: Complete framework validation
+- `test-results/logs/master-executor.log` - Master executor logs
+- `test-results/logs/framework-validation.log` - Validation logs
+- `test-results/logs/framework-setup.log` - Setup logs
+- `test-results/logs/test-execution.log` - Test execution logs
+- `test-results/logs/error-recovery.log` - Error recovery logs
 
-### Helper Classes
+## 📞 Support
 
-- `HealthcareTestDataGenerator`: Generate realistic healthcare test data
-- `ComplianceTestHelper`: Healthcare compliance validation utilities
-- `PerformanceTestHelper`: Performance testing and monitoring utilities
-- `TestEnvironmentHelper`: Test environment setup and management
+For support and questions:
 
-## 🤝 Contributing
+1. Check the troubleshooting section above
+2. Review log files for error details
+3. Run framework validation to identify issues
+4. Use debug mode for detailed information
 
-1. Follow healthcare compliance standards
-2. Include comprehensive tests for new features
-3. Update documentation for API changes
-4. Ensure DOH/DAMAN compliance for healthcare features
+## 🔄 Updates
+
+To update the framework:
+
+1. Pull latest changes
+2. Run framework setup: `npx tsx src/test/utils/framework-setup.ts`
+3. Validate framework: `npx tsx src/test/utils/framework-validation.ts`
+4. Run comprehensive tests: `npx tsx src/test/utils/master-test-executor.ts`
 
 ## 📄 License
 
-This framework is designed for healthcare applications and must comply with relevant healthcare data protection regulations.
-
-## 🆘 Support
-
-For issues related to:
-- Healthcare compliance: Check DOH/DAMAN documentation
-- Framework setup: Run diagnostic tools
-- Performance issues: Enable performance monitoring
-- Integration problems: Use integration validator
-
----
-
-**Healthcare Testing Framework v1.0.0**  
-*Transforming healthcare application testing with intelligent automation and compliance validation.*
+This healthcare testing framework is designed for healthcare applications and includes compliance validation for DOH, DAMAN, JAWDA, and HIPAA standards.

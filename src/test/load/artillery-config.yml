@@ -1,8 +1,8 @@
-# Artillery Load Testing Configuration for Healthcare Platform
-# Tests system performance under realistic healthcare workloads
+# Artillery Load Testing Configuration for Reyada Homecare Platform
+# Healthcare-specific load testing scenarios with DOH compliance validation
 
 config:
-  target: 'http://localhost:3001'
+  target: 'http://localhost:3000'
   phases:
     # Warm-up phase
     - duration: 60
@@ -11,301 +11,321 @@ config:
     # Ramp-up phase
     - duration: 300
       arrivalRate: 10
-      rampTo: 25
-      name: "Ramp-up"
-    # Sustained load
-    - duration: 600
-      arrivalRate: 25
-      name: "Sustained Load"
-    # Peak load
-    - duration: 300
-      arrivalRate: 25
       rampTo: 50
-      name: "Peak Load"
-    # Cool-down
-    - duration: 120
+      name: "Ramp-up"
+    # Sustained load phase
+    - duration: 600
       arrivalRate: 50
-      rampTo: 5
+      name: "Sustained Load"
+    # Peak load phase
+    - duration: 180
+      arrivalRate: 100
+      name: "Peak Load"
+    # Cool-down phase
+    - duration: 120
+      arrivalRate: 100
+      rampTo: 10
       name: "Cool-down"
   
-  # Performance thresholds for healthcare applications
-  ensure:
-    p95: 2000  # 95th percentile response time under 2 seconds
-    p99: 5000  # 99th percentile response time under 5 seconds
-    maxErrorRate: 1  # Error rate under 1%
-  
-  # Load testing plugins
-  plugins:
-    expect: {}
-    metrics-by-endpoint: {}
+  # Healthcare-specific configuration
+  variables:
+    emiratesIds:
+      - "784-1990-1234567-8"
+      - "784-1985-2345678-9"
+      - "784-1992-3456789-0"
+      - "784-1988-4567890-1"
+      - "784-1995-5678901-2"
     
-  # Custom metrics for healthcare workflows
-  processor: "./src/test/load/artillery-processor.js"
+    patientNames:
+      - "Ahmed Al Mansouri"
+      - "Fatima Al Zahra"
+      - "Mohammed Al Rashid"
+      - "Aisha Al Maktoum"
+      - "Omar Al Nahyan"
+    
+    insuranceProviders:
+      - "DAMAN"
+      - "THIQA"
+      - "ADNIC"
+      - "AXA"
+      - "OMAN"
+    
+    serviceTypes:
+      - "nursing-care"
+      - "physiotherapy"
+      - "wound-care"
+      - "medication-management"
+      - "chronic-disease-management"
   
+  # Performance thresholds
+  ensure:
+    p95: 2000  # 95th percentile response time < 2s
+    p99: 5000  # 99th percentile response time < 5s
+    maxErrorRate: 1  # Error rate < 1%
+  
+  # Plugins for enhanced reporting
+  plugins:
+    metrics-by-endpoint:
+      useOnlyRequestNames: true
+    
+    # Healthcare compliance metrics
+    expect:
+      outputFormat: json
+      
   # HTTP configuration
   http:
     timeout: 30
     pool: 50
     
-  # Variables for test data
-  variables:
-    patientIds:
-      - "patient-001"
-      - "patient-002"
-      - "patient-003"
-      - "patient-004"
-      - "patient-005"
-    
-    clinicianIds:
-      - "clinician-001"
-      - "clinician-002"
-      - "clinician-003"
-    
-    serviceTypes:
-      - "nursing-care"
-      - "physiotherapy"
-      - "occupational-therapy"
-      - "wound-care"
-      - "medication-management"
+  # Headers for healthcare compliance
+  defaults:
+    headers:
+      'Content-Type': 'application/json'
+      'X-Healthcare-Test': 'true'
+      'X-DOH-Compliance': 'enabled'
+      'X-HIPAA-Mode': 'test'
+      'User-Agent': 'Artillery-Healthcare-LoadTest/1.0'
 
 scenarios:
-  # Healthcare Authentication Flow
-  - name: "Healthcare Authentication"
+  # Patient Management Load Testing
+  - name: "Patient Management Workflow"
+    weight: 30
+    flow:
+      - get:
+          url: "/api/patients"
+          name: "List Patients"
+          expect:
+            - statusCode: 200
+            - hasProperty: "data"
+            - contentType: json
+      
+      - post:
+          url: "/api/patients"
+          name: "Create Patient"
+          json:
+            emiratesId: "{{ emiratesIds[$randomInt(0, 4)] }}"
+            name: "{{ patientNames[$randomInt(0, 4)] }}"
+            email: "patient{{ $randomInt(1000, 9999) }}@example.com"
+            phone: "+971{{ $randomInt(500000000, 599999999) }}"
+            insuranceProvider: "{{ insuranceProviders[$randomInt(0, 4)] }}"
+            insuranceNumber: "INS{{ $randomInt(100000, 999999) }}"
+          expect:
+            - statusCode: 201
+            - hasProperty: "id"
+            - hasProperty: "emiratesId"
+          capture:
+            - json: "$.id"
+              as: "patientId"
+      
+      - get:
+          url: "/api/patients/{{ patientId }}"
+          name: "Get Patient Details"
+          expect:
+            - statusCode: 200
+            - hasProperty: "emiratesId"
+      
+      - post:
+          url: "/api/patients/{{ patientId }}/episodes"
+          name: "Create Patient Episode"
+          json:
+            serviceType: "{{ serviceTypes[$randomInt(0, 4)] }}"
+            careLevel: "skilled-nursing"
+            startDate: "2024-01-15"
+            duration: 30
+            clinicalJustification: "Post-surgical care and monitoring required"
+          expect:
+            - statusCode: 201
+            - hasProperty: "episodeId"
+
+  # Clinical Documentation Load Testing
+  - name: "Clinical Documentation Workflow"
+    weight: 25
+    flow:
+      - get:
+          url: "/api/clinical/assessments"
+          name: "List Clinical Assessments"
+          expect:
+            - statusCode: 200
+      
+      - post:
+          url: "/api/clinical/assessments"
+          name: "Create DOH Assessment"
+          json:
+            patientId: "patient-{{ $randomInt(1, 100) }}"
+            assessmentType: "doh-9-domain"
+            domains:
+              cognitive: { score: 4, notes: "Good cognitive function", riskLevel: "low" }
+              mobility: { score: 3, notes: "Limited mobility post-surgery", riskLevel: "medium" }
+              adl: { score: 4, notes: "Independent with most ADLs", riskLevel: "low" }
+              medication: { score: 2, notes: "Multiple medications", riskLevel: "high" }
+              social: { score: 4, notes: "Strong family support", riskLevel: "low" }
+              environment: { score: 3, notes: "Safe home environment", riskLevel: "medium" }
+              nutrition: { score: 3, notes: "Adequate nutrition", riskLevel: "medium" }
+              pain: { score: 2, notes: "Post-surgical pain", riskLevel: "high" }
+              psychological: { score: 4, notes: "Good adjustment", riskLevel: "low" }
+            clinicalNotes: "Comprehensive assessment completed"
+            clinicianName: "Dr. Sarah Johnson"
+            licenseNumber: "DOH-12345"
+          expect:
+            - statusCode: 201
+            - hasProperty: "assessmentId"
+            - hasProperty: "complianceScore"
+          capture:
+            - json: "$.assessmentId"
+              as: "assessmentId"
+      
+      - get:
+          url: "/api/clinical/assessments/{{ assessmentId }}"
+          name: "Get Assessment Details"
+          expect:
+            - statusCode: 200
+            - hasProperty: "complianceScore"
+
+  # DAMAN Integration Load Testing
+  - name: "DAMAN Authorization Workflow"
     weight: 20
     flow:
       - post:
-          url: "/api/auth/login"
+          url: "/api/revenue/daman/authorization"
+          name: "Submit DAMAN Authorization"
           json:
-            email: "{{ $randomString() }}@reyada.com"
-            password: "testpassword123"
-          capture:
-            - json: "$.token"
-              as: "authToken"
+            patientId: "patient-{{ $randomInt(1, 100) }}"
+            serviceType: "{{ serviceTypes[$randomInt(0, 4)] }}"
+            duration: 30
+            frequency: "daily"
+            clinicalJustification: "Medical necessity documented by physician"
+            estimatedCost: 11400
+            supportingDocuments:
+              - "medical-report.pdf"
+              - "physician-order.pdf"
           expect:
-            - statusCode: [200, 401]
-      
-      - think: 2
+            - statusCode: 201
+            - hasProperty: "referenceNumber"
+            - hasProperty: "status"
+          capture:
+            - json: "$.referenceNumber"
+              as: "authReference"
       
       - get:
-          url: "/api/auth/profile"
-          headers:
-            Authorization: "Bearer {{ authToken }}"
-          expect:
-            - statusCode: [200, 401]
-
-  # Patient Management Workflow
-  - name: "Patient Management"
-    weight: 30
-    flow:
-      # Login
-      - post:
-          url: "/api/auth/login"
-          json:
-            email: "nurse@reyada.com"
-            password: "testpassword123"
-          capture:
-            - json: "$.token"
-              as: "authToken"
-      
-      # Search patients
-      - get:
-          url: "/api/patients/search"
-          qs:
-            q: "{{ $randomString() }}"
-          headers:
-            Authorization: "Bearer {{ authToken }}"
+          url: "/api/revenue/daman/authorization/{{ authReference }}/status"
+          name: "Check Authorization Status"
           expect:
             - statusCode: 200
-            - hasProperty: "results"
+            - hasProperty: "status"
       
-      - think: 1
-      
-      # Get patient details
-      - get:
-          url: "/api/patients/{{ $randomPick(patientIds) }}"
-          headers:
-            Authorization: "Bearer {{ authToken }}"
-          expect:
-            - statusCode: [200, 404]
-      
-      - think: 2
-      
-      # Create new patient (occasionally)
       - post:
-          url: "/api/patients"
+          url: "/api/revenue/daman/claims"
+          name: "Submit DAMAN Claim"
           json:
-            name: "{{ $randomString() }} Test Patient"
-            emiratesId: "784-1990-{{ $randomInt(1000000, 9999999) }}-{{ $randomInt(1, 9) }}"
-            phone: "+971{{ $randomInt(500000000, 599999999) }}"
-            email: "{{ $randomString() }}@example.com"
-            address:
-              street: "{{ $randomInt(1, 999) }} Test Street"
-              city: "Dubai"
-              emirate: "Dubai"
-              country: "UAE"
-          headers:
-            Authorization: "Bearer {{ authToken }}"
+            authorizationReference: "{{ authReference }}"
+            serviceDate: "2024-01-15"
+            serviceDuration: 60
+            serviceProvider: "nurse-001"
+            serviceNotes: "Wound care provided, vital signs stable"
           expect:
-            - statusCode: [201, 400]
-          ifTrue: "{{ $randomNumber(0, 1) < 0.1 }}"  # 10% chance
+            - statusCode: 201
+            - hasProperty: "claimNumber"
 
-  # Clinical Documentation Workflow
-  - name: "Clinical Documentation"
-    weight: 25
-    flow:
-      # Login as clinician
-      - post:
-          url: "/api/auth/login"
-          json:
-            email: "doctor@reyada.com"
-            password: "testpassword123"
-          capture:
-            - json: "$.token"
-              as: "authToken"
-      
-      # Get patient assessments
-      - get:
-          url: "/api/clinical/assessments"
-          qs:
-            patientId: "{{ $randomPick(patientIds) }}"
-          headers:
-            Authorization: "Bearer {{ authToken }}"
-          expect:
-            - statusCode: 200
-      
-      - think: 3
-      
-      # Create clinical assessment
-      - post:
-          url: "/api/clinical/assessments"
-          json:
-            patientId: "{{ $randomPick(patientIds) }}"
-            assessmentType: "follow-up-assessment"
-            assessmentDate: "{{ new Date().toISOString() }}"
-            clinicianId: "{{ $randomPick(clinicianIds) }}"
-            domains:
-              domain1:
-                score: "{{ $randomInt(1, 5) }}"
-                notes: "Assessment notes for domain 1"
-              domain2:
-                score: "{{ $randomInt(1, 5) }}"
-                notes: "Assessment notes for domain 2"
-              domain3:
-                score: "{{ $randomInt(1, 5) }}"
-                notes: "Assessment notes for domain 3"
-              domain4:
-                score: "{{ $randomInt(1, 5) }}"
-                notes: "Assessment notes for domain 4"
-              domain5:
-                score: "{{ $randomInt(1, 5) }}"
-                notes: "Assessment notes for domain 5"
-              domain6:
-                score: "{{ $randomInt(1, 5) }}"
-                notes: "Assessment notes for domain 6"
-              domain7:
-                score: "{{ $randomInt(1, 5) }}"
-                notes: "Assessment notes for domain 7"
-              domain8:
-                score: "{{ $randomInt(1, 5) }}"
-                notes: "Assessment notes for domain 8"
-              domain9:
-                score: "{{ $randomInt(1, 5) }}"
-                notes: "Assessment notes for domain 9"
-            clinicalNotes: "Comprehensive clinical assessment completed during load test"
-          headers:
-            Authorization: "Bearer {{ authToken }}"
-          expect:
-            - statusCode: [201, 400]
-      
-      - think: 2
-
-  # DAMAN Authorization Workflow
-  - name: "DAMAN Authorization"
+  # Compliance and Audit Load Testing
+  - name: "Compliance Monitoring Workflow"
     weight: 15
     flow:
-      # Login
-      - post:
-          url: "/api/auth/login"
-          json:
-            email: "admin@reyada.com"
-            password: "testpassword123"
-          capture:
-            - json: "$.token"
-              as: "authToken"
-      
-      # Check existing authorizations
       - get:
-          url: "/api/revenue/daman/authorizations"
-          qs:
-            patientId: "{{ $randomPick(patientIds) }}"
-          headers:
-            Authorization: "Bearer {{ authToken }}"
+          url: "/api/compliance/doh/status"
+          name: "DOH Compliance Status"
           expect:
             - statusCode: 200
+            - hasProperty: "complianceScore"
+            - contentType: json
       
-      - think: 2
-      
-      # Submit new authorization (occasionally)
-      - post:
-          url: "/api/revenue/daman/authorizations"
-          json:
-            patientId: "{{ $randomPick(patientIds) }}"
-            serviceType: "{{ $randomPick(serviceTypes) }}"
-            requestedDuration: "30-days"
-            clinicalJustification: "Load test authorization request"
-            requestedServices:
-              - serviceCode: "NURSE-001"
-                description: "Skilled Nursing Visit"
-                frequency: "daily"
-                duration: "30-days"
-          headers:
-            Authorization: "Bearer {{ authToken }}"
+      - get:
+          url: "/api/compliance/hipaa/status"
+          name: "HIPAA Compliance Status"
           expect:
-            - statusCode: [201, 400]
-          ifTrue: "{{ $randomNumber(0, 1) < 0.2 }}"  # 20% chance
+            - statusCode: 200
+            - hasProperty: "complianceLevel"
+      
+      - post:
+          url: "/api/compliance/audit/report"
+          name: "Generate Audit Report"
+          json:
+            reportType: "comprehensive"
+            period: "last-30-days"
+            includeMetrics: true
+          expect:
+            - statusCode: 201
+            - hasProperty: "reportId"
+          capture:
+            - json: "$.reportId"
+              as: "reportId"
+      
+      - get:
+          url: "/api/compliance/audit/report/{{ reportId }}/download"
+          name: "Download Audit Report"
+          expect:
+            - statusCode: 200
 
-  # Dashboard and Analytics
-  - name: "Dashboard Analytics"
+  # Mobile Application Load Testing
+  - name: "Mobile Clinical Documentation"
     weight: 10
     flow:
-      # Login
+      - get:
+          url: "/api/mobile/clinical/forms"
+          name: "Get Mobile Clinical Forms"
+          headers:
+            'X-Mobile-Client': 'true'
+            'X-Device-Type': 'tablet'
+          expect:
+            - statusCode: 200
+            - hasProperty: "forms"
+      
       - post:
-          url: "/api/auth/login"
+          url: "/api/mobile/clinical/assessment"
+          name: "Submit Mobile Assessment"
+          headers:
+            'X-Mobile-Client': 'true'
+            'X-Device-Type': 'tablet'
           json:
-            email: "manager@reyada.com"
-            password: "testpassword123"
-          capture:
-            - json: "$.token"
-              as: "authToken"
-      
-      # Load dashboard summary
-      - get:
-          url: "/api/dashboard/summary"
-          headers:
-            Authorization: "Bearer {{ authToken }}"
+            patientId: "patient-{{ $randomInt(1, 100) }}"
+            formType: "mobile-assessment"
+            location:
+              latitude: 25.2048
+              longitude: 55.2708
+            timestamp: "{{ $isoTimestamp }}"
+            offlineMode: false
+            signature: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
           expect:
-            - statusCode: 200
-      
-      - think: 1
-      
-      # Load analytics data
-      - get:
-          url: "/api/analytics/performance"
-          qs:
-            period: "30d"
-          headers:
-            Authorization: "Bearer {{ authToken }}"
-          expect:
-            - statusCode: 200
-      
-      # Load compliance reports
-      - get:
-          url: "/api/compliance/doh/reports"
-          qs:
-            month: "2024-01"
-          headers:
-            Authorization: "Bearer {{ authToken }}"
-          expect:
-            - statusCode: 200
-      
-      - think: 3
+            - statusCode: 201
+            - hasProperty: "assessmentId"
+
+# Custom functions for healthcare-specific testing
+functions:
+  # Generate valid Emirates ID
+  generateEmiratesId: |
+    function(context, events, done) {
+      const year = Math.floor(Math.random() * (2000 - 1980) + 1980);
+      const sequence = Math.floor(Math.random() * 9000000 + 1000000);
+      const checkDigit = Math.floor(Math.random() * 10);
+      context.vars.emiratesId = `784-${year}-${sequence}-${checkDigit}`;
+      return done();
+    }
+  
+  # Validate DOH compliance response
+  validateDOHCompliance: |
+    function(context, events, done) {
+      const response = context.vars.$;
+      if (response && response.complianceScore && response.complianceScore >= 90) {
+        events.emit('counter', 'doh.compliance.passed', 1);
+      } else {
+        events.emit('counter', 'doh.compliance.failed', 1);
+      }
+      return done();
+    }
+  
+  # Log healthcare metrics
+  logHealthcareMetrics: |
+    function(context, events, done) {
+      events.emit('histogram', 'healthcare.response_time', context.vars.responseTime);
+      events.emit('counter', 'healthcare.requests.total', 1);
+      return done();
+    }

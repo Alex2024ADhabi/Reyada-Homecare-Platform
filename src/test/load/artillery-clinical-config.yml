@@ -1,0 +1,332 @@
+# Artillery Load Testing Configuration for Clinical Workflows
+# Focused testing of clinical assessments and DOH compliance
+
+config:
+  target: 'http://localhost:3001'
+  phases:
+    - duration: 45
+      arrivalRate: 3
+      name: "Clinical warm-up"
+    - duration: 180
+      arrivalRate: 8
+      name: "Clinical baseline load"
+    - duration: 120
+      arrivalRate: 15
+      name: "Clinical peak load"
+    - duration: 45
+      arrivalRate: 3
+      name: "Clinical cool-down"
+  
+  # Clinical-specific payload
+  payload:
+    path: "./test-data/clinical-test-data.csv"
+    fields:
+      - "patientId"
+      - "clinicianId"
+      - "assessmentType"
+      - "riskLevel"
+    order: sequence
+    skipHeader: true
+  
+  variables:
+    clinicalApiUrl: "http://localhost:3001/api/clinical"
+    dohComplianceUrl: "http://localhost:3001/api/compliance/doh"
+    testMode: "clinical-workflow-test"
+    dohValidation: "enabled"
+  
+  plugins:
+    expect: {}
+    metrics-by-endpoint:
+      useOnlyRequestNames: true
+    hdrhistogram: {}
+  
+  # Clinical workflow performance thresholds
+  ensure:
+    p99: 4000  # Clinical assessments can be complex
+    p95: 2500
+    p50: 1200
+    maxErrorRate: 0.5  # Strict error tolerance for clinical data
+
+scenarios:
+  # DOH 9-Domain Clinical Assessment
+  - name: "DOH 9-Domain Assessment"
+    weight: 60
+    flow:
+      - post:
+          url: "/api/auth/login"
+          json:
+            email: "clinician@reyada.ae"
+            password: "Clinician123!"
+          capture:
+            - json: "$.token"
+              as: "authToken"
+            - json: "$.sessionId"
+              as: "sessionId"
+          expect:
+            - statusCode: 200
+      
+      - think: 2
+      
+      # Create comprehensive DOH assessment
+      - post:
+          url: "/api/clinical/assessments"
+          name: "Create DOH Assessment"
+          json:
+            patientId: "{{ patientId }}"
+            clinicianId: "{{ clinicianId }}"
+            assessmentType: "{{ assessmentType }}"
+            assessmentDate: "{{ $timestamp }}"
+            domains:
+              cognitive:
+                score: "{{ $randomInt(1, 4) }}"
+                notes: "Comprehensive cognitive assessment including memory, attention, and executive function evaluation. Patient demonstrates {{ $randomInt(1, 4) }}/4 cognitive capacity."
+                riskFactors: ["memory_impairment", "confusion"]
+                interventions: ["cognitive_stimulation", "memory_aids"]
+              mobility:
+                score: "{{ $randomInt(1, 4) }}"
+                notes: "Detailed mobility assessment including gait analysis, balance testing, and fall risk evaluation. Mobility score reflects current functional capacity."
+                riskFactors: ["fall_risk", "balance_issues"]
+                interventions: ["physiotherapy", "mobility_aids"]
+              adl:
+                score: "{{ $randomInt(1, 4) }}"
+                notes: "Activities of Daily Living assessment covering personal care, hygiene, and basic self-care tasks. Independence level documented."
+                riskFactors: ["dependency", "safety_concerns"]
+                interventions: ["occupational_therapy", "adaptive_equipment"]
+              medication:
+                score: "{{ $randomInt(1, 4) }}"
+                notes: "Comprehensive medication management assessment including adherence, understanding, and administration capability."
+                riskFactors: ["polypharmacy", "adherence_issues"]
+                interventions: ["medication_review", "pill_organizer"]
+              social:
+                score: "{{ $randomInt(1, 4) }}"
+                notes: "Social support system evaluation including family involvement, community connections, and isolation risk assessment."
+                riskFactors: ["social_isolation", "limited_support"]
+                interventions: ["social_services", "community_programs"]
+              environment:
+                score: "{{ $randomInt(1, 4) }}"
+                notes: "Home environment safety assessment including hazard identification, accessibility evaluation, and modification recommendations."
+                riskFactors: ["home_hazards", "accessibility_issues"]
+                interventions: ["home_modifications", "safety_equipment"]
+              nutrition:
+                score: "{{ $randomInt(1, 4) }}"
+                notes: "Nutritional status assessment including dietary intake, weight management, and nutritional risk evaluation."
+                riskFactors: ["malnutrition", "weight_loss"]
+                interventions: ["dietary_counseling", "nutritional_supplements"]
+              pain:
+                score: "{{ $randomInt(1, 4) }}"
+                notes: "Comprehensive pain assessment using validated pain scales and functional impact evaluation."
+                riskFactors: ["chronic_pain", "pain_interference"]
+                interventions: ["pain_management", "physical_therapy"]
+              psychological:
+                score: "{{ $randomInt(1, 4) }}"
+                notes: "Mental health and psychological wellbeing assessment including mood, anxiety, and coping mechanisms evaluation."
+                riskFactors: ["depression", "anxiety"]
+                interventions: ["counseling", "mental_health_support"]
+            clinicalNotes: "Comprehensive DOH-compliant clinical assessment completed during Artillery load testing. All nine domains thoroughly evaluated with detailed documentation and evidence-based interventions identified. Assessment demonstrates adherence to DOH clinical standards and guidelines."
+            recommendations:
+              - "Continue current care plan with weekly monitoring"
+              - "Implement identified interventions within 48 hours"
+              - "Schedule follow-up assessment in 30 days"
+              - "Coordinate with multidisciplinary team for comprehensive care"
+              - "Ensure family education and involvement in care planning"
+            dohCompliance:
+              allDomainsCompleted: true
+              clinicianLicenseVerified: true
+              patientConsentObtained: true
+              auditTrailComplete: true
+              complianceScore: "{{ $randomFloat(0.85, 1.0) }}"
+              validationTimestamp: "{{ $timestamp }}"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+            X-Session-ID: "{{ sessionId }}"
+            X-Clinical-Test-Mode: "true"
+          capture:
+            - json: "$.id"
+              as: "assessmentId"
+            - json: "$.overallScore"
+              as: "overallScore"
+            - json: "$.riskLevel"
+              as: "calculatedRiskLevel"
+          expect:
+            - statusCode: 201
+            - hasProperty: "id"
+            - hasProperty: "overallScore"
+            - hasProperty: "riskLevel"
+            - hasProperty: "dohCompliance"
+      
+      - think: 3
+      
+      # Validate DOH compliance in real-time
+      - get:
+          url: "/api/compliance/doh/validate/{{ patientId }}"
+          name: "DOH Compliance Validation"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          expect:
+            - statusCode: 200
+            - hasProperty: "overallScore"
+            - hasProperty: "validationDetails"
+            - hasProperty: "complianceStatus"
+      
+      - think: 1
+      
+      # Generate clinical report
+      - get:
+          url: "/api/clinical/assessments/{{ assessmentId }}/report"
+          name: "Generate Clinical Report"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          expect:
+            - statusCode: 200
+            - hasProperty: "reportData"
+  
+  # Clinical Care Plan Management
+  - name: "Care Plan Management"
+    weight: 25
+    flow:
+      - post:
+          url: "/api/auth/login"
+          json:
+            email: "carecoordinator@reyada.ae"
+            password: "CareCoord123!"
+          capture:
+            - json: "$.token"
+              as: "authToken"
+          expect:
+            - statusCode: 200
+      
+      - think: 1
+      
+      # Create care plan
+      - post:
+          url: "/api/clinical/care-plans"
+          name: "Create Care Plan"
+          json:
+            patientId: "{{ patientId }}"
+            assessmentId: "ASSESS-{{ $randomInt(100000, 999999) }}"
+            planType: "comprehensive"
+            startDate: "{{ $timestamp }}"
+            duration: "90-days"
+            goals:
+              - goal: "Improve mobility and reduce fall risk"
+                targetDate: "{{ $timestamp }}"
+                interventions:
+                  - "Daily physiotherapy sessions"
+                  - "Balance training exercises"
+                  - "Home safety modifications"
+                measurableOutcomes:
+                  - "Increase walking distance by 50%"
+                  - "Reduce fall incidents to zero"
+              - goal: "Enhance medication adherence"
+                targetDate: "{{ $timestamp }}"
+                interventions:
+                  - "Medication review and simplification"
+                  - "Pill organizer setup"
+                  - "Family education on medication management"
+                measurableOutcomes:
+                  - "Achieve 95% medication adherence"
+                  - "Reduce medication errors to zero"
+            services:
+              - serviceType: "skilled-nursing"
+                frequency: "daily"
+                duration: "60-minutes"
+                provider: "Registered Nurse"
+              - serviceType: "physiotherapy"
+                frequency: "three-times-weekly"
+                duration: "45-minutes"
+                provider: "Licensed Physiotherapist"
+            clinicianId: "{{ clinicianId }}"
+            status: "active"
+            dohCompliance:
+              evidenceBasedPlan: true
+              patientCenteredGoals: true
+              measurableOutcomes: true
+              multidisciplinaryApproach: true
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          capture:
+            - json: "$.id"
+              as: "carePlanId"
+          expect:
+            - statusCode: 201
+            - hasProperty: "id"
+            - hasProperty: "goals"
+      
+      - think: 2
+      
+      # Update care plan progress
+      - put:
+          url: "/api/clinical/care-plans/{{ carePlanId }}/progress"
+          name: "Update Care Plan Progress"
+          json:
+            progressNotes: "Care plan progress update during load testing. Patient showing improvement in targeted areas."
+            goalProgress:
+              - goalId: "GOAL-001"
+                progressPercentage: "{{ $randomInt(25, 75) }}"
+                notes: "Steady progress towards mobility goals"
+              - goalId: "GOAL-002"
+                progressPercentage: "{{ $randomInt(50, 90) }}"
+                notes: "Excellent improvement in medication adherence"
+            nextReviewDate: "{{ $timestamp }}"
+            clinicianId: "{{ clinicianId }}"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          expect:
+            - statusCode: 200
+  
+  # Clinical Documentation and Audit
+  - name: "Clinical Documentation Audit"
+    weight: 15
+    flow:
+      - post:
+          url: "/api/auth/login"
+          json:
+            email: "auditor@reyada.ae"
+            password: "Auditor123!"
+          capture:
+            - json: "$.token"
+              as: "authToken"
+          expect:
+            - statusCode: 200
+      
+      # Audit clinical documentation
+      - get:
+          url: "/api/clinical/audit/documentation"
+          name: "Clinical Documentation Audit"
+          qs:
+            patientId: "{{ patientId }}"
+            dateFrom: "2024-01-01"
+            dateTo: "{{ $timestamp }}"
+            auditType: "comprehensive"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          expect:
+            - statusCode: 200
+            - hasProperty: "auditResults"
+            - hasProperty: "complianceScore"
+      
+      - think: 1
+      
+      # Generate compliance report
+      - get:
+          url: "/api/compliance/doh/comprehensive-report"
+          name: "DOH Compliance Report"
+          qs:
+            reportType: "clinical-audit"
+            period: "monthly"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          expect:
+            - statusCode: 200
+            - hasProperty: "dohCompliance"
+            - hasProperty: "auditSummary"
+
+before:
+  flow:
+    - log: "Starting clinical workflows load test"
+    - log: "Testing DOH 9-domain assessments and care planning"
+
+after:
+  flow:
+    - log: "Clinical workflows load test completed"
+    - log: "Review clinical-specific metrics and DOH compliance scores"

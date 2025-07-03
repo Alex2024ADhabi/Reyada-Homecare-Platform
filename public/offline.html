@@ -12,100 +12,140 @@
       }
 
       body {
-        font-family:
-          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          sans-serif;
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         min-height: 100vh;
         display: flex;
         align-items: center;
         justify-content: center;
         color: white;
-        text-align: center;
         padding: 20px;
       }
 
       .offline-container {
-        max-width: 500px;
+        text-align: center;
+        max-width: 400px;
         background: rgba(255, 255, 255, 0.1);
         backdrop-filter: blur(10px);
         border-radius: 20px;
-        padding: 40px;
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        padding: 40px 30px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
       }
 
-      .offline-icon {
+      .logo {
         width: 80px;
         height: 80px;
-        margin: 0 auto 30px;
         background: rgba(255, 255, 255, 0.2);
         border-radius: 50%;
+        margin: 0 auto 20px;
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 40px;
+        font-size: 32px;
       }
 
       h1 {
-        font-size: 2.5rem;
-        margin-bottom: 20px;
-        font-weight: 700;
+        font-size: 24px;
+        margin-bottom: 10px;
+        font-weight: 600;
       }
 
-      p {
-        font-size: 1.1rem;
-        line-height: 1.6;
+      .subtitle {
+        font-size: 16px;
+        opacity: 0.9;
         margin-bottom: 30px;
+      }
+
+      .message {
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 30px;
+        border-left: 4px solid #fbbf24;
+      }
+
+      .message h3 {
+        font-size: 18px;
+        margin-bottom: 10px;
+        color: #fbbf24;
+      }
+
+      .message p {
+        font-size: 14px;
+        line-height: 1.5;
         opacity: 0.9;
       }
 
       .features {
         text-align: left;
-        margin: 30px 0;
+        margin-bottom: 30px;
       }
 
-      .feature {
-        display: flex;
-        align-items: center;
+      .features h4 {
+        font-size: 16px;
         margin-bottom: 15px;
-        font-size: 0.95rem;
+        text-align: center;
       }
 
-      .feature-icon {
-        width: 20px;
-        height: 20px;
-        margin-right: 15px;
-        background: rgba(255, 255, 255, 0.3);
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 12px;
+      .feature-list {
+        list-style: none;
+      }
+
+      .feature-list li {
+        padding: 8px 0;
+        font-size: 14px;
+        opacity: 0.9;
+        position: relative;
+        padding-left: 25px;
+      }
+
+      .feature-list li:before {
+        content: "✓";
+        position: absolute;
+        left: 0;
+        color: #10b981;
+        font-weight: bold;
       }
 
       .retry-btn {
         background: rgba(255, 255, 255, 0.2);
-        border: 2px solid rgba(255, 255, 255, 0.3);
+        border: 1px solid rgba(255, 255, 255, 0.3);
         color: white;
-        padding: 15px 30px;
-        border-radius: 50px;
-        font-size: 1rem;
-        font-weight: 600;
+        padding: 12px 24px;
+        border-radius: 8px;
+        font-size: 14px;
         cursor: pointer;
         transition: all 0.3s ease;
-        text-decoration: none;
-        display: inline-block;
+        margin-right: 10px;
       }
 
       .retry-btn:hover {
         background: rgba(255, 255, 255, 0.3);
-        border-color: rgba(255, 255, 255, 0.5);
+        transform: translateY(-2px);
+      }
+
+      .emergency-btn {
+        background: #ef4444;
+        border: none;
+        color: white;
+        padding: 12px 24px;
+        border-radius: 8px;
+        font-size: 14px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        font-weight: 600;
+      }
+
+      .emergency-btn:hover {
+        background: #dc2626;
         transform: translateY(-2px);
       }
 
       .status {
-        margin-top: 30px;
-        font-size: 0.9rem;
-        opacity: 0.8;
+        margin-top: 20px;
+        font-size: 12px;
+        opacity: 0.7;
       }
 
       .pulse {
@@ -130,75 +170,139 @@
         }
 
         h1 {
-          font-size: 2rem;
+          font-size: 20px;
         }
 
-        p {
-          font-size: 1rem;
+        .subtitle {
+          font-size: 14px;
         }
       }
     </style>
   </head>
   <body>
     <div class="offline-container">
-      <div class="offline-icon pulse">📱</div>
+      <div class="logo pulse">🏥</div>
+      <h1>Reyada Homecare</h1>
+      <p class="subtitle">Healthcare Platform</p>
 
-      <h1>You're Offline</h1>
-
-      <p>
-        Don't worry! Reyada Homecare works offline too. Your data is safely
-        stored locally and will sync when you're back online.
-      </p>
-
-      <div class="features">
-        <div class="feature">
-          <div class="feature-icon">✓</div>
-          <span>Continue working with clinical forms</span>
-        </div>
-        <div class="feature">
-          <div class="feature-icon">✓</div>
-          <span>Access patient assessments</span>
-        </div>
-        <div class="feature">
-          <div class="feature-icon">✓</div>
-          <span>Complete service initiations</span>
-        </div>
-        <div class="feature">
-          <div class="feature-icon">✓</div>
-          <span>Auto-sync when connection returns</span>
-        </div>
+      <div class="message">
+        <h3>You're Currently Offline</h3>
+        <p>
+          Don't worry! You can still access essential healthcare features and
+          your data will sync automatically when you're back online.
+        </p>
       </div>
 
-      <button class="retry-btn" onclick="window.location.reload()">
-        Try Again
-      </button>
+      <div class="features">
+        <h4>Available Offline Features:</h4>
+        <ul class="feature-list">
+          <li>View cached patient data</li>
+          <li>Complete clinical forms</li>
+          <li>Access emergency contacts</li>
+          <li>Review DOH compliance protocols</li>
+          <li>Use voice-to-text functionality</li>
+          <li>Capture wound documentation</li>
+        </ul>
+      </div>
 
-      <div class="status" id="connection-status">Checking connection...</div>
+      <div>
+        <button class="retry-btn" onclick="checkConnection()">
+          Check Connection
+        </button>
+        <button class="emergency-btn" onclick="showEmergencyContacts()">
+          Emergency Contacts
+        </button>
+      </div>
+
+      <div class="status" id="status">Checking connection status...</div>
     </div>
 
     <script>
-      // Check connection status
-      function updateConnectionStatus() {
-        const status = document.getElementById("connection-status");
-        if (navigator.onLine) {
-          status.textContent = "Connection restored! Refreshing...";
-          setTimeout(() => {
-            window.location.reload();
-          }, 1000);
-        } else {
-          status.textContent = "Still offline - waiting for connection...";
-        }
+      let retryCount = 0;
+      const maxRetries = 3;
+
+      function updateStatus(message) {
+        document.getElementById("status").textContent = message;
       }
 
-      // Listen for connection changes
-      window.addEventListener("online", updateConnectionStatus);
-      window.addEventListener("offline", updateConnectionStatus);
+      function checkConnection() {
+        updateStatus("Checking connection...");
 
-      // Initial check
-      updateConnectionStatus();
+        // Try to fetch a small resource to test connectivity
+        fetch("/manifest.json", {
+          method: "HEAD",
+          cache: "no-cache",
+        })
+          .then((response) => {
+            if (response.ok) {
+              updateStatus("Connection restored! Redirecting...");
+              setTimeout(() => {
+                window.location.href = "/";
+              }, 1000);
+            } else {
+              throw new Error("Network response was not ok");
+            }
+          })
+          .catch((error) => {
+            retryCount++;
+            if (retryCount < maxRetries) {
+              updateStatus(
+                `Connection failed. Retrying... (${retryCount}/${maxRetries})`,
+              );
+              setTimeout(checkConnection, 2000);
+            } else {
+              updateStatus(
+                "Still offline. Please check your internet connection.",
+              );
+              retryCount = 0;
+            }
+          });
+      }
 
-      // Periodic check
-      setInterval(updateConnectionStatus, 5000);
+      function showEmergencyContacts() {
+        const emergencyInfo = `
+                🚨 EMERGENCY CONTACTS 🚨
+                
+                Emergency Services: 999
+                DOH Hotline: 800-11111
+                Reyada Emergency: +971-4-XXX-XXXX
+                
+                📋 EMERGENCY PROTOCOLS:
+                • Patient Safety Protocol
+                • Medical Emergency Response
+                • DOH Compliance Emergency Procedures
+                
+                ⚠️ For immediate medical emergencies, call 999
+            `;
+
+        alert(emergencyInfo);
+      }
+
+      // Auto-check connection every 30 seconds
+      setInterval(() => {
+        if (navigator.onLine) {
+          checkConnection();
+        } else {
+          updateStatus("Device is offline. Please check your connection.");
+        }
+      }, 30000);
+
+      // Listen for online/offline events
+      window.addEventListener("online", () => {
+        updateStatus("Connection detected! Checking...");
+        checkConnection();
+      });
+
+      window.addEventListener("offline", () => {
+        updateStatus("Connection lost. Working in offline mode.");
+      });
+
+      // Initial status check
+      if (navigator.onLine) {
+        checkConnection();
+      } else {
+        updateStatus("Device is offline. Working in offline mode.");
+      }
     </script>
   </body>
 </html>

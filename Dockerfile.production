@@ -1,0 +1,93 @@
+# Multi-stage production Dockerfile for Reyada Homecare Platform
+# Optimized for security, performance, and minimal attack surface
+
+# Stage 1: Build Environment
+FROM node:18-alpine AS builder
+
+# Security: Create non-root user
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S nextjs -u 1001
+
+# Set working directory
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+COPY tsconfig*.json ./
+COPY vite.config.ts ./
+COPY tailwind.config.js ./
+COPY postcss.config.cjs ./
+
+# Install dependencies with security optimizations
+RUN npm ci --only=production --prefer-offline --no-audit && \
+    npm cache clean --force
+
+# Copy source code
+COPY src/ ./src/
+COPY public/ ./public/
+COPY index.html ./
+
+# Build application
+RUN npm run build && \
+    npm run optimize:bundle
+
+# Stage 2: Production Runtime
+FROM nginx:1.25-alpine AS production
+
+# Security: Install security updates
+RUN apk update && \
+    apk upgrade && \
+    apk add --no-cache \
+        curl \
+        jq \
+        ca-certificates && \
+    rm -rf /var/cache/apk/*
+
+# Create non-root user for nginx
+RUN addgroup -g 1001 -S nginx-app && \
+    adduser -S nginx-app -u 1001 -G nginx-app
+
+# Copy built application
+COPY --from=builder --chown=nginx-app:nginx-app /app/dist /usr/share/nginx/html
+
+# Copy nginx configuration
+COPY nginx.production.conf /etc/nginx/nginx.conf
+COPY nginx.security.conf /etc/nginx/conf.d/security.conf
+
+# Copy health check script
+COPY scripts/health-check.sh /usr/local/bin/health-check.sh
+RUN chmod +x /usr/local/bin/health-check.sh
+
+# Security: Set proper permissions
+RUN chown -R nginx-app:nginx-app /usr/share/nginx/html && \
+    chown -R nginx-app:nginx-app /var/cache/nginx && \
+    chown -R nginx-app:nginx-app /var/log/nginx && \
+    chown -R nginx-app:nginx-app /etc/nginx/conf.d && \
+    touch /var/run/nginx.pid && \
+    chown -R nginx-app:nginx-app /var/run/nginx.pid
+
+# Switch to non-root user
+USER nginx-app
+
+# Expose port
+EXPOSE 8080
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD /usr/local/bin/health-check.sh http://localhost:8080/health || exit 1
+
+# Start nginx
+CMD ["nginx", "-g", "daemon off;"]
+
+# Metadata
+LABEL maintainer="Reyada Homecare Platform Team" \
+      version="1.0.0" \
+      description="Production-ready Reyada Homecare Platform" \
+      org.opencontainers.image.title="Reyada Homecare Platform" \
+      org.opencontainers.image.description="DOH-compliant homecare management platform" \
+      org.opencontainers.image.vendor="Reyada Healthcare" \
+      org.opencontainers.image.version="1.0.0" \
+      org.opencontainers.image.created="$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+      org.opencontainers.image.source="https://github.com/reyada-healthcare/homecare-platform" \
+      org.opencontainers.image.documentation="https://docs.reyada-homecare.com" \
+      org.opencontainers.image.licenses="Proprietary"

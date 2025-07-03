@@ -1,0 +1,393 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: reyada-homecare
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+      external_labels:
+        cluster: 'reyada-homecare'
+        environment: 'production'
+    
+    rule_files:
+      - "/etc/prometheus/rules/*.yml"
+    
+    alerting:
+      alertmanagers:
+        - static_configs:
+            - targets:
+              - alertmanager:9093
+    
+    scrape_configs:
+      # Kubernetes API Server
+      - job_name: 'kubernetes-apiservers'
+        kubernetes_sd_configs:
+          - role: endpoints
+        scheme: https
+        tls_config:
+          ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
+            action: keep
+            regex: default;kubernetes;https
+      
+      # Kubernetes Nodes
+      - job_name: 'kubernetes-nodes'
+        kubernetes_sd_configs:
+          - role: node
+        scheme: https
+        tls_config:
+          ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+        relabel_configs:
+          - action: labelmap
+            regex: __meta_kubernetes_node_label_(.+)
+          - target_label: __address__
+            replacement: kubernetes.default.svc:443
+          - source_labels: [__meta_kubernetes_node_name]
+            regex: (.+)
+            target_label: __metrics_path__
+            replacement: /api/v1/nodes/${1}/proxy/metrics
+      
+      # Kubernetes Pods
+      - job_name: 'kubernetes-pods'
+        kubernetes_sd_configs:
+          - role: pod
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+            action: keep
+            regex: true
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+            action: replace
+            target_label: __metrics_path__
+            regex: (.+)
+          - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+            action: replace
+            regex: ([^:]+)(?::\d+)?;(\d+)
+            replacement: $1:$2
+            target_label: __address__
+          - action: labelmap
+            regex: __meta_kubernetes_pod_label_(.+)
+          - source_labels: [__meta_kubernetes_namespace]
+            action: replace
+            target_label: kubernetes_namespace
+          - source_labels: [__meta_kubernetes_pod_name]
+            action: replace
+            target_label: kubernetes_pod_name
+      
+      # Healthcare Application Metrics
+      - job_name: 'reyada-frontend'
+        static_configs:
+          - targets: ['reyada-frontend:80']
+        metrics_path: '/metrics'
+        scrape_interval: 30s
+        scrape_timeout: 10s
+        params:
+          module: [http_2xx]
+        relabel_configs:
+          - source_labels: [__address__]
+            target_label: __param_target
+          - source_labels: [__param_target]
+            target_label: instance
+          - target_label: __address__
+            replacement: blackbox-exporter:9115
+      
+      - job_name: 'reyada-api-gateway'
+        static_configs:
+          - targets: ['reyada-api-gateway:8000']
+        metrics_path: '/metrics'
+        scrape_interval: 15s
+        scrape_timeout: 10s
+      
+      - job_name: 'reyada-auth-service'
+        static_configs:
+          - targets: ['reyada-auth-service:8001']
+        metrics_path: '/metrics'
+        scrape_interval: 15s
+      
+      - job_name: 'reyada-patient-service'
+        static_configs:
+          - targets: ['reyada-patient-service:8002']
+        metrics_path: '/metrics'
+        scrape_interval: 15s
+      
+      - job_name: 'reyada-clinical-service'
+        static_configs:
+          - targets: ['reyada-clinical-service:8003']
+        metrics_path: '/metrics'
+        scrape_interval: 15s
+      
+      - job_name: 'reyada-compliance-service'
+        static_configs:
+          - targets: ['reyada-compliance-service:8004']
+        metrics_path: '/metrics'
+        scrape_interval: 15s
+      
+      # Database Monitoring
+      - job_name: 'postgres-exporter'
+        static_configs:
+          - targets: ['postgres-exporter:9187']
+        scrape_interval: 30s
+      
+      - job_name: 'mongodb-exporter'
+        static_configs:
+          - targets: ['mongodb-exporter:9216']
+        scrape_interval: 30s
+      
+      - job_name: 'redis-exporter'
+        static_configs:
+          - targets: ['redis-exporter:9121']
+        scrape_interval: 30s
+      
+      - job_name: 'elasticsearch-exporter'
+        static_configs:
+          - targets: ['elasticsearch-exporter:9114']
+        scrape_interval: 30s
+      
+      # Healthcare-specific monitoring
+      - job_name: 'doh-compliance-monitor'
+        static_configs:
+          - targets: ['reyada-compliance-service:8004']
+        metrics_path: '/metrics/doh'
+        scrape_interval: 60s
+        params:
+          format: ['prometheus']
+        metric_relabel_configs:
+          - source_labels: [__name__]
+            regex: 'doh_compliance_.*'
+            target_label: compliance_type
+            replacement: 'doh'
+        honor_labels: true
+        scrape_timeout: 30s
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            regex: reyada-compliance-service
+            action: keep
+      
+      # Real-time patient monitoring
+      - job_name: 'patient-monitoring'
+        static_configs:
+          - targets: ['reyada-patient-service:8002']
+        metrics_path: '/metrics/patients'
+        scrape_interval: 30s
+        scrape_timeout: 15s
+        honor_labels: true
+        metric_relabel_configs:
+          - source_labels: [patient_status]
+            regex: 'critical|emergency'
+            target_label: alert_priority
+            replacement: 'high'
+          - source_labels: [patient_status]
+            regex: 'stable'
+            target_label: alert_priority
+            replacement: 'low'
+      
+      # Clinical workflow monitoring
+      - job_name: 'clinical-workflows'
+        static_configs:
+          - targets: ['reyada-clinical-service:8003']
+        metrics_path: '/metrics/workflows'
+        scrape_interval: 15s
+        metric_relabel_configs:
+          - source_labels: [workflow_status]
+            regex: 'failed|timeout'
+            target_label: alert_required
+            replacement: 'true'
+      
+      - job_name: 'daman-integration-monitor'
+        static_configs:
+          - targets: ['reyada-compliance-service:8004']
+        metrics_path: '/metrics/daman'
+        scrape_interval: 60s
+      
+      - job_name: 'clinical-workflow-monitor'
+        static_configs:
+          - targets: ['reyada-clinical-service:8003']
+        metrics_path: '/metrics/workflows'
+        scrape_interval: 30s
+      
+      # External service monitoring
+      - job_name: 'blackbox-http'
+        metrics_path: /probe
+        params:
+          module: [http_2xx]
+        static_configs:
+          - targets:
+            - https://reyada-homecare.ae
+            - https://api.reyada-homecare.ae/health
+            - https://ws.reyada-homecare.ae/health
+            - https://auth.reyada-homecare.ae/health
+            - https://doh-compliance.reyada-homecare.ae/health
+        relabel_configs:
+          - source_labels: [__address__]
+            target_label: __param_target
+          - source_labels: [__param_target]
+            target_label: instance
+          - target_label: __address__
+            replacement: blackbox-exporter:9115
+      
+      # SSL certificate monitoring
+      - job_name: 'blackbox-ssl'
+        metrics_path: /probe
+        params:
+          module: [ssl_expire]
+        static_configs:
+          - targets:
+            - reyada-homecare.ae:443
+            - api.reyada-homecare.ae:443
+            - auth.reyada-homecare.ae:443
+            - doh-compliance.reyada-homecare.ae:443
+            - ws.reyada-homecare.ae:443
+        relabel_configs:
+          - source_labels: [__address__]
+            target_label: __param_target
+          - source_labels: [__param_target]
+            target_label: instance
+          - target_label: __address__
+            replacement: blackbox-exporter:9115
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+  namespace: reyada-homecare
+  labels:
+    app: prometheus
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prometheus
+  template:
+    metadata:
+      labels:
+        app: prometheus
+    spec:
+      serviceAccountName: prometheus
+      containers:
+      - name: prometheus
+        image: prom/prometheus:v2.45.0
+        args:
+          - '--config.file=/etc/prometheus/prometheus.yml'
+          - '--storage.tsdb.path=/prometheus/'
+          - '--web.console.libraries=/etc/prometheus/console_libraries'
+          - '--web.console.templates=/etc/prometheus/consoles'
+          - '--storage.tsdb.retention.time=30d'
+          - '--web.enable-lifecycle'
+          - '--web.enable-admin-api'
+        ports:
+        - containerPort: 9090
+        resources:
+          requests:
+            cpu: 1000m
+            memory: 2Gi
+          limits:
+            cpu: 4000m
+            memory: 8Gi
+        volumeMounts:
+        - name: prometheus-config
+          mountPath: /etc/prometheus/
+        - name: prometheus-storage
+          mountPath: /prometheus/
+        - name: prometheus-rules
+          mountPath: /etc/prometheus/rules/
+        livenessProbe:
+          httpGet:
+            path: /-/healthy
+            port: 9090
+          initialDelaySeconds: 30
+          periodSeconds: 15
+          timeoutSeconds: 10
+          successThreshold: 1
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /-/ready
+            port: 9090
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+      volumes:
+      - name: prometheus-config
+        configMap:
+          name: prometheus-config
+      - name: prometheus-storage
+        persistentVolumeClaim:
+          claimName: prometheus-storage
+      - name: prometheus-rules
+        configMap:
+          name: prometheus-rules
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+  namespace: reyada-homecare
+  labels:
+    app: prometheus
+spec:
+  selector:
+    app: prometheus
+  ports:
+  - port: 9090
+    targetPort: 9090
+  type: ClusterIP
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: prometheus-storage
+  namespace: reyada-homecare
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: gp2
+  resources:
+    requests:
+      storage: 100Gi
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: prometheus
+  namespace: reyada-homecare
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: prometheus
+rules:
+- apiGroups: [""]
+  resources:
+  - nodes
+  - nodes/proxy
+  - services
+  - endpoints
+  - pods
+  verbs: ["get", "list", "watch"]
+- apiGroups:
+  - extensions
+  resources:
+  - ingresses
+  verbs: ["get", "list", "watch"]
+- nonResourceURLs: ["/metrics"]
+  verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: prometheus
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: prometheus
+subjects:
+- kind: ServiceAccount
+  name: prometheus
+  namespace: reyada-homecare
