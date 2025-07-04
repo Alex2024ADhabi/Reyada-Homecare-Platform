@@ -711,28 +711,28 @@ const EnhancedSecurityDashboard: React.FC<EnhancedSecurityDashboardProps> = ({
         </TabsContent>
 
         <TabsContent value="data-protection" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Database className="h-5 w-5" />
-                Advanced Data Protection
-              </CardTitle>
-              <CardDescription>
-                Encryption, privacy compliance, and data integrity
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-6">
-                <div className="text-center p-4 bg-green-50 rounded-lg">
-                  <div className="text-3xl font-bold text-green-600">
-                    {securityAssessment?.dataProtection.encryptionScore || 0}%
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Database className="h-5 w-5" />
+                  Advanced Data Protection
+                </CardTitle>
+                <CardDescription>
+                  Encryption, privacy compliance, and data integrity
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-6">
+                  <div className="text-center p-4 bg-green-50 rounded-lg">
+                    <div className="text-3xl font-bold text-green-600">
+                      {securityAssessment?.dataProtection.encryptionScore || 0}%
+                    </div>
+                    <div className="text-sm text-green-600">
+                      Overall Data Protection Score
+                    </div>
                   </div>
-                  <div className="text-sm text-green-600">
-                    Overall Data Protection Score
-                  </div>
-                </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-3">
                     <h4 className="font-semibold">Encryption & Security</h4>
                     <div className="space-y-2">
@@ -774,36 +774,79 @@ const EnhancedSecurityDashboard: React.FC<EnhancedSecurityDashboardProps> = ({
                       </div>
                     </div>
                   </div>
+                </div>
+              </CardContent>
+            </Card>
 
-                  <div className="space-y-3">
-                    <h4 className="font-semibold">Privacy Compliance</h4>
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm">HIPAA Privacy</span>
-                        <Badge
-                          className={getSecurityScoreBadge(
-                            securityAssessment?.dataProtection.privacyScore ||
-                              0,
-                          )}
-                        >
-                          {securityAssessment?.dataProtection.privacyScore || 0}
-                          %
-                        </Badge>
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Lock className="h-5 w-5" />
+                  End-to-End Encryption Metrics
+                </CardTitle>
+                <CardDescription>
+                  Real-time encryption performance and compliance
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="text-center p-3 bg-blue-50 rounded-lg">
+                      <div className="text-xl font-bold text-blue-600">
+                        {encryptionMetrics?.totalEncryptions || 0}
                       </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm">UAE Data Protection</span>
-                        <Badge className={getSecurityScoreBadge(91)}>91%</Badge>
+                      <div className="text-xs text-blue-600">
+                        Total Encryptions
                       </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm">PHI Safeguards</span>
-                        <Badge className={getSecurityScoreBadge(96)}>96%</Badge>
+                    </div>
+                    <div className="text-center p-3 bg-green-50 rounded-lg">
+                      <div className="text-xl font-bold text-green-600">
+                        {encryptionMetrics?.totalDecryptions || 0}
+                      </div>
+                      <div className="text-xs text-green-600">
+                        Total Decryptions
                       </div>
                     </div>
                   </div>
+
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span>Avg Encryption Time</span>
+                      <span>
+                        {encryptionMetrics?.averageEncryptionTime.toFixed(2) ||
+                          0}
+                        ms
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span>Avg Decryption Time</span>
+                      <span>
+                        {encryptionMetrics?.averageDecryptionTime.toFixed(2) ||
+                          0}
+                        ms
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span>Key Rotations</span>
+                      <span>{encryptionMetrics?.keyRotations || 0}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span>Failed Operations</span>
+                      <span>{encryptionMetrics?.failedOperations || 0}</span>
+                    </div>
+                  </div>
+
+                  <div className="pt-2">
+                    <div className="flex justify-between text-sm mb-2">
+                      <span>HIPAA Compliance Score</span>
+                      <span>{encryptionMetrics?.complianceScore || 0}%</span>
+                    </div>
+                    <Progress value={encryptionMetrics?.complianceScore || 0} />
+                  </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
 
         <TabsContent value="vulnerabilities" className="space-y-4">

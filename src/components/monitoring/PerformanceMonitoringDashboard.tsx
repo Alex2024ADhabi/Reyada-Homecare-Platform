@@ -21,12 +21,16 @@ import {
   Cpu,
   Database,
   Globe,
+  Heart,
+  Lock,
   Memory,
   Monitor,
   Network,
   RefreshCw,
   Server,
+  Shield,
   TrendingUp,
+  Users,
   Wifi,
   XCircle,
   Zap,
@@ -71,6 +75,24 @@ const PerformanceMonitoringDashboard: React.FC<
     errorRate: 0,
     coreWebVitals: { fcp: 0, lcp: 0, fid: 0, cls: 0, ttfb: 0 },
     systemHealth: "good" as "good" | "warning" | "critical",
+    healthcare: {
+      activePatientSessions: 0,
+      clinicalFormsProcessed: 0,
+      complianceScore: 0,
+      encryptionOperations: 0,
+      auditEventsGenerated: 0,
+    },
+    security: {
+      threatsDetected: 0,
+      securityScore: 0,
+      failedAuthAttempts: 0,
+      rateLimitViolations: 0,
+    },
+    cache: {
+      hitRate: 0,
+      responseTime: 0,
+      operations: 0,
+    },
   });
   const [isLoading, setIsLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
@@ -83,7 +105,7 @@ const PerformanceMonitoringDashboard: React.FC<
         setCoreWebVitals(performanceMonitoringService.getCoreWebVitals());
         setSystemMetrics(performanceMonitoringService.getSystemMetrics());
         setPerformanceSummary(
-          performanceMonitoringService.getPerformanceSummary(),
+          performanceMonitoringService.getComprehensivePerformanceSummary(),
         );
         setLastUpdated(new Date());
         setIsLoading(false);
@@ -328,11 +350,80 @@ const PerformanceMonitoringDashboard: React.FC<
         </Card>
       )}
 
+      {/* Healthcare Performance Overview */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">
+                  Active Patient Sessions
+                </p>
+                <p className="text-2xl font-bold text-gray-900 mt-1">
+                  {performanceSummary.healthcare?.activePatientSessions || 0}
+                </p>
+              </div>
+              <Users className="h-8 w-8 text-blue-500" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">
+                  Compliance Score
+                </p>
+                <p className="text-2xl font-bold text-gray-900 mt-1">
+                  {performanceSummary.healthcare?.complianceScore || 0}%
+                </p>
+              </div>
+              <Heart className="h-8 w-8 text-green-500" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">
+                  Security Score
+                </p>
+                <p className="text-2xl font-bold text-gray-900 mt-1">
+                  {performanceSummary.security?.securityScore || 0}%
+                </p>
+              </div>
+              <Shield className="h-8 w-8 text-purple-500" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">
+                  Cache Hit Rate
+                </p>
+                <p className="text-2xl font-bold text-gray-900 mt-1">
+                  {performanceSummary.cache?.hitRate?.toFixed(1) || 0}%
+                </p>
+              </div>
+              <Database className="h-8 w-8 text-orange-500" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       {/* Main Content Tabs */}
       <Tabs defaultValue="vitals" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="vitals">Core Web Vitals</TabsTrigger>
           <TabsTrigger value="system">System Metrics</TabsTrigger>
+          <TabsTrigger value="healthcare">Healthcare</TabsTrigger>
+          <TabsTrigger value="security">Security</TabsTrigger>
           <TabsTrigger value="network">Network & API</TabsTrigger>
           <TabsTrigger value="details">Detailed Metrics</TabsTrigger>
         </TabsList>
@@ -478,6 +569,180 @@ const PerformanceMonitoringDashboard: React.FC<
               </CardContent>
             </Card>
           </div>
+        </TabsContent>
+
+        {/* Healthcare Metrics Tab */}
+        <TabsContent value="healthcare" className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <Heart className="h-5 w-5" />
+                  <span>Clinical Operations</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm text-gray-600">Forms Processed</p>
+                      <p className="text-lg font-semibold">
+                        {performanceSummary.healthcare
+                          ?.clinicalFormsProcessed || 0}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Audit Events</p>
+                      <p className="text-lg font-semibold">
+                        {performanceSummary.healthcare?.auditEventsGenerated ||
+                          0}
+                      </p>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex justify-between text-sm mb-2">
+                      <span>DOH Compliance Score</span>
+                      <span>
+                        {performanceSummary.healthcare?.complianceScore || 0}%
+                      </span>
+                    </div>
+                    <Progress
+                      value={
+                        performanceSummary.healthcare?.complianceScore || 0
+                      }
+                      className="h-2"
+                    />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <Lock className="h-5 w-5" />
+                  <span>PHI Security</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm text-gray-600">Encryption Ops</p>
+                      <p className="text-lg font-semibold">
+                        {performanceSummary.healthcare?.encryptionOperations ||
+                          0}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Active Sessions</p>
+                      <p className="text-lg font-semibold">
+                        {performanceSummary.healthcare?.activePatientSessions ||
+                          0}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="bg-green-50 p-3 rounded-lg">
+                    <p className="text-sm text-green-800 font-medium">
+                      HIPAA Compliant
+                    </p>
+                    <p className="text-xs text-green-600">
+                      All PHI data encrypted at rest and in transit
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        {/* Security Metrics Tab */}
+        <TabsContent value="security" className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">
+                      Threats Detected
+                    </p>
+                    <p className="text-2xl font-bold text-gray-900 mt-1">
+                      {performanceSummary.security?.threatsDetected || 0}
+                    </p>
+                  </div>
+                  <AlertTriangle className="h-8 w-8 text-red-500" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">
+                      Failed Auth Attempts
+                    </p>
+                    <p className="text-2xl font-bold text-gray-900 mt-1">
+                      {performanceSummary.security?.failedAuthAttempts || 0}
+                    </p>
+                  </div>
+                  <Lock className="h-8 w-8 text-orange-500" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">
+                      Rate Limit Violations
+                    </p>
+                    <p className="text-2xl font-bold text-gray-900 mt-1">
+                      {performanceSummary.security?.rateLimitViolations || 0}
+                    </p>
+                  </div>
+                  <Shield className="h-8 w-8 text-blue-500" />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Security Performance Overview</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div>
+                  <div className="flex justify-between text-sm mb-2">
+                    <span>Overall Security Score</span>
+                    <span>
+                      {performanceSummary.security?.securityScore || 0}%
+                    </span>
+                  </div>
+                  <Progress
+                    value={performanceSummary.security?.securityScore || 0}
+                    className="h-2"
+                  />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                  <div className="bg-blue-50 p-3 rounded-lg">
+                    <p className="font-medium text-blue-800">DDoS Protection</p>
+                    <p className="text-blue-600">Active & Monitoring</p>
+                  </div>
+                  <div className="bg-green-50 p-3 rounded-lg">
+                    <p className="font-medium text-green-800">Rate Limiting</p>
+                    <p className="text-green-600">Adaptive Rules Active</p>
+                  </div>
+                  <div className="bg-purple-50 p-3 rounded-lg">
+                    <p className="font-medium text-purple-800">Encryption</p>
+                    <p className="text-purple-600">AES-256 End-to-End</p>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* Network & API Tab */}

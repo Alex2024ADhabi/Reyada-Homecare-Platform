@@ -128,6 +128,11 @@ import PlanOfCare from "./PlanOfCare";
 import DamanSubmissionForm from "./DamanSubmissionForm";
 import RoundsManagement from "./RoundsManagement";
 import { naturalLanguageProcessingService } from "@/services/natural-language-processing.service";
+import { clinicalWorkflowAutomationService } from "@/services/clinical-workflow-automation.service";
+import { patientSafetyMonitoringService } from "@/services/patient-safety-monitoring.service";
+import { healthcareRulesService } from "@/services/healthcare-rules.service";
+import { medicationManagementService } from "@/services/medication-management.service";
+import { carePlanAutomationService } from "@/services/care-plan-automation.service";
 import { MobileResponsiveLayout } from "@/components/ui/mobile-responsive";
 import { EnhancedToast } from "@/components/ui/enhanced-toast";
 import { toast } from "@/hooks/useToast";
@@ -530,6 +535,23 @@ const ClinicalDocumentation = ({
       telehealth: { enabled: false, status: "disconnected", lastSync: null },
     });
   const [isLoadingHealthcareData, setIsLoadingHealthcareData] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [realTimeSync, setRealTimeSync] = useState(true);
+  const [networkStatus, setNetworkStatus] = useState({ online: true });
+  const [clinicalDecisionSupport, setClinicalDecisionSupport] = useState<any[]>(
+    [],
+  );
+  const [patientSafetyAlerts, setPatientSafetyAlerts] = useState<any[]>([]);
+  const [medicationAlerts, setMedicationAlerts] = useState<any[]>([]);
+  const [carePlanRecommendations, setCarePlanRecommendations] = useState<any[]>(
+    [],
+  );
+  const [workflowProgress, setWorkflowProgress] = useState({
+    currentStep: "initialization",
+    completedSteps: 0,
+    totalSteps: 7,
+    estimatedTimeRemaining: 15,
+  });
 
   // Advanced Clinical Documentation Features
   const [clinicalTemplates, setClinicalTemplates] = useState<any[]>([]);
@@ -3823,6 +3845,307 @@ const ClinicalDocumentation = ({
               </Card>
             </div>
           )}
+
+          {/* Enhanced Clinical Decision Support Dashboard */}
+          {clinicalDecisionSupport.length > 0 && (
+            <div className="mb-6">
+              <Card className="bg-gradient-to-r from-green-50 to-teal-50 border-green-200">
+                <CardHeader>
+                  <CardTitle className="flex items-center text-green-900">
+                    <Brain className="h-5 w-5 mr-2" />
+                    Clinical Decision Support
+                  </CardTitle>
+                  <CardDescription>
+                    AI-powered clinical recommendations based on evidence-based
+                    guidelines
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {clinicalDecisionSupport.map((decision, index) => (
+                      <Alert
+                        key={index}
+                        className={`${
+                          decision.urgency === "immediate"
+                            ? "border-red-200 bg-red-50"
+                            : decision.urgency === "urgent"
+                              ? "border-orange-200 bg-orange-50"
+                              : "border-blue-200 bg-blue-50"
+                        }`}
+                      >
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertDescription>
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <h4 className="font-medium">
+                                {decision.recommendation}
+                              </h4>
+                              <div className="flex items-center gap-2">
+                                <Badge variant="outline" className="text-xs">
+                                  Evidence Level {decision.evidenceLevel}
+                                </Badge>
+                                <Badge
+                                  variant={
+                                    decision.urgency === "immediate"
+                                      ? "destructive"
+                                      : decision.urgency === "urgent"
+                                        ? "default"
+                                        : "secondary"
+                                  }
+                                >
+                                  {decision.urgency}
+                                </Badge>
+                              </div>
+                            </div>
+                            <p className="text-sm text-gray-600">
+                              {decision.rationale}
+                            </p>
+                            {decision.actions.length > 0 && (
+                              <div className="mt-2">
+                                <p className="text-xs font-medium mb-1">
+                                  Recommended Actions:
+                                </p>
+                                <ul className="text-xs space-y-1">
+                                  {decision.actions.map(
+                                    (action, actionIndex) => (
+                                      <li
+                                        key={actionIndex}
+                                        className="flex items-center gap-2"
+                                      >
+                                        <ArrowRight className="h-3 w-3" />
+                                        {action.description} (Priority:{" "}
+                                        {action.priority})
+                                      </li>
+                                    ),
+                                  )}
+                                </ul>
+                              </div>
+                            )}
+                          </div>
+                        </AlertDescription>
+                      </Alert>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* Patient Safety Monitoring Dashboard */}
+          {patientSafetyAlerts.length > 0 && (
+            <div className="mb-6">
+              <Card className="bg-gradient-to-r from-red-50 to-pink-50 border-red-200">
+                <CardHeader>
+                  <CardTitle className="flex items-center text-red-900">
+                    <Shield className="h-5 w-5 mr-2" />
+                    Patient Safety Monitoring
+                  </CardTitle>
+                  <CardDescription>
+                    Real-time patient safety alerts and risk assessments
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {patientSafetyAlerts.map((alert, index) => (
+                      <Alert key={index} variant="destructive">
+                        <AlertTriangle className="h-4 w-4" />
+                        <AlertDescription>
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="font-medium">{alert.title}</p>
+                              <p className="text-sm">{alert.description}</p>
+                              {alert.recommendation && (
+                                <p className="text-xs mt-1 text-gray-600">
+                                  Recommendation: {alert.recommendation}
+                                </p>
+                              )}
+                            </div>
+                            <Badge variant="destructive">
+                              {alert.severity}
+                            </Badge>
+                          </div>
+                        </AlertDescription>
+                      </Alert>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* Medication Safety Alerts */}
+          {medicationAlerts.length > 0 && (
+            <div className="mb-6">
+              <Card className="bg-gradient-to-r from-yellow-50 to-amber-50 border-yellow-200">
+                <CardHeader>
+                  <CardTitle className="flex items-center text-yellow-900">
+                    <Pill className="h-5 w-5 mr-2" />
+                    Medication Safety Alerts
+                  </CardTitle>
+                  <CardDescription>
+                    Drug interactions, allergies, and dosing recommendations
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {medicationAlerts.map((alert, index) => (
+                      <Alert
+                        key={index}
+                        className="border-yellow-200 bg-yellow-50"
+                      >
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertDescription>
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="font-medium">{alert.title}</p>
+                              <p className="text-sm">{alert.description}</p>
+                              {alert.action && (
+                                <p className="text-xs mt-1 text-gray-600">
+                                  Action: {alert.action}
+                                </p>
+                              )}
+                            </div>
+                            <Badge variant="outline">{alert.type}</Badge>
+                          </div>
+                        </AlertDescription>
+                      </Alert>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* Care Plan Recommendations */}
+          {carePlanRecommendations.length > 0 && (
+            <div className="mb-6">
+              <Card className="bg-gradient-to-r from-purple-50 to-indigo-50 border-purple-200">
+                <CardHeader>
+                  <CardTitle className="flex items-center text-purple-900">
+                    <FileSpreadsheet className="h-5 w-5 mr-2" />
+                    Automated Care Plan Recommendations
+                  </CardTitle>
+                  <CardDescription>
+                    Personalized care plan suggestions based on patient data and
+                    clinical guidelines
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {carePlanRecommendations.map((recommendation, index) => (
+                      <div
+                        key={index}
+                        className="p-4 bg-white rounded-lg border"
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <h4 className="font-medium">
+                            {recommendation.title}
+                          </h4>
+                          <Badge variant="outline">
+                            {recommendation.category}
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-gray-600 mb-3">
+                          {recommendation.description}
+                        </p>
+                        {recommendation.goals && (
+                          <div className="space-y-2">
+                            <p className="text-xs font-medium">Goals:</p>
+                            {recommendation.goals.map((goal, goalIndex) => (
+                              <div
+                                key={goalIndex}
+                                className="flex items-center justify-between text-sm"
+                              >
+                                <span>{goal.description}</span>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs">
+                                    Target: {goal.target}
+                                  </span>
+                                  <Progress
+                                    value={goal.progress}
+                                    className="w-16 h-2"
+                                  />
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* Enhanced Workflow Progress Dashboard */}
+          <div className="mb-6">
+            <Card className="bg-gradient-to-r from-indigo-50 to-blue-50 border-indigo-200">
+              <CardHeader>
+                <CardTitle className="flex items-center text-indigo-900">
+                  <Workflow className="h-5 w-5 mr-2" />
+                  Healthcare Workflow Progress
+                </CardTitle>
+                <CardDescription>
+                  Real-time workflow automation and clinical decision support
+                  progress
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">
+                      Current Step:{" "}
+                      {workflowProgress.currentStep.replace("_", " ")}
+                    </span>
+                    <span className="text-sm font-medium">
+                      {workflowProgress.completedSteps}/
+                      {workflowProgress.totalSteps} Complete
+                    </span>
+                  </div>
+                  <Progress
+                    value={
+                      (workflowProgress.completedSteps /
+                        workflowProgress.totalSteps) *
+                      100
+                    }
+                    className="h-3"
+                  />
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
+                    <div className="p-3 bg-white rounded border">
+                      <div className="text-lg font-bold text-green-600">
+                        {workflowProgress.completedSteps}
+                      </div>
+                      <div className="text-xs text-gray-600">
+                        Steps Completed
+                      </div>
+                    </div>
+                    <div className="p-3 bg-white rounded border">
+                      <div className="text-lg font-bold text-blue-600">
+                        {workflowProgress.estimatedTimeRemaining}min
+                      </div>
+                      <div className="text-xs text-gray-600">
+                        Est. Time Remaining
+                      </div>
+                    </div>
+                    <div className="p-3 bg-white rounded border">
+                      <div className="text-lg font-bold text-purple-600">
+                        {Math.round(
+                          (workflowProgress.completedSteps /
+                            workflowProgress.totalSteps) *
+                            100,
+                        )}
+                        %
+                      </div>
+                      <div className="text-xs text-gray-600">
+                        Workflow Complete
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
 
           {/* System Health Dashboard */}
           <div className="mb-6">

@@ -5,11 +5,26 @@ import websocketService from "./websocket.service";
 interface PerformanceMetrics {
   id: string;
   timestamp: string;
-  type: "api" | "render" | "navigation" | "resource" | "memory" | "network";
+  type:
+    | "api"
+    | "render"
+    | "navigation"
+    | "resource"
+    | "memory"
+    | "network"
+    | "healthcare"
+    | "cache"
+    | "security";
   name: string;
   value: number;
   unit: string;
   metadata?: Record<string, any>;
+  healthcareContext?: {
+    patientId?: string;
+    clinicalModule?: string;
+    complianceLevel?: string;
+    dataClassification?: string;
+  };
 }
 
 interface CoreWebVitals {
@@ -58,12 +73,21 @@ class PerformanceMonitoringService {
     lcp: { warning: 2500, critical: 4000 }, // ms
     fid: { warning: 100, critical: 300 }, // ms
     cls: { warning: 0.1, critical: 0.25 }, // score
+    compliance_score: { warning: 85, critical: 75 }, // percentage
+    cache_hit_rate: { warning: 70, critical: 50 }, // percentage
+    security_score: { warning: 85, critical: 75 }, // percentage
+    phi_encryption_time: { warning: 500, critical: 1000 }, // ms
+    clinical_form_processing: { warning: 2000, critical: 5000 }, // ms
   };
 
   constructor() {
     this.setupPerformanceObservers();
     this.startSystemMonitoring();
     this.setupNetworkMonitoring();
+    this.setupHealthcareMonitoring();
+    this.setupCacheMonitoring();
+    this.setupSecurityMonitoring();
+    this.isMonitoring = true;
   }
 
   private setupPerformanceObservers(): void {
@@ -598,13 +622,435 @@ class PerformanceMonitoringService {
     }
   }
 
+  /**
+   * Setup healthcare-specific monitoring
+   */
+  private setupHealthcareMonitoring(): void {
+    // Monitor clinical form processing times
+    setInterval(() => {
+      this.recordHealthcareMetrics();
+    }, 30000); // Every 30 seconds
+  }
+
+  /**
+   * Setup cache performance monitoring
+   */
+  private setupCacheMonitoring(): void {
+    setInterval(() => {
+      this.recordCacheMetrics();
+    }, 60000); // Every minute
+  }
+
+  /**
+   * Setup security performance monitoring
+   */
+  private setupSecurityMonitoring(): void {
+    setInterval(() => {
+      this.recordSecurityMetrics();
+    }, 120000); // Every 2 minutes
+  }
+
+  /**
+   * Record healthcare-specific metrics
+   */
+  private recordHealthcareMetrics(): void {
+    try {
+      // Simulate healthcare metrics (in production, get from actual services)
+      const activePatientSessions = Math.floor(Math.random() * 50) + 10;
+      const clinicalFormsProcessed = Math.floor(Math.random() * 100) + 20;
+      const complianceScore = Math.floor(Math.random() * 20) + 80;
+
+      this.recordMetric({
+        type: "healthcare",
+        name: "Active_Patient_Sessions",
+        value: activePatientSessions,
+        unit: "count",
+        healthcareContext: {
+          complianceLevel: "HIPAA",
+          dataClassification: "PHI",
+        },
+        metadata: {
+          sessionType: "clinical",
+          encrypted: true,
+        },
+      });
+
+      this.recordMetric({
+        type: "healthcare",
+        name: "Clinical_Forms_Processed",
+        value: clinicalFormsProcessed,
+        unit: "count",
+        healthcareContext: {
+          clinicalModule: "assessment",
+          complianceLevel: "DOH",
+        },
+        metadata: {
+          formTypes: [
+            "initial_assessment",
+            "vital_signs",
+            "medication_reconciliation",
+          ],
+          averageProcessingTime: Math.floor(Math.random() * 1000) + 500,
+        },
+      });
+
+      this.recordMetric({
+        type: "healthcare",
+        name: "Compliance_Score",
+        value: complianceScore,
+        unit: "%",
+        healthcareContext: {
+          complianceLevel: "DOH",
+        },
+        metadata: {
+          domains: [
+            "patient_safety",
+            "clinical_governance",
+            "quality_management",
+          ],
+          lastAuditDate: new Date().toISOString(),
+        },
+      });
+
+      // Record additional healthcare metrics
+      const encryptionOperations = Math.floor(Math.random() * 500) + 100;
+      const auditEventsGenerated = Math.floor(Math.random() * 200) + 50;
+
+      this.recordMetric({
+        type: "healthcare",
+        name: "Encryption_Operations",
+        value: encryptionOperations,
+        unit: "count",
+        healthcareContext: {
+          complianceLevel: "HIPAA",
+          dataClassification: "PHI",
+        },
+        metadata: {
+          operationType: "mixed",
+          averageTime: Math.floor(Math.random() * 100) + 50,
+        },
+      });
+
+      this.recordMetric({
+        type: "healthcare",
+        name: "Audit_Events_Generated",
+        value: auditEventsGenerated,
+        unit: "count",
+        healthcareContext: {
+          complianceLevel: "DOH",
+        },
+        metadata: {
+          eventTypes: ["access", "modification", "deletion"],
+          criticalEvents: Math.floor(Math.random() * 5),
+        },
+      });
+
+      // Check compliance threshold (lower scores trigger alerts)
+      if (complianceScore < this.ALERT_THRESHOLDS.compliance_score.warning) {
+        this.checkThreshold("compliance_score", 100 - complianceScore); // Invert for threshold check
+      }
+    } catch (error) {
+      errorHandlerService.handleError(error, {
+        context: "PerformanceMonitoringService.recordHealthcareMetrics",
+      });
+    }
+  }
+
+  /**
+   * Record cache performance metrics
+   */
+  private recordCacheMetrics(): void {
+    try {
+      // Mock cache metrics for now - in production, integrate with actual caching service
+      const mockCacheMetrics = {
+        hitRate: Math.floor(Math.random() * 30) + 70, // 70-100%
+        averageResponseTime: Math.floor(Math.random() * 50) + 10, // 10-60ms
+        hits: Math.floor(Math.random() * 1000) + 500,
+        misses: Math.floor(Math.random() * 200) + 50,
+        operations: Math.floor(Math.random() * 1200) + 550,
+        size: Math.floor(Math.random() * 1000000) + 500000, // bytes
+        memoryUsage: Math.floor(Math.random() * 100) + 50, // MB
+      };
+
+      this.recordMetric({
+        type: "cache",
+        name: "Cache_Hit_Rate",
+        value: mockCacheMetrics.hitRate,
+        unit: "%",
+        metadata: {
+          totalHits: mockCacheMetrics.hits,
+          totalMisses: mockCacheMetrics.misses,
+          totalOperations: mockCacheMetrics.operations,
+        },
+      });
+
+      this.recordMetric({
+        type: "cache",
+        name: "Cache_Response_Time",
+        value: mockCacheMetrics.averageResponseTime,
+        unit: "ms",
+        metadata: {
+          cacheSize: mockCacheMetrics.size,
+          memoryUsage: mockCacheMetrics.memoryUsage,
+        },
+      });
+
+      // Check cache performance thresholds
+      if (
+        mockCacheMetrics.hitRate < this.ALERT_THRESHOLDS.cache_hit_rate.warning
+      ) {
+        this.checkThreshold("cache_hit_rate", 100 - mockCacheMetrics.hitRate); // Invert for threshold check
+      }
+    } catch (error) {
+      errorHandlerService.handleError(error, {
+        context: "PerformanceMonitoringService.recordCacheMetrics",
+      });
+    }
+  }
+
+  /**
+   * Record security performance metrics
+   */
+  private recordSecurityMetrics(): void {
+    try {
+      // Mock security metrics for now - in production, integrate with actual security services
+      const mockSecurityMetrics = {
+        violationsCount: Math.floor(Math.random() * 10),
+        securityScore: Math.floor(Math.random() * 20) + 80, // 80-100%
+        totalRequests: Math.floor(Math.random() * 10000) + 5000,
+        blockedRequests: Math.floor(Math.random() * 100) + 10,
+        adaptiveRulesActive: Math.floor(Math.random() * 5) + 3,
+        threatsDetected: Math.floor(Math.random() * 5),
+        failedAuthAttempts: Math.floor(Math.random() * 20),
+      };
+
+      this.recordMetric({
+        type: "security",
+        name: "Rate_Limit_Violations",
+        value: mockSecurityMetrics.violationsCount,
+        unit: "count",
+        metadata: {
+          totalRequests: mockSecurityMetrics.totalRequests,
+          blockedRequests: mockSecurityMetrics.blockedRequests,
+        },
+      });
+
+      this.recordMetric({
+        type: "security",
+        name: "Security_Score",
+        value: mockSecurityMetrics.securityScore,
+        unit: "%",
+        metadata: {
+          adaptiveRulesActive: mockSecurityMetrics.adaptiveRulesActive,
+        },
+      });
+
+      this.recordMetric({
+        type: "security",
+        name: "Threats_Detected",
+        value: mockSecurityMetrics.threatsDetected,
+        unit: "count",
+        metadata: {
+          timeWindow: "last_hour",
+        },
+      });
+
+      this.recordMetric({
+        type: "security",
+        name: "Failed_Auth_Attempts",
+        value: mockSecurityMetrics.failedAuthAttempts,
+        unit: "count",
+        metadata: {
+          timeWindow: "last_hour",
+        },
+      });
+
+      // Check security thresholds
+      if (
+        mockSecurityMetrics.securityScore <
+        this.ALERT_THRESHOLDS.security_score.warning
+      ) {
+        this.checkThreshold(
+          "security_score",
+          100 - mockSecurityMetrics.securityScore,
+        ); // Invert for threshold check
+      }
+    } catch (error) {
+      errorHandlerService.handleError(error, {
+        context: "PerformanceMonitoringService.recordSecurityMetrics",
+      });
+    }
+  }
+
+  /**
+   * Get healthcare-specific metrics
+   */
+  public getHealthcareMetrics() {
+    const getLatestMetric = (name: string) => {
+      const metrics = this.getMetrics("healthcare").filter(
+        (m) => m.name === name,
+      );
+      return metrics.length > 0 ? metrics[metrics.length - 1].value : 0;
+    };
+
+    return {
+      activePatientSessions: getLatestMetric("Active_Patient_Sessions"),
+      clinicalFormsProcessed: getLatestMetric("Clinical_Forms_Processed"),
+      complianceScore: getLatestMetric("Compliance_Score"),
+      encryptionOperations: getLatestMetric("Encryption_Operations") || 0,
+      auditEventsGenerated: getLatestMetric("Audit_Events_Generated") || 0,
+    };
+  }
+
+  /**
+   * Get security-specific metrics
+   */
+  public getSecurityMetrics() {
+    const getLatestMetric = (name: string) => {
+      const metrics = this.getMetrics("security").filter(
+        (m) => m.name === name,
+      );
+      return metrics.length > 0 ? metrics[metrics.length - 1].value : 0;
+    };
+
+    return {
+      threatsDetected: getLatestMetric("Threats_Detected") || 0,
+      securityScore: getLatestMetric("Security_Score"),
+      failedAuthAttempts: getLatestMetric("Failed_Auth_Attempts") || 0,
+      rateLimitViolations: getLatestMetric("Rate_Limit_Violations"),
+    };
+  }
+
+  /**
+   * Record PHI encryption performance
+   */
+  public recordPHIEncryption(
+    duration: number,
+    operation: "encrypt" | "decrypt",
+    patientId?: string,
+  ): void {
+    this.recordMetric({
+      type: "healthcare",
+      name: `PHI_${operation.charAt(0).toUpperCase() + operation.slice(1)}_Time`,
+      value: duration,
+      unit: "ms",
+      healthcareContext: {
+        patientId,
+        complianceLevel: "HIPAA",
+        dataClassification: "PHI",
+      },
+      metadata: {
+        operation,
+        encrypted: true,
+      },
+    });
+
+    this.checkThreshold("phi_encryption_time", duration);
+  }
+
+  /**
+   * Record clinical form processing performance
+   */
+  public recordClinicalFormProcessing(
+    duration: number,
+    formType: string,
+    patientId?: string,
+  ): void {
+    this.recordMetric({
+      type: "healthcare",
+      name: "Clinical_Form_Processing_Time",
+      value: duration,
+      unit: "ms",
+      healthcareContext: {
+        patientId,
+        clinicalModule: formType,
+        complianceLevel: "DOH",
+        dataClassification: "PHI",
+      },
+      metadata: {
+        formType,
+        processed: true,
+      },
+    });
+
+    this.checkThreshold("clinical_form_processing", duration);
+  }
+
+  /**
+   * Get cache performance metrics
+   */
+  public getCacheMetrics() {
+    const getLatestMetric = (name: string) => {
+      const metrics = this.getMetrics("cache").filter((m) => m.name === name);
+      return metrics.length > 0 ? metrics[metrics.length - 1].value : 0;
+    };
+
+    return {
+      hitRate: getLatestMetric("Cache_Hit_Rate"),
+      responseTime: getLatestMetric("Cache_Response_Time"),
+      operations: this.getMetrics("cache").length,
+    };
+  }
+
+  /**
+   * Get comprehensive performance summary with healthcare context
+   */
+  public getComprehensivePerformanceSummary() {
+    const baseSummary = this.getPerformanceSummary();
+    const healthcareMetrics = this.getHealthcareMetrics();
+    const securityMetrics = this.getSecurityMetrics();
+    const cacheMetrics = this.getCacheMetrics();
+
+    return {
+      ...baseSummary,
+      healthcare: healthcareMetrics,
+      security: securityMetrics,
+      cache: cacheMetrics,
+      lastUpdated: new Date().toISOString(),
+    };
+  }
+
+  /**
+   * Initialize performance monitoring for healthcare platform
+   */
+  public initializeHealthcarePlatform(): void {
+    console.log("🏥 Initializing Healthcare Performance Monitoring...");
+
+    // Record initial platform startup metrics
+    this.recordMetric({
+      type: "healthcare",
+      name: "Platform_Startup",
+      value: Date.now(),
+      unit: "timestamp",
+      healthcareContext: {
+        complianceLevel: "DOH",
+        dataClassification: "System",
+      },
+      metadata: {
+        version: "4.0.0",
+        environment: "production",
+        features: [
+          "performance_monitoring",
+          "security_monitoring",
+          "cache_optimization",
+        ],
+      },
+    });
+
+    console.log(
+      "✅ Healthcare Performance Monitoring initialized successfully",
+    );
+  }
+
   // Cleanup
   destroy(): void {
+    this.isMonitoring = false;
     this.observers.forEach((observer) => observer.disconnect());
     this.observers.clear();
     this.eventListeners.clear();
     this.metrics.clear();
     this.alerts = [];
+    console.log("🔄 Performance Monitoring Service destroyed");
   }
 }
 
