@@ -43,7 +43,18 @@ import {
   TrendingDown as TrendingDownIcon,
   TrendingUp as TrendingUpIcon,
   Minus,
+  Settings,
+  Monitor,
+  Stethoscope,
+  Building,
+  Cpu,
 } from "lucide-react";
+
+// Import all analytics dashboard components
+import BusinessIntelligenceDashboard from "@/components/analytics/BusinessIntelligenceDashboard";
+import ClinicalAnalyticsPlatform from "@/components/analytics/ClinicalAnalyticsPlatform";
+import OperationalAnalyticsDashboard from "@/components/analytics/OperationalAnalyticsDashboard";
+import PerformanceAnalyticsDashboard from "@/components/analytics/PerformanceAnalyticsDashboard";
 import { useOfflineSync } from "@/hooks/useOfflineSync";
 import AdvancedSearch, {
   SearchFilter,
@@ -133,10 +144,20 @@ interface PredictiveInsight {
 
 interface UnifiedAnalyticsDashboardProps {
   isOffline?: boolean;
+  facilityId?: string;
+  userRole?: string;
+  customFilters?: {
+    timeframe?: string;
+    department?: string;
+    priority?: string;
+  };
 }
 
 const UnifiedAnalyticsDashboard: React.FC<UnifiedAnalyticsDashboardProps> = ({
   isOffline = false,
+  facilityId = "RHHCS-001",
+  userRole = "admin",
+  customFilters = {},
 }) => {
   const { isOnline, isSyncing, pendingItems } = useOfflineSync();
   const [activeTab, setActiveTab] = useState("overview");
@@ -819,10 +840,26 @@ const UnifiedAnalyticsDashboard: React.FC<UnifiedAnalyticsDashboardProps> = ({
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-10">
+        <TabsList className="grid w-full grid-cols-6 lg:grid-cols-12">
           <TabsTrigger value="overview">
             <Gauge className="h-4 w-4 mr-2" />
             Overview
+          </TabsTrigger>
+          <TabsTrigger value="business">
+            <Building className="h-4 w-4 mr-2" />
+            Business
+          </TabsTrigger>
+          <TabsTrigger value="clinical">
+            <Stethoscope className="h-4 w-4 mr-2" />
+            Clinical
+          </TabsTrigger>
+          <TabsTrigger value="operational">
+            <Activity className="h-4 w-4 mr-2" />
+            Operations
+          </TabsTrigger>
+          <TabsTrigger value="performance">
+            <Monitor className="h-4 w-4 mr-2" />
+            Performance
           </TabsTrigger>
           <TabsTrigger value="kpis">
             <Target className="h-4 w-4 mr-2" />
@@ -835,14 +872,6 @@ const UnifiedAnalyticsDashboard: React.FC<UnifiedAnalyticsDashboardProps> = ({
           <TabsTrigger value="predictive">
             <Brain className="h-4 w-4 mr-2" />
             Predictive
-          </TabsTrigger>
-          <TabsTrigger value="optimization">
-            <Activity className="h-4 w-4 mr-2" />
-            Optimization
-          </TabsTrigger>
-          <TabsTrigger value="testing">
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Testing
           </TabsTrigger>
           <TabsTrigger value="compliance">
             <Shield className="h-4 w-4 mr-2" />
@@ -1269,6 +1298,113 @@ const UnifiedAnalyticsDashboard: React.FC<UnifiedAnalyticsDashboardProps> = ({
                       </div>
                     </div>
                   ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        {/* Business Intelligence Tab */}
+        <TabsContent value="business" className="mt-6">
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <Building className="h-5 w-5 mr-2" />
+                  Business Intelligence Dashboard
+                </CardTitle>
+                <CardDescription>
+                  Executive KPIs, strategic insights, market analysis, and
+                  forecasting
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <BusinessIntelligenceDashboard
+                    facilityId={facilityId}
+                    timeframe={customFilters.timeframe || timeframe}
+                    userRole={userRole}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        {/* Clinical Analytics Tab */}
+        <TabsContent value="clinical" className="mt-6">
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <Stethoscope className="h-5 w-5 mr-2" />
+                  Clinical Analytics Platform
+                </CardTitle>
+                <CardDescription>
+                  Patient outcomes, quality metrics, patient safety, and care
+                  pathways
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <ClinicalAnalyticsPlatform
+                    facilityId={facilityId}
+                    timeframe={customFilters.timeframe || timeframe}
+                    department={customFilters.department}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        {/* Operational Analytics Tab */}
+        <TabsContent value="operational" className="mt-6">
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <Activity className="h-5 w-5 mr-2" />
+                  Operational Analytics Dashboard
+                </CardTitle>
+                <CardDescription>
+                  Real-time operational metrics, workflow analysis, and resource
+                  optimization
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <OperationalAnalyticsDashboard
+                    facilityId={facilityId}
+                    refreshInterval={refreshInterval}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        {/* Performance Analytics Tab */}
+        <TabsContent value="performance" className="mt-6">
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <Monitor className="h-5 w-5 mr-2" />
+                  Performance Analytics Dashboard
+                </CardTitle>
+                <CardDescription>
+                  System performance monitoring, scalability metrics, and
+                  response time analysis
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <PerformanceAnalyticsDashboard
+                    facilityId={facilityId}
+                    timeframe={customFilters.timeframe || timeframe}
+                    priority={customFilters.priority}
+                  />
                 </div>
               </CardContent>
             </Card>
@@ -1758,6 +1894,67 @@ const UnifiedAnalyticsDashboard: React.FC<UnifiedAnalyticsDashboardProps> = ({
           </div>
         </TabsContent>
 
+        {/* Enhanced Cross-Dashboard Integration */}
+        <div className="fixed bottom-4 right-4 z-50">
+          <Card className="w-80 shadow-lg border-2 border-blue-200">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center">
+                <Settings className="h-4 w-4 mr-2" />
+                Dashboard Controls
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-600">Sync Status:</span>
+                  <Badge
+                    variant={isOnline ? "default" : "destructive"}
+                    className="text-xs"
+                  >
+                    {isOnline ? "Live" : "Offline"}
+                  </Badge>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-600">Auto Refresh:</span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setAutoRefresh(!autoRefresh)}
+                    className={`h-6 px-2 text-xs ${autoRefresh ? "text-green-600" : "text-gray-400"}`}
+                  >
+                    {autoRefresh ? "ON" : "OFF"}
+                  </Button>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-600">Facility:</span>
+                  <Badge variant="outline" className="text-xs">
+                    {facilityId}
+                  </Badge>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-600">Role:</span>
+                  <Badge variant="secondary" className="text-xs">
+                    {userRole}
+                  </Badge>
+                </div>
+                <Button
+                  onClick={refreshData}
+                  disabled={loading || isSyncing}
+                  size="sm"
+                  className="w-full"
+                >
+                  {loading || isSyncing ? (
+                    <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-3 w-3 mr-1" />
+                  )}
+                  Refresh All
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
         {/* Comprehensive Automated Testing Tab */}
         <TabsContent value="testing" className="mt-6">
           <div className="space-y-6">
@@ -2032,6 +2229,161 @@ const UnifiedAnalyticsDashboard: React.FC<UnifiedAnalyticsDashboardProps> = ({
             )}
           </div>
         </TabsContent>
+
+        {/* Unified Analytics Summary */}
+        {activeTab === "overview" && (
+          <div className="mb-6">
+            <Card className="bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200">
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <Cpu className="h-5 w-5 mr-2 text-blue-600" />
+                  Unified Analytics Summary
+                </CardTitle>
+                <CardDescription>
+                  Cross-dashboard insights and integrated analytics from all
+                  modules
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="p-4 bg-white rounded-lg border">
+                    <div className="flex items-center justify-between mb-2">
+                      <Building className="h-5 w-5 text-blue-600" />
+                      <Badge variant="outline">Business</Badge>
+                    </div>
+                    <div className="text-2xl font-bold text-blue-900">
+                      94.2%
+                    </div>
+                    <div className="text-sm text-gray-600">
+                      Executive KPI Score
+                    </div>
+                    <div className="text-xs text-green-600 mt-1">
+                      +2.1% vs last month
+                    </div>
+                  </div>
+
+                  <div className="p-4 bg-white rounded-lg border">
+                    <div className="flex items-center justify-between mb-2">
+                      <Stethoscope className="h-5 w-5 text-green-600" />
+                      <Badge variant="outline">Clinical</Badge>
+                    </div>
+                    <div className="text-2xl font-bold text-green-900">
+                      96.8%
+                    </div>
+                    <div className="text-sm text-gray-600">
+                      Patient Safety Score
+                    </div>
+                    <div className="text-xs text-green-600 mt-1">
+                      +1.5% vs last month
+                    </div>
+                  </div>
+
+                  <div className="p-4 bg-white rounded-lg border">
+                    <div className="flex items-center justify-between mb-2">
+                      <Activity className="h-5 w-5 text-orange-600" />
+                      <Badge variant="outline">Operations</Badge>
+                    </div>
+                    <div className="text-2xl font-bold text-orange-900">
+                      88.5%
+                    </div>
+                    <div className="text-sm text-gray-600">
+                      Efficiency Index
+                    </div>
+                    <div className="text-xs text-green-600 mt-1">
+                      +3.2% vs last month
+                    </div>
+                  </div>
+
+                  <div className="p-4 bg-white rounded-lg border">
+                    <div className="flex items-center justify-between mb-2">
+                      <Monitor className="h-5 w-5 text-purple-600" />
+                      <Badge variant="outline">Performance</Badge>
+                    </div>
+                    <div className="text-2xl font-bold text-purple-900">
+                      99.1%
+                    </div>
+                    <div className="text-sm text-gray-600">System Uptime</div>
+                    <div className="text-xs text-green-600 mt-1">
+                      +0.3% vs last month
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <div>
+                    <h4 className="font-medium mb-3">Cross-Module Alerts</h4>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between p-2 bg-yellow-50 rounded border-l-4 border-yellow-400">
+                        <div className="flex items-center">
+                          <AlertTriangle className="h-4 w-4 text-yellow-600 mr-2" />
+                          <span className="text-sm">
+                            Clinical workflow optimization needed
+                          </span>
+                        </div>
+                        <Badge variant="outline" className="text-xs">
+                          Medium
+                        </Badge>
+                      </div>
+                      <div className="flex items-center justify-between p-2 bg-blue-50 rounded border-l-4 border-blue-400">
+                        <div className="flex items-center">
+                          <CheckCircle className="h-4 w-4 text-blue-600 mr-2" />
+                          <span className="text-sm">
+                            Revenue targets exceeded this quarter
+                          </span>
+                        </div>
+                        <Badge variant="outline" className="text-xs">
+                          Info
+                        </Badge>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4 className="font-medium mb-3">Quick Actions</h4>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setActiveTab("business")}
+                        className="justify-start"
+                      >
+                        <Building className="h-3 w-3 mr-1" />
+                        Business View
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setActiveTab("clinical")}
+                        className="justify-start"
+                      >
+                        <Stethoscope className="h-3 w-3 mr-1" />
+                        Clinical View
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setActiveTab("operational")}
+                        className="justify-start"
+                      >
+                        <Activity className="h-3 w-3 mr-1" />
+                        Operations
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setActiveTab("performance")}
+                        className="justify-start"
+                      >
+                        <Monitor className="h-3 w-3 mr-1" />
+                        Performance
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         {/* New Optimization Tab */}
         <TabsContent value="optimization" className="mt-6">

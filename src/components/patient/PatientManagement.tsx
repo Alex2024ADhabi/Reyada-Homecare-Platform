@@ -135,7 +135,7 @@ export default function PatientManagement({
   const [searchSuggestions, setSearchSuggestions] = useState<any[]>([]);
   const [filterOptions, setFilterOptions] = useState<any>(null);
 
-  // New patient form state
+  // Enhanced new patient form state with Emirates ID integration
   const [newPatientData, setNewPatientData] = useState({
     emirates_id: "",
     first_name_en: "",
@@ -147,12 +147,48 @@ export default function PatientManagement({
     phone_number: "",
     email: "",
     address: "",
+    address_ar: "",
+    nationality: "",
     insurance_provider: "",
     insurance_policy_number: "",
     insurance_type: "",
     emergency_contact_name: "",
     emergency_contact_phone: "",
     emergency_contact_relationship: "",
+    preferred_language: "en",
+    biometric_data: null,
+    emirates_id_verified: false,
+    emirates_id_verification_date: null,
+    emirates_id_expiry_date: null,
+    place_of_birth: "",
+    marital_status: "",
+    occupation: "",
+    education_level: "",
+    monthly_income: "",
+    family_size: 1,
+    housing_type: "",
+    has_chronic_conditions: false,
+    chronic_conditions: [],
+    allergies: [],
+    current_medications: [],
+    previous_surgeries: [],
+    family_medical_history: [],
+    social_history: {
+      smoking: false,
+      alcohol: false,
+      exercise_frequency: "",
+      diet_type: "",
+    },
+    accessibility_needs: [],
+    communication_preferences: {
+      sms: true,
+      email: true,
+      phone: true,
+      whatsapp: false,
+    },
+    consent_data_sharing: false,
+    consent_marketing: false,
+    consent_research: false,
   });
 
   // Emirates ID verification state
@@ -298,23 +334,104 @@ export default function PatientManagement({
   const handleCreatePatient = async () => {
     setIsProcessing(true);
     try {
-      const { data, error } = await PatientService.createPatient({
+      // Validate required fields
+      if (
+        !newPatientData.emirates_id ||
+        !newPatientData.first_name_en ||
+        !newPatientData.last_name_en ||
+        !newPatientData.phone_number
+      ) {
+        alert(
+          "Please fill in all required fields (Emirates ID, Name, Phone Number)",
+        );
+        setIsProcessing(false);
+        return;
+      }
+
+      // Validate Emirates ID format if not already verified
+      if (!newPatientData.emirates_id_verified) {
+        const { emiratesIdVerificationService } = await import(
+          "@/services/emirates-id-verification.service"
+        );
+        const validation =
+          await emiratesIdVerificationService.validateEmiratesId(
+            newPatientData.emirates_id,
+          );
+
+        if (!validation.isValid) {
+          alert("Please verify Emirates ID before creating patient record");
+          setIsProcessing(false);
+          return;
+        }
+      }
+
+      // Enhanced patient data with comprehensive information
+      const enhancedPatientData = {
         ...newPatientData,
         date_of_birth: newPatientData.date_of_birth.toISOString().split("T")[0],
         status: "active",
         created_at: new Date().toISOString(),
-      });
+        updated_at: new Date().toISOString(),
+        registration_source: "manual",
+        registration_method: "emirates_id_verified",
+        data_quality_score: newPatientData.emirates_id_verified ? 95 : 75,
+        compliance_status: "compliant",
+        last_verification_date: newPatientData.emirates_id_verification_date,
+        // Calculate age
+        age: Math.floor(
+          (new Date().getTime() -
+            new Date(newPatientData.date_of_birth).getTime()) /
+            (365.25 * 24 * 60 * 60 * 1000),
+        ),
+        // Generate patient ID
+        patient_id: `PAT-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`,
+        // Multi-language support
+        display_name:
+          newPatientData.preferred_language === "ar"
+            ? `${newPatientData.first_name_ar} ${newPatientData.last_name_ar}`.trim() ||
+              `${newPatientData.first_name_en} ${newPatientData.last_name_en}`
+            : `${newPatientData.first_name_en} ${newPatientData.last_name_en}`,
+        // Privacy and consent tracking
+        consent_timestamp: new Date().toISOString(),
+        privacy_settings: {
+          data_sharing: newPatientData.consent_data_sharing,
+          marketing: newPatientData.consent_marketing,
+          research: newPatientData.consent_research,
+          communication_preferences: newPatientData.communication_preferences,
+        },
+        // DOH compliance fields
+        doh_compliance: {
+          emirates_id_verified: newPatientData.emirates_id_verified,
+          demographics_complete: true,
+          contact_verified: false, // Will be verified separately
+          insurance_verified: false, // Will be verified separately
+          consent_obtained: true,
+          data_quality_check: true,
+        },
+      };
+
+      const { data, error } =
+        await PatientService.createPatient(enhancedPatientData);
 
       if (error) {
         console.error("Error creating patient:", error);
+        alert("Failed to create patient record. Please try again.");
         return;
       }
+
+      // Log successful patient creation for audit
+      console.log("✅ Patient created successfully:", {
+        patientId: data.id,
+        emiratesId: newPatientData.emirates_id,
+        verified: newPatientData.emirates_id_verified,
+        timestamp: new Date().toISOString(),
+      });
 
       setSelectedPatient(data);
       setShowNewPatientDialog(false);
       setActiveTab("details");
 
-      // Reset form
+      // Reset form to initial state
       setNewPatientData({
         emirates_id: "",
         first_name_en: "",
@@ -326,15 +443,59 @@ export default function PatientManagement({
         phone_number: "",
         email: "",
         address: "",
+        address_ar: "",
+        nationality: "",
         insurance_provider: "",
         insurance_policy_number: "",
         insurance_type: "",
         emergency_contact_name: "",
         emergency_contact_phone: "",
         emergency_contact_relationship: "",
+        preferred_language: "en",
+        biometric_data: null,
+        emirates_id_verified: false,
+        emirates_id_verification_date: null,
+        emirates_id_expiry_date: null,
+        place_of_birth: "",
+        marital_status: "",
+        occupation: "",
+        education_level: "",
+        monthly_income: "",
+        family_size: 1,
+        housing_type: "",
+        has_chronic_conditions: false,
+        chronic_conditions: [],
+        allergies: [],
+        current_medications: [],
+        previous_surgeries: [],
+        family_medical_history: [],
+        social_history: {
+          smoking: false,
+          alcohol: false,
+          exercise_frequency: "",
+          diet_type: "",
+        },
+        accessibility_needs: [],
+        communication_preferences: {
+          sms: true,
+          email: true,
+          phone: true,
+          whatsapp: false,
+        },
+        consent_data_sharing: false,
+        consent_marketing: false,
+        consent_research: false,
+      });
+
+      // Reset Emirates ID verification state
+      setEmiratesIdData({
+        emiratesId: "",
+        verificationResult: null,
+        isVerified: false,
       });
     } catch (error) {
       console.error("Error creating patient:", error);
+      alert("An unexpected error occurred. Please try again.");
     } finally {
       setIsProcessing(false);
     }
@@ -345,19 +506,46 @@ export default function PatientManagement({
 
     setIsVerifying(true);
     try {
-      const result = await EmiratesIdService.verifyEmiratesId(
+      // Import Emirates ID verification service
+      const { emiratesIdVerificationService } = await import(
+        "@/services/emirates-id-verification.service"
+      );
+
+      const result = await emiratesIdVerificationService.validateEmiratesId(
         emiratesIdData.emiratesId,
       );
+
       setEmiratesIdData({
         ...emiratesIdData,
         verificationResult: result,
         isVerified: result.isValid,
       });
 
+      // Auto-populate patient data if verification successful
+      if (result.isValid && result.verificationDetails) {
+        const verifiedData = result.verificationDetails;
+        setNewPatientData((prev) => ({
+          ...prev,
+          emirates_id: emiratesIdData.emiratesId,
+          emirates_id_verified: true,
+          emirates_id_verification_date: new Date().toISOString(),
+          // Auto-populate from Emirates ID data if available
+          first_name_en: verifiedData.fullNameEnglish || prev.first_name_en,
+          first_name_ar: verifiedData.fullNameArabic || prev.first_name_ar,
+          gender: verifiedData.gender || prev.gender,
+          date_of_birth: verifiedData.dateOfBirth
+            ? new Date(verifiedData.dateOfBirth)
+            : prev.date_of_birth,
+          nationality: verifiedData.nationality || prev.nationality,
+          emirates_id_expiry_date: verifiedData.expiryDate || null,
+        }));
+      }
+
       if (result.isValid && selectedPatient?.id) {
+        // Store verification result in database
         await EmiratesIdService.storeVerificationResult(
           selectedPatient.id,
-          result.data,
+          result,
         );
       }
     } catch (error) {
@@ -876,97 +1064,615 @@ export default function PatientManagement({
                             Enter patient information to create a new record
                           </DialogDescription>
                         </DialogHeader>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <Label htmlFor="emirates_id">Emirates ID</Label>
-                            <Input
-                              id="emirates_id"
-                              value={newPatientData.emirates_id}
-                              onChange={(e) =>
-                                setNewPatientData({
-                                  ...newPatientData,
-                                  emirates_id: e.target.value,
-                                })
-                              }
-                              placeholder="784-YYYY-XXXXXXX-X"
-                            />
+                        <div className="space-y-6">
+                          {/* Emirates ID Section with Real-time Verification */}
+                          <div className="border rounded-lg p-4 bg-blue-50">
+                            <h4 className="font-semibold mb-3 flex items-center">
+                              <Shield className="h-4 w-4 mr-2" />
+                              Emirates ID Verification
+                            </h4>
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                <Label htmlFor="emirates_id">
+                                  Emirates ID *
+                                </Label>
+                                <div className="flex space-x-2">
+                                  <Input
+                                    id="emirates_id"
+                                    value={newPatientData.emirates_id}
+                                    onChange={(e) => {
+                                      const value = e.target.value;
+                                      setNewPatientData({
+                                        ...newPatientData,
+                                        emirates_id: value,
+                                      });
+                                      setEmiratesIdData({
+                                        ...emiratesIdData,
+                                        emiratesId: value,
+                                      });
+                                    }}
+                                    placeholder="784-YYYY-XXXXXXX-X"
+                                    className={
+                                      newPatientData.emirates_id_verified
+                                        ? "border-green-500"
+                                        : ""
+                                    }
+                                  />
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={handleEmiratesIdVerification}
+                                    disabled={
+                                      isVerifying || !newPatientData.emirates_id
+                                    }
+                                  >
+                                    {isVerifying ? "Verifying..." : "Verify"}
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setIsScanning(true)}
+                                  >
+                                    <Camera className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                                {newPatientData.emirates_id_verified && (
+                                  <div className="flex items-center text-green-600 text-sm">
+                                    <CheckCircle className="h-4 w-4 mr-1" />
+                                    Verified on{" "}
+                                    {new Date(
+                                      newPatientData.emirates_id_verification_date,
+                                    ).toLocaleDateString()}
+                                  </div>
+                                )}
+                              </div>
+                              <div className="space-y-2">
+                                <Label htmlFor="nationality">Nationality</Label>
+                                <Input
+                                  id="nationality"
+                                  value={newPatientData.nationality}
+                                  onChange={(e) =>
+                                    setNewPatientData({
+                                      ...newPatientData,
+                                      nationality: e.target.value,
+                                    })
+                                  }
+                                  placeholder="UAE"
+                                  readOnly={newPatientData.emirates_id_verified}
+                                />
+                              </div>
+                            </div>
                           </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="gender">Gender</Label>
-                            <Select
-                              value={newPatientData.gender}
-                              onValueChange={(value) =>
-                                setNewPatientData({
-                                  ...newPatientData,
-                                  gender: value,
-                                })
-                              }
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select gender" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="Male">Male</SelectItem>
-                                <SelectItem value="Female">Female</SelectItem>
-                              </SelectContent>
-                            </Select>
+
+                          {/* Personal Information */}
+                          <div className="border rounded-lg p-4">
+                            <h4 className="font-semibold mb-3">
+                              Personal Information
+                            </h4>
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                <Label htmlFor="preferred_language">
+                                  Preferred Language
+                                </Label>
+                                <Select
+                                  value={newPatientData.preferred_language}
+                                  onValueChange={(value) =>
+                                    setNewPatientData({
+                                      ...newPatientData,
+                                      preferred_language: value,
+                                    })
+                                  }
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Select language" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="en">English</SelectItem>
+                                    <SelectItem value="ar">
+                                      العربية (Arabic)
+                                    </SelectItem>
+                                    <SelectItem value="both">Both</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="space-y-2">
+                                <Label htmlFor="gender">Gender *</Label>
+                                <Select
+                                  value={newPatientData.gender}
+                                  onValueChange={(value) =>
+                                    setNewPatientData({
+                                      ...newPatientData,
+                                      gender: value,
+                                    })
+                                  }
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Select gender" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="Male">Male</SelectItem>
+                                    <SelectItem value="Female">
+                                      Female
+                                    </SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            </div>
                           </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="first_name_en">
-                              First Name (English)
-                            </Label>
-                            <Input
-                              id="first_name_en"
-                              value={newPatientData.first_name_en}
-                              onChange={(e) =>
-                                setNewPatientData({
-                                  ...newPatientData,
-                                  first_name_en: e.target.value,
-                                })
-                              }
-                            />
+
+                          {/* Name Fields - Multi-language Support */}
+                          <div className="border rounded-lg p-4">
+                            <h4 className="font-semibold mb-3">
+                              Name Information
+                            </h4>
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                <Label htmlFor="first_name_en">
+                                  First Name (English) *
+                                </Label>
+                                <Input
+                                  id="first_name_en"
+                                  value={newPatientData.first_name_en}
+                                  onChange={(e) =>
+                                    setNewPatientData({
+                                      ...newPatientData,
+                                      first_name_en: e.target.value,
+                                    })
+                                  }
+                                  readOnly={newPatientData.emirates_id_verified}
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label htmlFor="last_name_en">
+                                  Last Name (English) *
+                                </Label>
+                                <Input
+                                  id="last_name_en"
+                                  value={newPatientData.last_name_en}
+                                  onChange={(e) =>
+                                    setNewPatientData({
+                                      ...newPatientData,
+                                      last_name_en: e.target.value,
+                                    })
+                                  }
+                                  readOnly={newPatientData.emirates_id_verified}
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label htmlFor="first_name_ar">
+                                  الاسم الأول (Arabic)
+                                </Label>
+                                <Input
+                                  id="first_name_ar"
+                                  value={newPatientData.first_name_ar}
+                                  onChange={(e) =>
+                                    setNewPatientData({
+                                      ...newPatientData,
+                                      first_name_ar: e.target.value,
+                                    })
+                                  }
+                                  dir="rtl"
+                                  readOnly={newPatientData.emirates_id_verified}
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label htmlFor="last_name_ar">
+                                  اسم العائلة (Arabic)
+                                </Label>
+                                <Input
+                                  id="last_name_ar"
+                                  value={newPatientData.last_name_ar}
+                                  onChange={(e) =>
+                                    setNewPatientData({
+                                      ...newPatientData,
+                                      last_name_ar: e.target.value,
+                                    })
+                                  }
+                                  dir="rtl"
+                                  readOnly={newPatientData.emirates_id_verified}
+                                />
+                              </div>
+                            </div>
                           </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="last_name_en">
-                              Last Name (English)
-                            </Label>
-                            <Input
-                              id="last_name_en"
-                              value={newPatientData.last_name_en}
-                              onChange={(e) =>
-                                setNewPatientData({
-                                  ...newPatientData,
-                                  last_name_en: e.target.value,
-                                })
-                              }
-                            />
+
+                          {/* Contact Information */}
+                          <div className="border rounded-lg p-4">
+                            <h4 className="font-semibold mb-3">
+                              Contact Information
+                            </h4>
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                <Label htmlFor="phone_number">
+                                  Phone Number *
+                                </Label>
+                                <Input
+                                  id="phone_number"
+                                  value={newPatientData.phone_number}
+                                  onChange={(e) =>
+                                    setNewPatientData({
+                                      ...newPatientData,
+                                      phone_number: e.target.value,
+                                    })
+                                  }
+                                  placeholder="+971 XX XXX XXXX"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label htmlFor="email">Email</Label>
+                                <Input
+                                  id="email"
+                                  type="email"
+                                  value={newPatientData.email}
+                                  onChange={(e) =>
+                                    setNewPatientData({
+                                      ...newPatientData,
+                                      email: e.target.value,
+                                    })
+                                  }
+                                  placeholder="patient@example.com"
+                                />
+                              </div>
+                              <div className="space-y-2 col-span-2">
+                                <Label htmlFor="address">
+                                  Address (English)
+                                </Label>
+                                <Textarea
+                                  id="address"
+                                  value={newPatientData.address}
+                                  onChange={(e) =>
+                                    setNewPatientData({
+                                      ...newPatientData,
+                                      address: e.target.value,
+                                    })
+                                  }
+                                  placeholder="Enter full address"
+                                  rows={2}
+                                />
+                              </div>
+                              <div className="space-y-2 col-span-2">
+                                <Label htmlFor="address_ar">
+                                  العنوان (Arabic)
+                                </Label>
+                                <Textarea
+                                  id="address_ar"
+                                  value={newPatientData.address_ar}
+                                  onChange={(e) =>
+                                    setNewPatientData({
+                                      ...newPatientData,
+                                      address_ar: e.target.value,
+                                    })
+                                  }
+                                  placeholder="أدخل العنوان الكامل"
+                                  dir="rtl"
+                                  rows={2}
+                                />
+                              </div>
+                            </div>
                           </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="phone_number">Phone Number</Label>
-                            <Input
-                              id="phone_number"
-                              value={newPatientData.phone_number}
-                              onChange={(e) =>
-                                setNewPatientData({
-                                  ...newPatientData,
-                                  phone_number: e.target.value,
-                                })
-                              }
-                            />
+
+                          {/* Date of Birth */}
+                          <div className="border rounded-lg p-4">
+                            <h4 className="font-semibold mb-3">
+                              Birth Information
+                            </h4>
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                <Label>Date of Birth *</Label>
+                                <Popover>
+                                  <PopoverTrigger asChild>
+                                    <Button
+                                      variant="outline"
+                                      className="w-full justify-start text-left font-normal"
+                                    >
+                                      <CalendarIcon className="mr-2 h-4 w-4" />
+                                      {newPatientData.date_of_birth
+                                        ? format(
+                                            newPatientData.date_of_birth,
+                                            "PPP",
+                                          )
+                                        : "Select date"}
+                                    </Button>
+                                  </PopoverTrigger>
+                                  <PopoverContent className="w-auto p-0">
+                                    <Calendar
+                                      mode="single"
+                                      selected={newPatientData.date_of_birth}
+                                      onSelect={(date) =>
+                                        setNewPatientData({
+                                          ...newPatientData,
+                                          date_of_birth: date || new Date(),
+                                        })
+                                      }
+                                      disabled={(date) =>
+                                        date > new Date() ||
+                                        date < new Date("1900-01-01")
+                                      }
+                                      initialFocus
+                                    />
+                                  </PopoverContent>
+                                </Popover>
+                              </div>
+                              <div className="space-y-2">
+                                <Label htmlFor="place_of_birth">
+                                  Place of Birth
+                                </Label>
+                                <Input
+                                  id="place_of_birth"
+                                  value={newPatientData.place_of_birth}
+                                  onChange={(e) =>
+                                    setNewPatientData({
+                                      ...newPatientData,
+                                      place_of_birth: e.target.value,
+                                    })
+                                  }
+                                  placeholder="City, Country"
+                                />
+                              </div>
+                            </div>
                           </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="email">Email</Label>
-                            <Input
-                              id="email"
-                              type="email"
-                              value={newPatientData.email}
-                              onChange={(e) =>
-                                setNewPatientData({
-                                  ...newPatientData,
-                                  email: e.target.value,
-                                })
-                              }
-                            />
+
+                          {/* Additional Demographics */}
+                          <div className="border rounded-lg p-4">
+                            <h4 className="font-semibold mb-3">
+                              Additional Information
+                            </h4>
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                <Label htmlFor="marital_status">
+                                  Marital Status
+                                </Label>
+                                <Select
+                                  value={newPatientData.marital_status}
+                                  onValueChange={(value) =>
+                                    setNewPatientData({
+                                      ...newPatientData,
+                                      marital_status: value,
+                                    })
+                                  }
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Select status" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="single">
+                                      Single
+                                    </SelectItem>
+                                    <SelectItem value="married">
+                                      Married
+                                    </SelectItem>
+                                    <SelectItem value="divorced">
+                                      Divorced
+                                    </SelectItem>
+                                    <SelectItem value="widowed">
+                                      Widowed
+                                    </SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="space-y-2">
+                                <Label htmlFor="occupation">Occupation</Label>
+                                <Input
+                                  id="occupation"
+                                  value={newPatientData.occupation}
+                                  onChange={(e) =>
+                                    setNewPatientData({
+                                      ...newPatientData,
+                                      occupation: e.target.value,
+                                    })
+                                  }
+                                  placeholder="Patient's occupation"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label htmlFor="education_level">
+                                  Education Level
+                                </Label>
+                                <Select
+                                  value={newPatientData.education_level}
+                                  onValueChange={(value) =>
+                                    setNewPatientData({
+                                      ...newPatientData,
+                                      education_level: value,
+                                    })
+                                  }
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Select level" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="primary">
+                                      Primary
+                                    </SelectItem>
+                                    <SelectItem value="secondary">
+                                      Secondary
+                                    </SelectItem>
+                                    <SelectItem value="diploma">
+                                      Diploma
+                                    </SelectItem>
+                                    <SelectItem value="bachelor">
+                                      Bachelor's
+                                    </SelectItem>
+                                    <SelectItem value="master">
+                                      Master's
+                                    </SelectItem>
+                                    <SelectItem value="phd">PhD</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="space-y-2">
+                                <Label htmlFor="family_size">Family Size</Label>
+                                <Input
+                                  id="family_size"
+                                  type="number"
+                                  min="1"
+                                  value={newPatientData.family_size}
+                                  onChange={(e) =>
+                                    setNewPatientData({
+                                      ...newPatientData,
+                                      family_size:
+                                        parseInt(e.target.value) || 1,
+                                    })
+                                  }
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Communication Preferences */}
+                          <div className="border rounded-lg p-4">
+                            <h4 className="font-semibold mb-3">
+                              Communication Preferences
+                            </h4>
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="flex items-center space-x-2">
+                                <Checkbox
+                                  id="comm_sms"
+                                  checked={
+                                    newPatientData.communication_preferences.sms
+                                  }
+                                  onCheckedChange={(checked) =>
+                                    setNewPatientData({
+                                      ...newPatientData,
+                                      communication_preferences: {
+                                        ...newPatientData.communication_preferences,
+                                        sms: checked as boolean,
+                                      },
+                                    })
+                                  }
+                                />
+                                <Label htmlFor="comm_sms">
+                                  SMS Notifications
+                                </Label>
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                <Checkbox
+                                  id="comm_email"
+                                  checked={
+                                    newPatientData.communication_preferences
+                                      .email
+                                  }
+                                  onCheckedChange={(checked) =>
+                                    setNewPatientData({
+                                      ...newPatientData,
+                                      communication_preferences: {
+                                        ...newPatientData.communication_preferences,
+                                        email: checked as boolean,
+                                      },
+                                    })
+                                  }
+                                />
+                                <Label htmlFor="comm_email">
+                                  Email Notifications
+                                </Label>
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                <Checkbox
+                                  id="comm_phone"
+                                  checked={
+                                    newPatientData.communication_preferences
+                                      .phone
+                                  }
+                                  onCheckedChange={(checked) =>
+                                    setNewPatientData({
+                                      ...newPatientData,
+                                      communication_preferences: {
+                                        ...newPatientData.communication_preferences,
+                                        phone: checked as boolean,
+                                      },
+                                    })
+                                  }
+                                />
+                                <Label htmlFor="comm_phone">Phone Calls</Label>
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                <Checkbox
+                                  id="comm_whatsapp"
+                                  checked={
+                                    newPatientData.communication_preferences
+                                      .whatsapp
+                                  }
+                                  onCheckedChange={(checked) =>
+                                    setNewPatientData({
+                                      ...newPatientData,
+                                      communication_preferences: {
+                                        ...newPatientData.communication_preferences,
+                                        whatsapp: checked as boolean,
+                                      },
+                                    })
+                                  }
+                                />
+                                <Label htmlFor="comm_whatsapp">WhatsApp</Label>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Consent Management */}
+                          <div className="border rounded-lg p-4 bg-yellow-50">
+                            <h4 className="font-semibold mb-3 flex items-center">
+                              <FileText className="h-4 w-4 mr-2" />
+                              Consent & Privacy
+                            </h4>
+                            <div className="space-y-3">
+                              <div className="flex items-center space-x-2">
+                                <Checkbox
+                                  id="consent_data_sharing"
+                                  checked={newPatientData.consent_data_sharing}
+                                  onCheckedChange={(checked) =>
+                                    setNewPatientData({
+                                      ...newPatientData,
+                                      consent_data_sharing: checked as boolean,
+                                    })
+                                  }
+                                />
+                                <Label
+                                  htmlFor="consent_data_sharing"
+                                  className="text-sm"
+                                >
+                                  I consent to sharing my data with healthcare
+                                  providers for treatment purposes
+                                </Label>
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                <Checkbox
+                                  id="consent_marketing"
+                                  checked={newPatientData.consent_marketing}
+                                  onCheckedChange={(checked) =>
+                                    setNewPatientData({
+                                      ...newPatientData,
+                                      consent_marketing: checked as boolean,
+                                    })
+                                  }
+                                />
+                                <Label
+                                  htmlFor="consent_marketing"
+                                  className="text-sm"
+                                >
+                                  I consent to receiving marketing
+                                  communications
+                                </Label>
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                <Checkbox
+                                  id="consent_research"
+                                  checked={newPatientData.consent_research}
+                                  onCheckedChange={(checked) =>
+                                    setNewPatientData({
+                                      ...newPatientData,
+                                      consent_research: checked as boolean,
+                                    })
+                                  }
+                                />
+                                <Label
+                                  htmlFor="consent_research"
+                                  className="text-sm"
+                                >
+                                  I consent to my anonymized data being used for
+                                  research purposes
+                                </Label>
+                              </div>
+                            </div>
                           </div>
                         </div>
                         <div className="flex justify-end space-x-2">

@@ -515,41 +515,94 @@ class WebSocketService {
   private setupHealthMonitoring(): void {
     this.healthCheckInterval = window.setInterval(() => {
       this.performHealthCheck();
-    }, 60000); // Check every minute
+    }, 30000); // Check every 30 seconds for healthcare applications
   }
 
   private performHealthCheck(): void {
     const now = new Date();
+    const connectionUptime = this.connectionStartTime
+      ? now.getTime() - this.connectionStartTime.getTime()
+      : 0;
+
+    // Enhanced health metrics for healthcare applications
     const health = {
       isConnected: this.isConnected(),
       queueSize: this.messageQueue.length,
       offlineQueueSize: this.offlineQueue.length,
       reconnectAttempts: this.reconnectAttempts,
       lastHeartbeat: this.metrics.lastHeartbeat,
-      connectionUptime: this.connectionStartTime
-        ? now.getTime() - this.connectionStartTime.getTime()
-        : 0,
+      connectionUptime,
       metrics: this.metrics,
+      // Healthcare-specific health indicators
+      healthcareMetrics: {
+        criticalMessagesPending: this.getCriticalMessageCount(),
+        patientDataQueueSize: this.getPatientDataQueueSize(),
+        emergencyMessagesInQueue: this.getEmergencyMessageCount(),
+        averageMessageLatency: this.calculateAverageLatency(),
+        connectionStability: this.assessConnectionStability(),
+        dataIntegrityScore: this.calculateDataIntegrityScore(),
+      },
+      // Connection quality assessment
+      connectionQuality: this.assessConnectionQuality(),
+      // Risk assessment for healthcare operations
+      riskAssessment: {
+        patientSafetyRisk: this.assessPatientSafetyRisk(),
+        dataLossRisk: this.assessDataLossRisk(),
+        complianceRisk: this.assessComplianceRisk(),
+      },
     };
 
     // Emit health status
     this.emit("health-check", health);
 
-    // Log warnings for concerning states
-    if (this.messageQueue.length > 1000) {
+    // Enhanced healthcare-specific warnings
+    if (this.messageQueue.length > 500) {
       console.warn(
-        `⚠️ Large message queue: ${this.messageQueue.length} messages`,
+        `⚠️ Healthcare message queue growing: ${this.messageQueue.length} messages`,
       );
+      this.emit("healthcare-queue-warning", {
+        queueSize: this.messageQueue.length,
+        criticalMessages: this.getCriticalMessageCount(),
+      });
     }
 
-    if (this.offlineQueue.length > 500) {
+    if (this.offlineQueue.length > 200) {
       console.warn(
-        `⚠️ Large offline queue: ${this.offlineQueue.length} messages`,
+        `⚠️ Healthcare offline queue concerning: ${this.offlineQueue.length} messages`,
       );
+      this.emit("healthcare-offline-warning", {
+        offlineQueueSize: this.offlineQueue.length,
+        patientDataPending: this.getPatientDataQueueSize(),
+      });
     }
 
-    if (this.reconnectAttempts > 5) {
-      console.warn(`⚠️ High reconnection attempts: ${this.reconnectAttempts}`);
+    if (this.reconnectAttempts > 3) {
+      console.warn(
+        `⚠️ Healthcare connection instability: ${this.reconnectAttempts} reconnection attempts`,
+      );
+      this.emit("healthcare-connection-warning", {
+        reconnectAttempts: this.reconnectAttempts,
+        connectionStability: health.healthcareMetrics.connectionStability,
+      });
+    }
+
+    // Critical healthcare alerts
+    if (health.healthcareMetrics.criticalMessagesPending > 0) {
+      console.error(
+        `🚨 CRITICAL: ${health.healthcareMetrics.criticalMessagesPending} critical healthcare messages pending`,
+      );
+      this.emit("critical-healthcare-messages", {
+        count: health.healthcareMetrics.criticalMessagesPending,
+        emergencyCount: health.healthcareMetrics.emergencyMessagesInQueue,
+      });
+    }
+
+    // Patient safety risk alerts
+    if (health.riskAssessment.patientSafetyRisk === "HIGH") {
+      console.error(
+        "🚨 HIGH PATIENT SAFETY RISK detected in WebSocket service",
+      );
+      this.emit("patient-safety-risk", health.riskAssessment);
     }
   }
 
@@ -796,9 +849,229 @@ class WebSocketService {
     };
   }
 
-  // Enhanced cleanup
+  // Healthcare-specific utility methods
+  private getCriticalMessageCount(): number {
+    return (
+      this.messageQueue.filter((msg) => msg.priority === "critical").length +
+      this.offlineQueue.filter((item) => item.message.priority === "critical")
+        .length
+    );
+  }
+
+  private getPatientDataQueueSize(): number {
+    return (
+      this.messageQueue.filter(
+        (msg) =>
+          msg.type.includes("patient") ||
+          msg.data?.patientId ||
+          msg.type.includes("clinical"),
+      ).length +
+      this.offlineQueue.filter(
+        (item) =>
+          item.message.type.includes("patient") ||
+          item.message.data?.patientId ||
+          item.message.type.includes("clinical"),
+      ).length
+    );
+  }
+
+  private getEmergencyMessageCount(): number {
+    return (
+      this.messageQueue.filter(
+        (msg) => msg.type.includes("emergency") || msg.data?.emergency === true,
+      ).length +
+      this.offlineQueue.filter(
+        (item) =>
+          item.message.type.includes("emergency") ||
+          item.message.data?.emergency === true,
+      ).length
+    );
+  }
+
+  private calculateAverageLatency(): number {
+    return this.metrics.averageLatency || 0;
+  }
+
+  private assessConnectionStability(): "STABLE" | "UNSTABLE" | "CRITICAL" {
+    if (this.reconnectAttempts === 0 && this.isConnected()) {
+      return "STABLE";
+    } else if (this.reconnectAttempts <= 3) {
+      return "UNSTABLE";
+    } else {
+      return "CRITICAL";
+    }
+  }
+
+  private calculateDataIntegrityScore(): number {
+    const totalMessages = this.metrics.totalMessages;
+    const successfulMessages = this.metrics.successfulMessages;
+
+    if (totalMessages === 0) return 100;
+
+    const successRate = (successfulMessages / totalMessages) * 100;
+    const queuePenalty = Math.min(this.offlineQueue.length / 100, 10);
+
+    return Math.max(0, successRate - queuePenalty);
+  }
+
+  private assessConnectionQuality(): "EXCELLENT" | "GOOD" | "FAIR" | "POOR" {
+    const latency = this.metrics.averageLatency;
+    const isConnected = this.isConnected();
+    const reconnectAttempts = this.reconnectAttempts;
+
+    if (!isConnected) return "POOR";
+
+    if (latency < 50 && reconnectAttempts === 0) {
+      return "EXCELLENT";
+    } else if (latency < 100 && reconnectAttempts <= 1) {
+      return "GOOD";
+    } else if (latency < 200 && reconnectAttempts <= 3) {
+      return "FAIR";
+    } else {
+      return "POOR";
+    }
+  }
+
+  private assessPatientSafetyRisk(): "LOW" | "MEDIUM" | "HIGH" | "CRITICAL" {
+    const criticalMessages = this.getCriticalMessageCount();
+    const emergencyMessages = this.getEmergencyMessageCount();
+    const patientDataPending = this.getPatientDataQueueSize();
+    const connectionStability = this.assessConnectionStability();
+
+    if (emergencyMessages > 0 || connectionStability === "CRITICAL") {
+      return "CRITICAL";
+    } else if (criticalMessages > 5 || patientDataPending > 20) {
+      return "HIGH";
+    } else if (criticalMessages > 0 || patientDataPending > 10) {
+      return "MEDIUM";
+    } else {
+      return "LOW";
+    }
+  }
+
+  private assessDataLossRisk(): "LOW" | "MEDIUM" | "HIGH" | "CRITICAL" {
+    const offlineQueueSize = this.offlineQueue.length;
+    const dataIntegrityScore = this.calculateDataIntegrityScore();
+    const connectionStability = this.assessConnectionStability();
+
+    if (dataIntegrityScore < 80 || connectionStability === "CRITICAL") {
+      return "CRITICAL";
+    } else if (offlineQueueSize > 500 || dataIntegrityScore < 90) {
+      return "HIGH";
+    } else if (offlineQueueSize > 200 || dataIntegrityScore < 95) {
+      return "MEDIUM";
+    } else {
+      return "LOW";
+    }
+  }
+
+  private assessComplianceRisk(): "LOW" | "MEDIUM" | "HIGH" | "CRITICAL" {
+    const patientDataPending = this.getPatientDataQueueSize();
+    const dataIntegrityScore = this.calculateDataIntegrityScore();
+    const connectionUptime = this.connectionStartTime
+      ? Date.now() - this.connectionStartTime.getTime()
+      : 0;
+    const uptimeHours = connectionUptime / (1000 * 60 * 60);
+
+    // DOH compliance requires high availability and data integrity
+    if (dataIntegrityScore < 95 || uptimeHours < 0.5) {
+      return "HIGH";
+    } else if (patientDataPending > 50 || dataIntegrityScore < 98) {
+      return "MEDIUM";
+    } else {
+      return "LOW";
+    }
+  }
+
+  // Enhanced healthcare-specific send method
+  sendHealthcareMessage(
+    type: string,
+    data: any,
+    options: {
+      priority?: "low" | "medium" | "high" | "critical";
+      patientSafety?: boolean;
+      emergency?: boolean;
+      dohCompliance?: boolean;
+      maxRetries?: number;
+      timeout?: number;
+    } = {},
+  ): Promise<any> {
+    // Enhanced priority handling for healthcare
+    let priority = options.priority || "medium";
+    if (options.emergency) {
+      priority = "critical";
+    } else if (options.patientSafety) {
+      priority = "high";
+    }
+
+    // Enhanced data with healthcare metadata
+    const enhancedData = {
+      ...data,
+      healthcareMetadata: {
+        patientSafety: options.patientSafety || false,
+        emergency: options.emergency || false,
+        dohCompliance: options.dohCompliance || false,
+        timestamp: new Date().toISOString(),
+        facilityId: data.facilityId || "RHHCS-001",
+      },
+    };
+
+    return this.sendWithAck(type, enhancedData, {
+      priority,
+      maxRetries: options.maxRetries || (options.emergency ? 5 : 3),
+      timeout: options.timeout || (options.emergency ? 5000 : 10000),
+    });
+  }
+
+  // Get healthcare-specific connection metrics
+  getHealthcareConnectionMetrics(): {
+    basicMetrics: ReturnType<typeof this.getConnectionMetrics>;
+    healthcareSpecific: {
+      criticalMessagesPending: number;
+      patientDataQueueSize: number;
+      emergencyMessagesInQueue: number;
+      patientSafetyRisk: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+      dataLossRisk: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+      complianceRisk: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+      connectionQuality: "EXCELLENT" | "GOOD" | "FAIR" | "POOR";
+      dataIntegrityScore: number;
+      connectionStability: "STABLE" | "UNSTABLE" | "CRITICAL";
+    };
+  } {
+    return {
+      basicMetrics: this.getConnectionMetrics(),
+      healthcareSpecific: {
+        criticalMessagesPending: this.getCriticalMessageCount(),
+        patientDataQueueSize: this.getPatientDataQueueSize(),
+        emergencyMessagesInQueue: this.getEmergencyMessageCount(),
+        patientSafetyRisk: this.assessPatientSafetyRisk(),
+        dataLossRisk: this.assessDataLossRisk(),
+        complianceRisk: this.assessComplianceRisk(),
+        connectionQuality: this.assessConnectionQuality(),
+        dataIntegrityScore: this.calculateDataIntegrityScore(),
+        connectionStability: this.assessConnectionStability(),
+      },
+    };
+  }
+
+  // Enhanced cleanup with healthcare considerations
   destroy(): void {
     console.log("🧹 Destroying WebSocket service...");
+
+    // Check for critical healthcare messages before destroying
+    const criticalMessages = this.getCriticalMessageCount();
+    const emergencyMessages = this.getEmergencyMessageCount();
+
+    if (criticalMessages > 0 || emergencyMessages > 0) {
+      console.warn(
+        `⚠️ Destroying WebSocket service with ${criticalMessages} critical and ${emergencyMessages} emergency messages pending`,
+      );
+      this.emit("service-destroyed-with-pending-critical", {
+        criticalMessages,
+        emergencyMessages,
+        totalPending: this.messageQueue.length + this.offlineQueue.length,
+      });
+    }
 
     // Clear all timers
     if (this.reconnectTimer) {
@@ -816,10 +1089,45 @@ class WebSocketService {
       this.healthCheckInterval = null;
     }
 
-    // Reject all pending messages
+    // Reject all pending messages with healthcare context
     this.pendingMessages.forEach((pending, messageId) => {
-      pending.reject(new Error("WebSocket service destroyed"));
+      pending.reject(
+        new Error(
+          "WebSocket service destroyed - healthcare operations may be affected",
+        ),
+      );
     });
+
+    // Store critical messages for recovery if possible
+    if (
+      typeof window !== "undefined" &&
+      (criticalMessages > 0 || emergencyMessages > 0)
+    ) {
+      try {
+        const criticalQueue = [
+          ...this.messageQueue.filter((msg) => msg.priority === "critical"),
+          ...this.offlineQueue
+            .filter((item) => item.message.priority === "critical")
+            .map((item) => item.message),
+        ];
+
+        if (criticalQueue.length > 0) {
+          sessionStorage.setItem(
+            "websocket_critical_messages_backup",
+            JSON.stringify({
+              timestamp: new Date().toISOString(),
+              messages: criticalQueue,
+              facilityId: "RHHCS-001",
+            }),
+          );
+          console.log(
+            `💾 Backed up ${criticalQueue.length} critical messages to session storage`,
+          );
+        }
+      } catch (error) {
+        console.error("Failed to backup critical messages:", error);
+      }
+    }
 
     // Clean up
     this.disconnect();

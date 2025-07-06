@@ -52,6 +52,14 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { useOfflineSync } from "@/hooks/useOfflineSync";
+import {
+  getRevenueAnalytics,
+  getPredictiveInsights,
+  getBusinessIntelligence,
+  getRealTimeMetrics,
+  getClinicalAnalytics,
+  getOperationalMetrics,
+} from "@/services/real-time-analytics.service";
 
 interface ReportTemplate {
   id: string;
@@ -672,9 +680,67 @@ const IntegratedReportingEngine: React.FC<IntegratedReportingEngineProps> = ({
   const generateReport = async (templateId: string) => {
     setLoading(true);
     try {
-      // Simulate report generation
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      console.log(`Generating report for template: ${templateId}`);
+      const template = reportTemplates.find((t) => t.id === templateId);
+      if (!template) throw new Error("Template not found");
+
+      // Fetch data based on template category
+      let reportData: any = {};
+
+      switch (template.category) {
+        case "executive":
+          const [businessIntelligence, realTimeMetrics] = await Promise.all([
+            getBusinessIntelligence({ includeKPIs: true }),
+            getRealTimeMetrics(),
+          ]);
+          reportData = { businessIntelligence, realTimeMetrics };
+          break;
+
+        case "clinical":
+          const clinicalData = await getClinicalAnalytics({
+            includeOutcomes: true,
+            includeQuality: true,
+          });
+          reportData = { clinicalData };
+          break;
+
+        case "financial":
+          const revenueData = await getRevenueAnalytics({
+            dateRange: template.parameters.dateRange.start,
+            includeForecasting: template.parameters.filters.includeForecasting,
+          });
+          reportData = { revenueData };
+          break;
+
+        case "operational":
+          const operationalData = await getOperationalMetrics({
+            includeEfficiency: true,
+            includeUtilization: true,
+          });
+          reportData = { operationalData };
+          break;
+
+        case "compliance":
+          const complianceData = await getBusinessIntelligence({
+            includeCompliance: true,
+          });
+          reportData = { complianceData };
+          break;
+      }
+
+      // Generate report with real data
+      console.log(
+        `Generated ${template.category} report with data:`,
+        reportData,
+      );
+
+      // Update template's last generated timestamp
+      setReportTemplates((prev) =>
+        prev.map((t) =>
+          t.id === templateId
+            ? { ...t, lastGenerated: new Date().toISOString() }
+            : t,
+        ),
+      );
     } catch (error) {
       console.error("Error generating report:", error);
     } finally {
@@ -762,8 +828,8 @@ const IntegratedReportingEngine: React.FC<IntegratedReportingEngineProps> = ({
             Integrated Reporting Engine
           </h1>
           <p className="text-gray-600 mt-1">
-            Standardized report templates, automated generation, and
-            cross-module data correlation
+            AI-powered report generation, automated scheduling, cross-module
+            data correlation, and real-time analytics integration
           </p>
         </div>
         <div className="flex items-center gap-2">

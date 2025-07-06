@@ -3012,7 +3012,7 @@ class RealTimeSyncService {
   }
 
   /**
-   * Log enhanced healthcare audit event
+   * Log enhanced healthcare audit event with comprehensive tracking
    */
   private async logEnhancedHealthcareAuditEvent(
     event: SyncEvent,
@@ -3025,6 +3025,8 @@ class RealTimeSyncService {
       type: event.type,
       userId: event.userId || "system",
       patientId: event.data.patientId,
+      episodeId: event.data.episodeId,
+      facilityId: event.data.facilityId,
       dataHash: this.generateDataHash(event.data),
       validationStatus: validationResult.isValid ? "PASSED" : "FAILED",
       validationErrors: validationResult.errors,
@@ -3033,34 +3035,700 @@ class RealTimeSyncService {
         dohCompliant: event.metadata.dohCompliant,
         hipaaCompliant: event.metadata.hipaaCompliant,
         jawdaCompliant: event.metadata.jawdaCompliant,
+        gdprCompliant: event.metadata.gdprCompliant,
       },
       encryptionStatus: event.metadata.encryptionStatus,
       safetyFlags: event.metadata.safetyFlags,
       workflowWarnings: event.metadata.workflowWarnings,
       integrityWarnings: event.metadata.integrityWarnings,
+      // Enhanced audit fields
+      syncLatency: event.metadata.syncLatency,
+      conflictResolution: event.metadata.conflictResolution,
+      emergencyProtocols: event.metadata.emergencyProtocols,
+      clinicalEscalation: event.metadata.clinicalEscalation,
+      dataClassification: this.classifyHealthcareData(event.data),
+      riskAssessment: {
+        patientSafetyRisk: event.metadata.patientSafetyRisk || "LOW",
+        complianceRisk: event.metadata.complianceRisk || "LOW",
+        dataIntegrityRisk: event.metadata.dataIntegrityRisk || "LOW",
+      },
+      performanceMetrics: {
+        processingTime: Date.now() - new Date(event.timestamp).getTime(),
+        retryAttempts: event.metadata.retryAttempts || 0,
+        queueTime: event.metadata.queueTime || 0,
+      },
     };
 
     console.log("📋 Enhanced Healthcare Audit Log:", auditLog);
 
-    // Store in enhanced audit trail
+    // Store in enhanced audit trail with improved persistence
     if (typeof window !== "undefined") {
       try {
         const auditTrail = JSON.parse(
           sessionStorage.getItem("enhanced_healthcare_audit_trail") || "[]",
         );
         auditTrail.push(auditLog);
-        // Keep only last 2000 entries for enhanced logging
-        if (auditTrail.length > 2000) {
-          auditTrail.splice(0, auditTrail.length - 2000);
+
+        // Enhanced audit trail management
+        if (auditTrail.length > 3000) {
+          // Keep critical and high-priority entries longer
+          const criticalEntries = auditTrail.filter(
+            (entry: any) =>
+              entry.riskAssessment?.patientSafetyRisk === "HIGH" ||
+              entry.riskAssessment?.patientSafetyRisk === "CRITICAL" ||
+              entry.validationStatus === "FAILED",
+          );
+          const recentEntries = auditTrail.slice(-2000);
+          const mergedEntries = [...criticalEntries, ...recentEntries]
+            .filter(
+              (entry, index, arr) =>
+                arr.findIndex((e) => e.eventId === entry.eventId) === index,
+            )
+            .slice(-2500);
+
+          sessionStorage.setItem(
+            "enhanced_healthcare_audit_trail",
+            JSON.stringify(mergedEntries),
+          );
+        } else {
+          sessionStorage.setItem(
+            "enhanced_healthcare_audit_trail",
+            JSON.stringify(auditTrail),
+          );
         }
-        sessionStorage.setItem(
-          "enhanced_healthcare_audit_trail",
-          JSON.stringify(auditTrail),
-        );
+
+        // Store critical events separately for compliance
+        if (
+          auditLog.riskAssessment.patientSafetyRisk === "HIGH" ||
+          auditLog.riskAssessment.patientSafetyRisk === "CRITICAL" ||
+          auditLog.validationStatus === "FAILED"
+        ) {
+          const criticalAuditTrail = JSON.parse(
+            sessionStorage.getItem("critical_healthcare_audit_trail") || "[]",
+          );
+          criticalAuditTrail.push(auditLog);
+          sessionStorage.setItem(
+            "critical_healthcare_audit_trail",
+            JSON.stringify(criticalAuditTrail.slice(-1000)),
+          );
+        }
       } catch (error) {
         console.warn("Failed to store enhanced healthcare audit log:", error);
+        // Fallback to basic logging
+        console.log("📋 Fallback Audit Log:", {
+          eventId: auditLog.eventId,
+          timestamp: auditLog.timestamp,
+          validationStatus: auditLog.validationStatus,
+          patientSafetyRisk: auditLog.riskAssessment.patientSafetyRisk,
+        });
       }
     }
+  }
+
+  /**
+   * Resolve vital signs conflicts with enhanced clinical validation
+   */
+  private async resolveVitalSignsConflict(event: SyncEvent): Promise<any> {
+    const { clientData, serverData } = event.data;
+
+    // Enhanced vital signs validation and conflict resolution
+    const vitalSignsAnalysis = await this.performVitalSignsAnalysis(
+      clientData,
+      serverData,
+    );
+
+    // Use most recent vital signs with comprehensive validation
+    const clientTimestamp = new Date(clientData.timestamp || 0);
+    const serverTimestamp = new Date(serverData.timestamp || 0);
+
+    let resolvedVitalSigns =
+      clientTimestamp > serverTimestamp ? clientData : serverData;
+
+    // Apply clinical validation rules
+    if (vitalSignsAnalysis.hasCriticalValues) {
+      resolvedVitalSigns = {
+        ...resolvedVitalSigns,
+        criticalAlerts: vitalSignsAnalysis.criticalAlerts,
+        requiresImmediateAttention: true,
+        clinicalEscalation: {
+          escalated: true,
+          escalationLevel: vitalSignsAnalysis.escalationLevel,
+          escalatedAt: new Date(),
+          notificationsSent: true,
+        },
+        vitalSignsTrend: vitalSignsAnalysis.trend,
+        clinicalRecommendations: vitalSignsAnalysis.recommendations,
+      };
+
+      // Trigger emergency sync for critical vital signs
+      if (vitalSignsAnalysis.escalationLevel === "EMERGENCY") {
+        await this.triggerEmergencyVitalSignsSync(resolvedVitalSigns);
+      }
+    }
+
+    // Merge historical vital signs data for trend analysis
+    resolvedVitalSigns.historicalData = this.mergeVitalSignsHistory(
+      clientData.historicalData,
+      serverData.historicalData,
+    );
+
+    return resolvedVitalSigns;
+  }
+
+  private async performVitalSignsAnalysis(
+    clientData: any,
+    serverData: any,
+  ): Promise<{
+    hasCriticalValues: boolean;
+    criticalAlerts: string[];
+    escalationLevel: "EMERGENCY" | "URGENT" | "WARNING" | "NONE";
+    trend: string;
+    recommendations: string[];
+  }> {
+    const analysis = {
+      hasCriticalValues: false,
+      criticalAlerts: [] as string[],
+      escalationLevel: "NONE",
+      trend: "STABLE",
+      recommendations: [] as string[],
+    };
+
+    // Check for critical values in vital signs
+    if (clientData.vitalSigns) {
+      const flags = this.checkCriticalVitalSigns(clientData.vitalSigns);
+      if (flags.length > 0) {
+        analysis.hasCriticalValues = true;
+        analysis.criticalAlerts = flags;
+      }
+    }
+
+    // Determine escalation level based on critical alerts
+    if (analysis.criticalAlerts.some((flag) => flag.includes("CRITICAL"))) {
+      analysis.escalationLevel = "EMERGENCY";
+    } else if (
+      analysis.criticalAlerts.some((flag) => flag.includes("WARNING"))
+    ) {
+      analysis.escalationLevel = "URGENT";
+    }
+
+    // Analyze trend based on historical data
+    if (clientData.historicalData) {
+      analysis.trend = this.analyzeVitalSignsTrend(clientData.historicalData);
+    }
+
+    // Generate clinical recommendations
+    if (analysis.hasCriticalValues) {
+      analysis.recommendations = this.generateClinicalRecommendations(
+        analysis.criticalAlerts,
+      );
+    }
+
+    return analysis;
+  }
+
+  private analyzeVitalSignsTrend(data: any[]): string {
+    // Analyze trend based on historical vital signs data
+    // This is a simplified analysis for demonstration
+    const latest = data[data.length - 1];
+    const previous = data[data.length - 2];
+
+    if (latest && previous) {
+      const trend = this.analyzeVitalSignsTrendInternal(latest, previous);
+      return trend;
+    }
+
+    return "STABLE";
+  }
+
+  private analyzeVitalSignsTrendInternal(latest: any, previous: any): string {
+    // Analyze trend based on specific vital signs
+    const trend = "STABLE";
+
+    if (latest.heartRate && previous.heartRate) {
+      const hrDiff = latest.heartRate - previous.heartRate;
+      if (hrDiff > 10) {
+        return "INCREASING";
+      } else if (hrDiff < -10) {
+        return "DECREASING";
+      }
+    }
+
+    if (latest.temperature && previous.temperature) {
+      const tempDiff = latest.temperature - previous.temperature;
+      if (Math.abs(tempDiff) > 0.5) {
+        return "FLUCTUATING";
+      }
+    }
+
+    return trend;
+  }
+
+  private generateClinicalRecommendations(alerts: string[]): string[] {
+    // Generate clinical recommendations based on alerts
+    const recommendations: string[] = [];
+
+    if (alerts.some((flag) => flag.includes("CRITICAL"))) {
+      recommendations.push("Immediate clinical review required");
+      recommendations.push("Notify emergency contacts");
+    }
+
+    if (alerts.some((flag) => flag.includes("WARNING"))) {
+      recommendations.push("Monitor patient closely");
+      recommendations.push("Document findings");
+    }
+
+    return recommendations;
+  }
+
+  private mergeVitalSignsHistory(
+    clientHistory: any[],
+    serverHistory: any[],
+  ): any[] {
+    // Merge historical vital signs data for trend analysis
+    const merged = [...serverHistory];
+
+    clientHistory.forEach((vital) => {
+      const existingIndex = merged.findIndex(
+        (entry) => entry.timestamp === vital.timestamp,
+      );
+
+      if (existingIndex >= 0) {
+        // Update existing entry with newer data
+        merged[existingIndex] = vital;
+      } else {
+        // Add new entry
+        merged.push(vital);
+      }
+    });
+
+    return merged;
+  }
+  /**
+   * PHASE 1 ENHANCEMENT: Advanced medication safety validation
+   */
+  private async performMedicationSafetyValidation(
+    clientData: any,
+    serverData: any,
+  ): Promise<{
+    hasCriticalConflict: boolean;
+    safetyAlerts: string[];
+    riskLevel: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+  }> {
+    const safetyAlerts: string[] = [];
+    let riskLevel: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL" = "LOW";
+
+    const clientMeds = clientData.medications || [clientData];
+    const serverMeds = serverData.medications || [serverData];
+
+    // Check for dosage conflicts
+    for (const clientMed of clientMeds) {
+      const serverMed = serverMeds.find((med: any) => med.id === clientMed.id);
+      if (serverMed && clientMed.dosage !== serverMed.dosage) {
+        const dosageDifference = Math.abs(
+          parseFloat(clientMed.dosage) - parseFloat(serverMed.dosage),
+        );
+        if (dosageDifference > parseFloat(clientMed.dosage) * 0.5) {
+          safetyAlerts.push(
+            `CRITICAL: Significant dosage conflict for ${clientMed.name}: ${clientMed.dosage} vs ${serverMed.dosage}`,
+          );
+          riskLevel = "CRITICAL";
+        }
+      }
+    }
+
+    // Check for medication interactions
+    const allMedications = [...clientMeds, ...serverMeds];
+    const interactions = this.checkMedicationInteractions(allMedications);
+    if (interactions.some((i) => i.includes("CRITICAL"))) {
+      safetyAlerts.push(...interactions.filter((i) => i.includes("CRITICAL")));
+      riskLevel = "CRITICAL";
+    }
+
+    // Check for allergy conflicts if patient data is available
+    if (clientData.patientAllergies || serverData.patientAllergies) {
+      const allergies =
+        clientData.patientAllergies || serverData.patientAllergies;
+      const allergyConflicts = this.checkAllergyConflicts(
+        allergies,
+        allMedications,
+      );
+      if (allergyConflicts.length > 0) {
+        safetyAlerts.push(...allergyConflicts);
+        riskLevel = "CRITICAL";
+      }
+    }
+
+    return {
+      hasCriticalConflict: riskLevel === "CRITICAL",
+      safetyAlerts,
+      riskLevel,
+    };
+  }
+
+  /**
+   * PHASE 1 ENHANCEMENT: Safe medication merging with validation
+   */
+  private async safeMergeMedications(
+    clientMedications: any[],
+    serverMedications: any[],
+  ): Promise<any[]> {
+    const merged = [...serverMedications];
+    const safetyValidatedMeds: any[] = [];
+
+    for (const clientMed of clientMedications) {
+      const existingIndex = merged.findIndex((med) => med.id === clientMed.id);
+
+      if (existingIndex >= 0) {
+        // Validate medication update
+        const medicationUpdate = await this.validateMedicationUpdate(
+          merged[existingIndex],
+          clientMed,
+        );
+
+        if (medicationUpdate.isValid) {
+          merged[existingIndex] = {
+            ...merged[existingIndex],
+            ...clientMed,
+            lastModified: new Date(),
+            safetyValidated: true,
+            validationTimestamp: new Date(),
+          };
+        } else {
+          // Flag for review if validation fails
+          merged[existingIndex] = {
+            ...merged[existingIndex],
+            conflictFlags: {
+              requiresPharmacistReview: true,
+              validationErrors: medicationUpdate.errors,
+              flaggedAt: new Date(),
+            },
+          };
+        }
+      } else {
+        // Add new medication with safety validation
+        const newMedValidation = await this.validateNewMedication(clientMed);
+        if (newMedValidation.isValid) {
+          merged.push({
+            ...clientMed,
+            addedAt: new Date(),
+            safetyValidated: true,
+            validationTimestamp: new Date(),
+          });
+        }
+      }
+    }
+
+    return merged;
+  }
+
+  /**
+   * PHASE 1 ENHANCEMENT: Comprehensive vital signs analysis
+   */
+  private async performVitalSignsAnalysis(
+    clientData: any,
+    serverData: any,
+  ): Promise<{
+    hasCriticalValues: boolean;
+    criticalAlerts: string[];
+    escalationLevel: "NORMAL" | "WARNING" | "URGENT" | "EMERGENCY";
+    trend: "IMPROVING" | "STABLE" | "DECLINING" | "CRITICAL";
+    recommendations: string[];
+  }> {
+    const criticalAlerts: string[] = [];
+    const recommendations: string[] = [];
+    let escalationLevel: "NORMAL" | "WARNING" | "URGENT" | "EMERGENCY" =
+      "NORMAL";
+    let trend: "IMPROVING" | "STABLE" | "DECLINING" | "CRITICAL" = "STABLE";
+
+    // Analyze current vital signs
+    const currentVitals =
+      clientData.timestamp > serverData.timestamp ? clientData : serverData;
+    const previousVitals =
+      clientData.timestamp > serverData.timestamp ? serverData : clientData;
+
+    // Enhanced vital signs validation
+    const vitalSignsChecks = this.checkCriticalVitalSigns(currentVitals);
+    criticalAlerts.push(...vitalSignsChecks);
+
+    // Determine escalation level
+    if (vitalSignsChecks.some((alert) => alert.includes("CRITICAL"))) {
+      escalationLevel = "EMERGENCY";
+      recommendations.push("Immediate medical intervention required");
+      recommendations.push("Notify attending physician immediately");
+      recommendations.push("Consider emergency protocols");
+    } else if (vitalSignsChecks.some((alert) => alert.includes("WARNING"))) {
+      escalationLevel = "URGENT";
+      recommendations.push("Close monitoring required");
+      recommendations.push("Notify nursing supervisor");
+    }
+
+    // Analyze trends if historical data is available
+    if (previousVitals && currentVitals) {
+      trend = this.analyzeVitalSignsTrend(previousVitals, currentVitals);
+      if (trend === "DECLINING" || trend === "CRITICAL") {
+        escalationLevel =
+          escalationLevel === "NORMAL" ? "WARNING" : escalationLevel;
+        recommendations.push("Trending analysis shows concerning pattern");
+      }
+    }
+
+    return {
+      hasCriticalValues: criticalAlerts.length > 0,
+      criticalAlerts,
+      escalationLevel,
+      trend,
+      recommendations,
+    };
+  }
+
+  /**
+   * PHASE 1 ENHANCEMENT: Emergency vital signs sync
+   */
+  private async triggerEmergencyVitalSignsSync(
+    vitalSignsData: any,
+  ): Promise<void> {
+    console.log(
+      "🚨 EMERGENCY: Critical vital signs detected, triggering emergency sync",
+    );
+
+    // Create emergency sync event
+    const emergencyEvent: SyncEvent = {
+      id: `emergency-vitals-${Date.now()}`,
+      type: "emergency",
+      entity: "vital_signs",
+      data: {
+        ...vitalSignsData,
+        emergencyFlag: true,
+        emergencyTimestamp: new Date(),
+        emergencyProtocol: "CRITICAL_VITALS",
+      },
+      timestamp: new Date(),
+      priority: "critical",
+      metadata: {
+        emergencySync: true,
+        patientSafetyAlert: true,
+        requiresImmediateAttention: true,
+        escalationLevel: "EMERGENCY",
+      },
+    };
+
+    // Bypass normal processing and sync immediately
+    await this.processEmergencyEvent(emergencyEvent);
+
+    // Notify emergency contacts and clinical staff
+    await this.notifyEmergencyContacts(emergencyEvent);
+
+    // Log emergency event for audit
+    await this.logEmergencyEvent(emergencyEvent);
+  }
+
+  /**
+   * PHASE 1 ENHANCEMENT: Classify healthcare data for audit purposes
+   */
+  private classifyHealthcareData(data: any): {
+    classification: "PUBLIC" | "INTERNAL" | "CONFIDENTIAL" | "RESTRICTED";
+    dataTypes: string[];
+    sensitivityLevel: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+  } {
+    const dataTypes: string[] = [];
+    let classification: "PUBLIC" | "INTERNAL" | "CONFIDENTIAL" | "RESTRICTED" =
+      "INTERNAL";
+    let sensitivityLevel: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL" = "LOW";
+
+    // Identify data types
+    if (data.patientId) dataTypes.push("PATIENT_IDENTIFIER");
+    if (data.medicalRecordNumber) dataTypes.push("MEDICAL_RECORD");
+    if (data.diagnosis) dataTypes.push("DIAGNOSIS");
+    if (data.medications) dataTypes.push("MEDICATION_DATA");
+    if (data.vitalSigns) dataTypes.push("VITAL_SIGNS");
+    if (data.labResults) dataTypes.push("LAB_RESULTS");
+    if (data.emiratesId) dataTypes.push("NATIONAL_ID");
+    if (data.insuranceInfo) dataTypes.push("INSURANCE_DATA");
+
+    // Determine classification and sensitivity
+    if (
+      dataTypes.includes("NATIONAL_ID") ||
+      dataTypes.includes("MEDICAL_RECORD")
+    ) {
+      classification = "RESTRICTED";
+      sensitivityLevel = "CRITICAL";
+    } else if (
+      dataTypes.includes("DIAGNOSIS") ||
+      dataTypes.includes("MEDICATION_DATA") ||
+      dataTypes.includes("LAB_RESULTS")
+    ) {
+      classification = "CONFIDENTIAL";
+      sensitivityLevel = "HIGH";
+    } else if (
+      dataTypes.includes("PATIENT_IDENTIFIER") ||
+      dataTypes.includes("VITAL_SIGNS")
+    ) {
+      classification = "CONFIDENTIAL";
+      sensitivityLevel = "MEDIUM";
+    }
+
+    return {
+      classification,
+      dataTypes,
+      sensitivityLevel,
+    };
+  }
+
+  /**
+   * PHASE 1 ENHANCEMENT: Validate medication updates
+   */
+  private async validateMedicationUpdate(
+    existingMed: any,
+    updatedMed: any,
+  ): Promise<{ isValid: boolean; errors: string[] }> {
+    const errors: string[] = [];
+
+    // Check for significant dosage changes
+    if (existingMed.dosage && updatedMed.dosage) {
+      const existingDosage = parseFloat(existingMed.dosage);
+      const updatedDosage = parseFloat(updatedMed.dosage);
+      const dosageChange =
+        Math.abs(updatedDosage - existingDosage) / existingDosage;
+
+      if (dosageChange > 0.5) {
+        errors.push(
+          `Significant dosage change detected: ${existingMed.dosage} to ${updatedMed.dosage}`,
+        );
+      }
+    }
+
+    // Check for frequency changes
+    if (
+      existingMed.frequency &&
+      updatedMed.frequency &&
+      existingMed.frequency !== updatedMed.frequency
+    ) {
+      errors.push(
+        `Frequency change detected: ${existingMed.frequency} to ${updatedMed.frequency}`,
+      );
+    }
+
+    // Check for route changes
+    if (
+      existingMed.route &&
+      updatedMed.route &&
+      existingMed.route !== updatedMed.route
+    ) {
+      errors.push(
+        `Route change detected: ${existingMed.route} to ${updatedMed.route}`,
+      );
+    }
+
+    return {
+      isValid: errors.length === 0,
+      errors,
+    };
+  }
+
+  /**
+   * PHASE 1 ENHANCEMENT: Validate new medications
+   */
+  private async validateNewMedication(
+    medication: any,
+  ): Promise<{ isValid: boolean; errors: string[] }> {
+    const errors: string[] = [];
+
+    // Required fields validation
+    if (!medication.name) errors.push("Medication name is required");
+    if (!medication.dosage) errors.push("Medication dosage is required");
+    if (!medication.frequency) errors.push("Medication frequency is required");
+    if (!medication.route) errors.push("Medication route is required");
+
+    // Dosage validation
+    if (medication.dosage && isNaN(parseFloat(medication.dosage))) {
+      errors.push("Invalid dosage format");
+    }
+
+    return {
+      isValid: errors.length === 0,
+      errors,
+    };
+  }
+
+  /**
+   * PHASE 1 ENHANCEMENT: Analyze vital signs trends
+   */
+  private analyzeVitalSignsTrend(
+    previousVitals: any,
+    currentVitals: any,
+  ): "IMPROVING" | "STABLE" | "DECLINING" | "CRITICAL" {
+    let trendScore = 0;
+    let criticalChanges = 0;
+
+    // Analyze heart rate trend
+    if (previousVitals.heartRate && currentVitals.heartRate) {
+      const hrChange = currentVitals.heartRate - previousVitals.heartRate;
+      if (Math.abs(hrChange) > 20) {
+        criticalChanges++;
+        trendScore += hrChange > 0 ? -1 : 1;
+      }
+    }
+
+    // Analyze blood pressure trend
+    if (previousVitals.bloodPressure && currentVitals.bloodPressure) {
+      const prevBP = previousVitals.bloodPressure.split("/");
+      const currBP = currentVitals.bloodPressure.split("/");
+      const systolicChange = parseInt(currBP[0]) - parseInt(prevBP[0]);
+      const diastolicChange = parseInt(currBP[1]) - parseInt(prevBP[1]);
+
+      if (Math.abs(systolicChange) > 20 || Math.abs(diastolicChange) > 10) {
+        criticalChanges++;
+        trendScore += systolicChange > 20 || diastolicChange > 10 ? -1 : 1;
+      }
+    }
+
+    // Analyze temperature trend
+    if (previousVitals.temperature && currentVitals.temperature) {
+      const tempChange = currentVitals.temperature - previousVitals.temperature;
+      if (Math.abs(tempChange) > 1.0) {
+        criticalChanges++;
+        trendScore += tempChange > 1.0 ? -1 : 1;
+      }
+    }
+
+    // Determine trend
+    if (criticalChanges >= 2) {
+      return "CRITICAL";
+    } else if (trendScore <= -2) {
+      return "DECLINING";
+    } else if (trendScore >= 2) {
+      return "IMPROVING";
+    } else {
+      return "STABLE";
+    }
+  }
+
+  /**
+   * PHASE 1 ENHANCEMENT: Merge vital signs history for trend analysis
+   */
+  private mergeVitalSignsHistory(
+    clientHistory: any[],
+    serverHistory: any[],
+  ): any[] {
+    const merged = [...(serverHistory || []), ...(clientHistory || [])];
+
+    // Remove duplicates based on timestamp
+    const uniqueHistory = merged.filter(
+      (item, index, arr) =>
+        arr.findIndex(
+          (other) =>
+            new Date(other.timestamp).getTime() ===
+            new Date(item.timestamp).getTime(),
+        ) === index,
+    );
+
+    // Sort by timestamp (most recent first)
+    return uniqueHistory
+      .sort(
+        (a, b) =>
+          new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
+      )
+      .slice(0, 50); // Keep last 50 entries for trend analysis
   }
 }
 

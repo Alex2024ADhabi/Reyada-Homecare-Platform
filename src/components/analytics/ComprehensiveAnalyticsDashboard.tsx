@@ -41,6 +41,14 @@ import {
 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToastContext } from "@/components/ui/toast-provider";
+import {
+  getRevenueAnalytics,
+  getPredictiveInsights,
+  getBusinessIntelligence,
+  getRealTimeMetrics,
+  getClinicalAnalytics,
+  getOperationalMetrics,
+} from "@/services/real-time-analytics.service";
 
 interface ComprehensiveAnalyticsDashboardProps {
   facilityId?: string;
@@ -382,23 +390,119 @@ export const ComprehensiveAnalyticsDashboard: React.FC<
   const refreshMetrics = async () => {
     setLoading(true);
     try {
-      // Simulate real-time updates
+      // Fetch comprehensive analytics data from enhanced service
+      const [
+        revenueData,
+        businessIntelligence,
+        realTimeMetrics,
+        clinicalData,
+        operationalData,
+        predictiveData,
+      ] = await Promise.all([
+        getRevenueAnalytics({ dateRange: "30d", includeForecasting: true }),
+        getBusinessIntelligence({ includeKPIs: true, includeCompliance: true }),
+        getRealTimeMetrics(),
+        getClinicalAnalytics({ includeOutcomes: true, includeQuality: true }),
+        getOperationalMetrics({
+          includeEfficiency: true,
+          includeUtilization: true,
+        }),
+        getPredictiveInsights({ categories: ["all"], timeframe: "90d" }),
+      ]);
+
+      // Update comprehensive metrics with real data
       setComprehensiveMetrics((prev) => ({
         ...prev,
         executiveDashboard: {
-          ...prev.executiveDashboard,
           totalPatients:
-            prev.executiveDashboard.totalPatients +
-            Math.floor(Math.random() * 3),
-          automationLevel: Math.min(
-            100,
-            prev.executiveDashboard.automationLevel + Math.random() * 0.1,
-          ),
+            realTimeMetrics.activePatients ||
+            prev.executiveDashboard.totalPatients,
+          activeWorkflows:
+            realTimeMetrics.activeWorkflows ||
+            prev.executiveDashboard.activeWorkflows,
+          automationLevel:
+            businessIntelligence.automationLevel ||
+            prev.executiveDashboard.automationLevel,
+          qualityScore:
+            clinicalData.overallQuality || prev.executiveDashboard.qualityScore,
+          revenueGrowth:
+            revenueData.growthRate || prev.executiveDashboard.revenueGrowth,
+          costReduction:
+            operationalData.costReduction ||
+            prev.executiveDashboard.costReduction,
+          patientSatisfaction:
+            clinicalData.patientSatisfaction ||
+            prev.executiveDashboard.patientSatisfaction,
+          complianceScore:
+            businessIntelligence.complianceScore ||
+            prev.executiveDashboard.complianceScore,
+          technicalImplementation:
+            businessIntelligence.implementationStatus ||
+            prev.executiveDashboard.technicalImplementation,
+        },
+        clinicalMetrics: {
+          patientOutcomes: {
+            ...prev.clinicalMetrics.patientOutcomes,
+            recoveryRate:
+              clinicalData.recoveryRate ||
+              prev.clinicalMetrics.patientOutcomes.recoveryRate,
+            readmissionRate:
+              clinicalData.readmissionRate ||
+              prev.clinicalMetrics.patientOutcomes.readmissionRate,
+            medicationAdherence:
+              clinicalData.medicationAdherence ||
+              prev.clinicalMetrics.patientOutcomes.medicationAdherence,
+          },
+          careDelivery: {
+            ...prev.clinicalMetrics.careDelivery,
+            careCoordinationEfficiency:
+              clinicalData.careCoordination ||
+              prev.clinicalMetrics.careDelivery.careCoordinationEfficiency,
+            clinicalDocumentationAccuracy:
+              clinicalData.documentationAccuracy ||
+              prev.clinicalMetrics.careDelivery.clinicalDocumentationAccuracy,
+          },
+        },
+        revenueAnalytics: {
+          financialPerformance: {
+            ...prev.revenueAnalytics.financialPerformance,
+            totalRevenue:
+              revenueData.totalRevenue ||
+              prev.revenueAnalytics.financialPerformance.totalRevenue,
+            revenueGrowthRate:
+              revenueData.growthRate ||
+              prev.revenueAnalytics.financialPerformance.revenueGrowthRate,
+            profitMargin:
+              revenueData.profitMargin ||
+              prev.revenueAnalytics.financialPerformance.profitMargin,
+          },
+          reimbursementOptimization: {
+            ...prev.revenueAnalytics.reimbursementOptimization,
+            collectionRate:
+              revenueData.collectionRate ||
+              prev.revenueAnalytics.reimbursementOptimization.collectionRate,
+            denialRate:
+              revenueData.denialRate ||
+              prev.revenueAnalytics.reimbursementOptimization.denialRate,
+          },
+        },
+        predictiveAnalytics: {
+          ...prev.predictiveAnalytics,
+          performanceMetrics: {
+            ...prev.predictiveAnalytics.performanceMetrics,
+            modelAccuracy:
+              predictiveData.modelAccuracy ||
+              prev.predictiveAnalytics.performanceMetrics.modelAccuracy,
+            predictionReliability:
+              predictiveData.reliability ||
+              prev.predictiveAnalytics.performanceMetrics.predictionReliability,
+          },
         },
       }));
+
       setLastUpdated(new Date());
     } catch (error) {
-      console.error("Error refreshing metrics:", error);
+      console.error("Error refreshing comprehensive metrics:", error);
     } finally {
       setLoading(false);
     }
@@ -509,8 +613,8 @@ export const ComprehensiveAnalyticsDashboard: React.FC<
               Comprehensive Analytics Dashboard
             </h1>
             <p className="text-gray-600 mt-1">
-              Complete performance monitoring and outcome measures for{" "}
-              {facilityId}
+              Real-time comprehensive performance monitoring, predictive
+              analytics, and outcome measures for {facilityId}
             </p>
             <p className="text-sm text-gray-500 mt-1">
               Last updated: {lastUpdated.toLocaleTimeString()}
