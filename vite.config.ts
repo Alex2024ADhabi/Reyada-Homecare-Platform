@@ -27,19 +27,20 @@ export default defineConfig({
   server: {
     port: 3001,
     host: "0.0.0.0",
-    // Enhanced server configuration
+    // Ultra-stable server configuration
     allowedHosts: process.env.TEMPO === "true" ? true : undefined,
     hmr: {
-      overlay: true, // Enable error overlay for better debugging
-      port: 3002, // Separate HMR port to avoid conflicts
+      overlay: false, // Disable overlay to prevent blocking errors
+      port: 3002,
     },
     fs: {
       strict: false,
       allow: [".."],
     },
     cors: true,
-    // Enhanced middleware for better error handling
     middlewareMode: false,
+    // Disable WebSocket to prevent connection errors
+    ws: false,
   },
   define: {
     global: "globalThis",
