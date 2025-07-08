@@ -32,15 +32,32 @@ export default defineConfig({
     hmr: {
       overlay: false, // Disable overlay to prevent blocking errors
       port: 3002,
+      clientPort: 3002,
     },
     fs: {
       strict: false,
-      allow: [".."],
+      allow: ["..", "./src"],
+      cachedChecks: false,
     },
     cors: true,
     middlewareMode: false,
-    // Disable WebSocket to prevent connection errors
-    ws: false,
+    // Re-enable WebSocket with better configuration
+    ws: {
+      port: 3003,
+    },
+    watch: {
+      usePolling: false,
+      interval: 1000,
+      ignored: [
+        "**/node_modules/**",
+        "**/dist/**",
+        "**/build/**",
+        "**/coverage/**",
+        "**/.git/**",
+        "**/src/tempobook/storyboards/**/*.js",
+        "**/src/tempobook/dynamic/**",
+      ],
+    },
   },
   define: {
     global: "globalThis",
@@ -67,9 +84,22 @@ export default defineConfig({
       "class-variance-authority",
       "date-fns",
     ],
-    exclude: ["tempo-devtools"],
+    exclude: [
+      "tempo-devtools",
+      "**/src/tempobook/storyboards/**",
+      "**/src/tempobook/dynamic/**",
+    ],
     // Force optimization of problematic dependencies
     force: true,
+    // Disable dependency scanning for storyboard directories
+    entries: [
+      "src/main.tsx",
+      "src/App.tsx",
+      "src/pages/**/*.tsx",
+      "src/components/**/*.tsx",
+      "!src/tempobook/storyboards/**",
+      "!src/tempobook/dynamic/**",
+    ],
   },
   build: {
     sourcemap: true,

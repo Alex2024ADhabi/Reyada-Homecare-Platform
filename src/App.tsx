@@ -22,21 +22,21 @@ const PatientPortal = React.lazy(() =>
   })),
 );
 
-// Ultra-safe tempo routes loading with maximum error handling
+// Stabilized tempo routes loading with essential storyboards
 const loadTempoRoutes = async () => {
   try {
-    console.log("🔄 Loading ultra-minimal tempo routes...");
+    console.log("🔄 Loading stabilized tempo routes...");
 
     // Add timeout to prevent hanging
     const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error("Route loading timeout")), 5000),
+      setTimeout(() => reject(new Error("Route loading timeout")), 3000),
     );
 
     const routesPromise = import("tempo-routes");
     const routesModule = await Promise.race([routesPromise, timeoutPromise]);
 
     if (!routesModule || !routesModule.default) {
-      console.log("ℹ️ No routes module found, using empty routes (expected)");
+      console.log("ℹ️ No routes module found, using empty routes");
       return [];
     }
 
@@ -44,10 +44,17 @@ const loadTempoRoutes = async () => {
       ? routesModule.default
       : [];
 
-    console.log("✅ Tempo routes loaded:", routes.length, "routes");
+    console.log("✅ Tempo routes loaded:", routes.length, "essential routes");
+    console.log(
+      "📋 Available routes:",
+      routes.map((r) => r.path),
+    );
     return routes;
   } catch (error) {
-    console.log("ℹ️ Tempo routes loading skipped:", error.message);
+    console.log(
+      "ℹ️ Tempo routes loading failed, using fallback:",
+      error.message,
+    );
     return [];
   }
 };
@@ -126,11 +133,26 @@ function AppContent() {
         const routes = await loadTempoRoutes();
         setTempoRoutes(routes);
 
-        console.log("✅ Platform ready with", routes.length, "routes");
+        console.log(
+          "✅ Platform ready with",
+          routes.length,
+          "essential routes",
+        );
+
+        // Log route details for debugging
+        if (routes.length > 0) {
+          console.log("📋 Available storyboard routes:");
+          routes.forEach((route) => {
+            console.log(`   - ${route.path}`);
+          });
+        }
 
         // Only show success if everything works
         if (typeof success === "function") {
-          success("Platform Ready", "Reyada Homecare Platform is stable");
+          success(
+            "Platform Ready",
+            `Reyada Homecare Platform is stable with ${routes.length} storyboards`,
+          );
         }
       } catch (error) {
         console.log(
