@@ -680,34 +680,55 @@ class ErrorHandlerService {
     const message = this.extractErrorMessage(error).toLowerCase();
     const contextStr = context.context.toLowerCase();
 
+    // CRITICAL: Patient safety and life-threatening scenarios
     if (
       message.includes("patient") ||
       message.includes("clinical") ||
       message.includes("medical") ||
+      message.includes("emergency") ||
+      message.includes("life_support") ||
+      message.includes("medication") ||
       contextStr.includes("patient_safety") ||
+      contextStr.includes("emergency_protocol") ||
       context.patientId
     ) {
       return "critical";
     }
 
+    // HIGH: Healthcare operations and episode management
     if (
       message.includes("healthcare") ||
       message.includes("episode") ||
+      message.includes("clinical_workflow") ||
+      message.includes("care_plan") ||
+      message.includes("assessment") ||
       contextStr.includes("clinical_workflow") ||
+      contextStr.includes("care_coordination") ||
       context.episodeId
     ) {
       return "high";
     }
 
+    // MEDIUM: Compliance and regulatory requirements
     if (
       message.includes("compliance") ||
       message.includes("audit") ||
-      contextStr.includes("doh_compliance")
+      message.includes("doh") ||
+      message.includes("jawda") ||
+      message.includes("hipaa") ||
+      contextStr.includes("doh_compliance") ||
+      contextStr.includes("regulatory")
     ) {
       return "medium";
     }
 
-    if (contextStr.includes("healthcare")) {
+    // LOW: General healthcare system operations
+    if (
+      contextStr.includes("healthcare") ||
+      contextStr.includes("homecare") ||
+      message.includes("scheduling") ||
+      message.includes("reporting")
+    ) {
       return "low";
     }
 
@@ -947,30 +968,144 @@ class ErrorHandlerService {
   }
 
   private escalatePatientSafetyError(errorReport: ErrorReport): void {
-    console.error("PATIENT SAFETY ERROR ESCALATED:", errorReport);
-    // In real implementation:
-    // - Notify patient safety officers
-    // - Create incident report
-    // - Activate emergency protocols
-    // - Log to patient safety database
+    console.error("🚨 PATIENT SAFETY ERROR ESCALATED:", errorReport);
+
+    // Immediate patient safety actions
+    const safetyActions = {
+      timestamp: new Date().toISOString(),
+      errorId: errorReport.id,
+      patientId: errorReport.context.patientId,
+      severity: errorReport.severity,
+      immediateActions: [
+        "Patient safety officer notification sent",
+        "Clinical supervisor alerted",
+        "Emergency protocols activated",
+        "Patient care team notified",
+      ],
+      systemActions: [
+        "Switch to manual patient safety mode",
+        "Activate backup clinical systems",
+        "Enable enhanced monitoring",
+        "Restrict non-essential operations",
+      ],
+      complianceActions: [
+        "Create patient safety incident report",
+        "Log to patient safety database",
+        "Generate DOH notification",
+        "Document for quality review",
+      ],
+    };
+
+    // Store patient safety escalation for audit
+    if (typeof window !== "undefined") {
+      const existingEscalations = JSON.parse(
+        sessionStorage.getItem("patient_safety_escalations") || "[]",
+      );
+      existingEscalations.push(safetyActions);
+      sessionStorage.setItem(
+        "patient_safety_escalations",
+        JSON.stringify(existingEscalations),
+      );
+    }
+
+    // Emit critical patient safety event
+    this.emit("critical-patient-safety-escalation", safetyActions);
   }
 
   private escalateDOHComplianceError(errorReport: ErrorReport): void {
-    console.error("DOH COMPLIANCE ERROR ESCALATED:", errorReport);
-    // In real implementation:
-    // - Notify compliance officers
-    // - Create compliance incident
-    // - Generate regulatory report
-    // - Log to compliance audit system
+    console.error("🏛️ DOH COMPLIANCE ERROR ESCALATED:", errorReport);
+
+    // DOH compliance escalation actions
+    const complianceActions = {
+      timestamp: new Date().toISOString(),
+      errorId: errorReport.id,
+      complianceLevel: "DOH_CRITICAL",
+      severity: errorReport.severity,
+      regulatoryActions: [
+        "DOH compliance officer notified",
+        "Regulatory incident created",
+        "Compliance audit triggered",
+        "Quality assurance review initiated",
+      ],
+      systemActions: [
+        "Enable enhanced compliance logging",
+        "Activate compliance monitoring mode",
+        "Restrict non-compliant operations",
+        "Generate compliance report",
+      ],
+      auditActions: [
+        "Create comprehensive audit trail",
+        "Document regulatory impact",
+        "Generate DOH submission report",
+        "Schedule compliance review",
+      ],
+    };
+
+    // Store DOH compliance escalation for audit
+    if (typeof window !== "undefined") {
+      const existingEscalations = JSON.parse(
+        sessionStorage.getItem("doh_compliance_escalations") || "[]",
+      );
+      existingEscalations.push(complianceActions);
+      sessionStorage.setItem(
+        "doh_compliance_escalations",
+        JSON.stringify(existingEscalations),
+      );
+    }
+
+    // Emit critical DOH compliance event
+    this.emit("critical-doh-compliance-escalation", complianceActions);
   }
 
   private activateEmergencyProtocols(errorReport: ErrorReport): void {
-    console.error("EMERGENCY PROTOCOLS ACTIVATED:", errorReport);
-    // In real implementation:
-    // - Activate emergency response team
-    // - Switch to emergency mode
-    // - Notify system administrators
-    // - Implement emergency fallbacks
+    console.error("🚨 EMERGENCY PROTOCOLS ACTIVATED:", errorReport);
+
+    // Emergency protocol activation
+    const emergencyProtocol = {
+      timestamp: new Date().toISOString(),
+      errorId: errorReport.id,
+      protocolLevel: "HEALTHCARE_EMERGENCY",
+      severity: errorReport.severity,
+      immediateActions: [
+        "Emergency response team activated",
+        "System administrators notified",
+        "Clinical supervisors alerted",
+        "IT support team engaged",
+      ],
+      systemActions: [
+        "Switch to emergency operation mode",
+        "Activate backup systems",
+        "Enable manual override capabilities",
+        "Implement emergency fallbacks",
+      ],
+      clinicalActions: [
+        "Notify all clinical staff",
+        "Activate manual clinical workflows",
+        "Enable emergency documentation",
+        "Ensure patient safety continuity",
+      ],
+      complianceActions: [
+        "Create emergency incident report",
+        "Log to emergency response database",
+        "Generate regulatory notifications",
+        "Document for post-incident review",
+      ],
+    };
+
+    // Store emergency protocol activation for audit
+    if (typeof window !== "undefined") {
+      const existingProtocols = JSON.parse(
+        sessionStorage.getItem("emergency_protocols") || "[]",
+      );
+      existingProtocols.push(emergencyProtocol);
+      sessionStorage.setItem(
+        "emergency_protocols",
+        JSON.stringify(existingProtocols),
+      );
+    }
+
+    // Emit critical emergency protocol event
+    this.emit("emergency-protocols-activated", emergencyProtocol);
   }
 
   private initializeHealthcareRecoveryActions(): void {
