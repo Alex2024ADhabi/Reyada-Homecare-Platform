@@ -84,6 +84,9 @@ export default defineConfig({
       "tempo-devtools",
       "src/tempobook/storyboards",
       "src/tempobook/dynamic",
+      "playwright",
+      "lighthouse",
+      "chrome-launcher",
     ],
     // Force optimization of problematic dependencies
     force: true,

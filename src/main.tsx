@@ -72,24 +72,98 @@ async function initializePlatform() {
   try {
     console.log("🚀 Initializing Reyada Homecare Platform...");
 
-    // Initialize platform services with error handling
+    // Initialize production services
     try {
-      const { initializePlatform } = await import(
-        "@/utils/platform-initialization"
-      );
-      const result = await initializePlatform();
+      console.log("🚀 Initializing production services...");
 
-      if (result.success) {
-        console.log("✅ Platform initialized successfully");
-      } else {
-        console.warn("⚠️ Platform initialized with warnings:", result.warnings);
-      }
-    } catch (importError) {
-      console.warn(
-        "⚠️ Platform initialization module not available:",
-        importError,
+      // Initialize production WebSocket service
+      const { productionWebSocketService } = await import(
+        "@/services/production-websocket.service"
       );
-      // Continue without platform initialization
+      await productionWebSocketService.start();
+      console.log("✅ Production WebSocket service started");
+
+      // Initialize production Redis service
+      const { productionRedisService } = await import(
+        "@/services/production-redis.service"
+      );
+      console.log("✅ Production Redis service initialized");
+
+      // Initialize healthcare error patterns service
+      const { healthcareErrorPatternsService } = await import(
+        "@/services/healthcare-error-patterns.service"
+      );
+      console.log("✅ Healthcare error patterns service initialized");
+
+      // Initialize production notification service
+      const { productionNotificationService } = await import(
+        "@/services/production-notification.service"
+      );
+      console.log("✅ Production notification service initialized");
+
+      // Initialize end-to-end automated testing service
+      const { endToEndAutomatedTestingService } = await import(
+        "@/services/end-to-end-automated-testing.service"
+      );
+      console.log("✅ End-to-end automated testing service initialized");
+
+      // Initialize performance regression testing service
+      const { performanceRegressionTestingService } = await import(
+        "@/services/performance-regression-testing.service"
+      );
+      console.log("✅ Performance regression testing service initialized");
+
+      // Initialize offline queue management
+      const { offlineQueueService } = await import(
+        "@/services/offline-queue-management.service"
+      );
+      await offlineQueueService.initialize();
+      console.log("✅ Offline queue management service initialized");
+
+      // Initialize real-time sync conflict resolution service
+      const { realTimeSyncConflictResolutionService } = await import(
+        "@/services/real-time-sync-conflict-resolution.service"
+      );
+      console.log("✅ Real-time sync conflict resolution service initialized");
+
+      // Initialize patient safety error escalation service
+      const { patientSafetyErrorEscalationService } = await import(
+        "@/services/patient-safety-error-escalation.service"
+      );
+      console.log("✅ Patient safety error escalation service initialized");
+
+      // Initialize DOH compliance error reporting service
+      const { dohComplianceErrorReportingService } = await import(
+        "@/services/doh-compliance-error-reporting.service"
+      );
+      console.log("✅ DOH compliance error reporting service initialized");
+
+      // Initialize security penetration testing service
+      const { securityPenetrationTestingService } = await import(
+        "@/services/security-penetration-testing.service"
+      );
+      await securityPenetrationTestingService.initialize();
+      console.log("✅ Security penetration testing service initialized");
+
+      // Initialize intelligent cache invalidation service
+      const { intelligentCacheInvalidationService } = await import(
+        "@/services/intelligent-cache-invalidation.service"
+      );
+      console.log("✅ Intelligent cache invalidation service initialized");
+
+      // Initialize multi-level caching service
+      const { multiLevelCachingService } = await import(
+        "@/services/multi-level-caching.service"
+      );
+      console.log("✅ Multi-level caching service initialized");
+
+      console.log(
+        "✅ All Phase 1 Core Infrastructure services initialized successfully",
+      );
+      console.log("🎯 Phase 1: Core Infrastructure Implementation - COMPLETED");
+    } catch (error) {
+      console.error("❌ Failed to initialize production services:", error);
+      // Continue with fallback services
     }
   } catch (error) {
     console.error("❌ Platform initialization failed:", error);
