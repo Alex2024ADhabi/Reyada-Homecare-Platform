@@ -1,6 +1,5 @@
 import React from "react";
 import { Routes, Route, useRoutes } from "react-router-dom";
-import { ToastProvider } from "@/components/ui/toast-provider";
 import { initializePlatform } from "@/utils/platform-initialization";
 import { useToast } from "@/components/ui/toast-provider";
 
@@ -199,13 +198,9 @@ function AppContent() {
   );
 }
 
-// Main App wrapper with providers
+// Main App wrapper - ToastProvider handled in main.tsx
 function App() {
-  return (
-    <ToastProvider>
-      <AppContent />
-    </ToastProvider>
-  );
+  return <AppContent />;
 }
 
 export default App;

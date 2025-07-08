@@ -146,8 +146,8 @@ export default defineConfig({
     target: "esnext",
     format: "esm",
     platform: "browser",
-    // Drop console and debugger in production
-    drop: process.env.NODE_ENV === "production" ? ["console", "debugger"] : [],
+    // Keep console in development for debugging
+    drop: process.env.NODE_ENV === "production" ? ["debugger"] : [],
   },
   // Enhanced CSS configuration
   css: {
