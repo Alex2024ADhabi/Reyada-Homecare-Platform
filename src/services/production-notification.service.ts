@@ -3,9 +3,10 @@
 
 import { EventEmitter } from "events";
 import * as admin from "firebase-admin";
-import { Twilio } from "twilio";
-import * as sgMail from "@sendgrid/mail";
+import Twilio from "twilio";
+import sgMail from "@sendgrid/mail";
 import nodemailer from "nodemailer";
+import webpush from "web-push";
 import { errorHandlerService } from "./error-handler.service";
 import { performanceMonitoringService } from "./performance-monitoring.service";
 
@@ -657,9 +658,44 @@ class ProductionNotificationService extends EventEmitter {
     }
 
     try {
-      // Web Push implementation would go here
-      // For now, simulate success
-      console.log(`📱 Web Push notification sent to ${notification.recipient}`);
+      // Set VAPID details
+      webpush.setVapidDetails(
+        this.config.webpush.subject || "Reyada Healthcare",
+        this.config.webpush.vapidKeys?.publicKey || "",
+        this.config.webpush.vapidKeys?.privateKey || "",
+      );
+
+      const payload = JSON.stringify({
+        title: notification.subject || "Notification",
+        body: notification.message,
+        icon: "/icon-192x192.png",
+        badge: "/badge-72x72.png",
+        data: notification.data || {},
+        actions: notification.healthcareMetadata?.emergency
+          ? [
+              { action: "acknowledge", title: "Acknowledge" },
+              { action: "escalate", title: "Escalate" },
+            ]
+          : undefined,
+      });
+
+      const options = {
+        vapidDetails: {
+          subject: this.config.webpush.subject || "Reyada Healthcare",
+          publicKey: this.config.webpush.vapidKeys?.publicKey || "",
+          privateKey: this.config.webpush.vapidKeys?.privateKey || "",
+        },
+        TTL: notification.priority === "critical" ? 86400 : 3600, // 24h for critical, 1h for others
+        urgency: notification.priority === "critical" ? "high" : "normal",
+      };
+
+      await webpush.sendNotification(
+        JSON.parse(notification.recipient), // Subscription object
+        payload,
+        options,
+      );
+
+      console.log(`📱 Web Push notification sent successfully`);
       return true;
     } catch (error) {
       console.error("❌ Web Push notification sending failed:", error);

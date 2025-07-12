@@ -83,58 +83,6 @@ export const SERVICE_ENDPOINTS = {
   claimsProcessing: `${API_GATEWAY_CONFIG.baseUrl}/claims-processing`,
   clinicianLicenses: `${API_GATEWAY_CONFIG.baseUrl}/clinician-licenses`,
   revenueMetrics: `${API_GATEWAY_CONFIG.baseUrl}/revenue-metrics`,
-  // External System Integration Endpoints
-  malaffiEmr: `${API_GATEWAY_CONFIG.baseUrl}/malaffi-emr`,
-  emiratesIdVerification: `${API_GATEWAY_CONFIG.baseUrl}/emirates-id-verification`,
-  smsNotifications: `${API_GATEWAY_CONFIG.baseUrl}/sms-notifications`,
-  emailNotifications: `${API_GATEWAY_CONFIG.baseUrl}/email-notifications`,
-  paymentGateway: `${API_GATEWAY_CONFIG.baseUrl}/payment-gateway`,
-  governmentReporting: `${API_GATEWAY_CONFIG.baseUrl}/government-reporting`,
-  // Data Management & Analytics Endpoints
-  dataLake: `${API_GATEWAY_CONFIG.baseUrl}/data-lake`,
-  analytics: `${API_GATEWAY_CONFIG.baseUrl}/analytics`,
-  realTimeAnalytics: `${API_GATEWAY_CONFIG.baseUrl}/real-time-analytics`,
-  machineLearning: `${API_GATEWAY_CONFIG.baseUrl}/machine-learning`,
-  dataGovernance: `${API_GATEWAY_CONFIG.baseUrl}/data-governance`,
-  businessIntelligence: `${API_GATEWAY_CONFIG.baseUrl}/business-intelligence`,
-  dataStreaming: `${API_GATEWAY_CONFIG.baseUrl}/data-streaming`,
-  predictiveAnalytics: `${API_GATEWAY_CONFIG.baseUrl}/predictive-analytics`,
-  dataQuality: `${API_GATEWAY_CONFIG.baseUrl}/data-quality`,
-  dataLineage: `${API_GATEWAY_CONFIG.baseUrl}/data-lineage`,
-  // Healthcare System Integration Endpoints
-  fhir: `${API_GATEWAY_CONFIG.baseUrl}/fhir`,
-  laboratory: `${API_GATEWAY_CONFIG.baseUrl}/laboratory`,
-  pharmacy: `${API_GATEWAY_CONFIG.baseUrl}/pharmacy`,
-  hospital: `${API_GATEWAY_CONFIG.baseUrl}/hospital`,
-  telehealth: `${API_GATEWAY_CONFIG.baseUrl}/telehealth`,
-  // Government System Integration Endpoints
-  governmentUaePass: `${API_GATEWAY_CONFIG.baseUrl}/government/uae-pass`,
-  governmentMoh: `${API_GATEWAY_CONFIG.baseUrl}/government/moh`,
-  governmentStatistics: `${API_GATEWAY_CONFIG.baseUrl}/government/statistics`,
-  governmentEmergency: `${API_GATEWAY_CONFIG.baseUrl}/government/emergency`,
-  governmentPublicHealth: `${API_GATEWAY_CONFIG.baseUrl}/government/public-health`,
-  governmentIntegrationStatus: `${API_GATEWAY_CONFIG.baseUrl}/government/integration-status`,
-  // Emerging Technology Integration Endpoints
-  aiInsights: `${API_GATEWAY_CONFIG.baseUrl}/executive/ai-insights`,
-  iotDevices: `${API_GATEWAY_CONFIG.baseUrl}/iot/devices`,
-  blockchainRecords: `${API_GATEWAY_CONFIG.baseUrl}/blockchain/records`,
-  arAssistedCare: `${API_GATEWAY_CONFIG.baseUrl}/ar/assisted-care`,
-  networkPerformance: `${API_GATEWAY_CONFIG.baseUrl}/network/performance`,
-  // Governance & Regulations Library Endpoints
-  governanceRegulations: `${API_GATEWAY_CONFIG.baseUrl}/governance/regulations`,
-  documentManagement: `${API_GATEWAY_CONFIG.baseUrl}/governance/documents`,
-  complianceEngine: `${API_GATEWAY_CONFIG.baseUrl}/governance/compliance`,
-  regulatoryFramework: `${API_GATEWAY_CONFIG.baseUrl}/governance/framework`,
-  documentClassification: `${API_GATEWAY_CONFIG.baseUrl}/governance/classification`,
-  complianceMonitoring: `${API_GATEWAY_CONFIG.baseUrl}/governance/monitoring`,
-  auditTrail: `${API_GATEWAY_CONFIG.baseUrl}/governance/audit`,
-  regulatoryReporting: `${API_GATEWAY_CONFIG.baseUrl}/governance/reporting`,
-  // Sustainability & Growth Endpoints
-  multiTenant: `${API_GATEWAY_CONFIG.baseUrl}/platform/multi-tenant`,
-  apiMarketplace: `${API_GATEWAY_CONFIG.baseUrl}/platform/api-marketplace`,
-  whiteLabelSolutions: `${API_GATEWAY_CONFIG.baseUrl}/platform/white-label`,
-  internationalExpansion: `${API_GATEWAY_CONFIG.baseUrl}/platform/international-expansion`,
-  innovationPipeline: `${API_GATEWAY_CONFIG.baseUrl}/platform/innovation-pipeline`,
 };
 
 // Request Headers
@@ -171,59 +119,6 @@ export const CACHE_CONFIG = {
   checkPeriod: 30000, // 30 seconds
   memoryLimit: '512MB',
   compressionEnabled: true,
-  // Performance Optimization Settings
-  performance: {
-    enableConnectionPooling: true,
-    maxConnections: 100,
-    minConnections: 10,
-    connectionTimeout: 30000,
-    idleTimeout: 300000,
-    enableQueryOptimization: true,
-    enableIndexOptimization: true,
-    enableDataArchiving: true,
-    archiveAfterDays: 90,
-    compressionLevel: 6,
-    enablePrefetching: true,
-    prefetchThreshold: 0.8,
-  },
-  // Unified Caching Strategy
-  unifiedStrategy: {
-    enableMultiLayer: true,
-    layers: {
-      l1: {
-        type: 'memory',
-        maxSize: '256MB',
-        ttl: 300000, // 5 minutes
-        evictionPolicy: 'lru',
-      },
-      l2: {
-        type: 'redis',
-        maxSize: '1GB',
-        ttl: 1800000, // 30 minutes
-        evictionPolicy: 'lfu',
-      },
-      l3: {
-        type: 'distributed',
-        maxSize: '10GB',
-        ttl: 3600000, // 1 hour
-        evictionPolicy: 'ttl',
-      },
-    },
-    invalidation: {
-      strategy: 'tag-based',
-      enableCascading: true,
-      enableBroadcast: true,
-      maxInvalidationBatch: 1000,
-    },
-    optimization: {
-      enableCompression: true,
-      enableSerialization: true,
-      enablePartitioning: true,
-      partitionStrategy: 'hash',
-      enableMetrics: true,
-      enablePredictiveWarming: true,
-    },
-  },
 };
 
 // WebSocket Configuration
@@ -867,10 +762,10 @@ const getEnvironmentInfo = () => {
 const envInfo = getEnvironmentInfo();
 
 export const ENV_CONFIG = {
-  isDevelopment: envInfo.isDevelopment,
-  isProduction: envInfo.isProduction,
-  isTest: envInfo.isTest,
-  nodeEnv: envInfo.nodeEnv,
+  isDevelopment: typeof process !== 'undefined' && process.env?.NODE_ENV === 'development',
+  isProduction: typeof process !== 'undefined' && process.env?.NODE_ENV === 'production',
+  isTest: typeof process !== 'undefined' && process.env?.NODE_ENV === 'test',
+  nodeEnv: typeof process !== 'undefined' ? process.env?.NODE_ENV || 'development' : 'development',
   apiVersion: "v1",
   buildVersion: "2.0.0",
   buildTimestamp: new Date().toISOString(),
@@ -3295,3 +3190,28 @@ export class ConfigurationManager {
   /**
    * Increment version number
    */
+  private incrementVersion(version: string): string {
+    const parts = version.split('.');
+    if (parts.length === 3) {
+      const major = parseInt(parts[0]);
+      const minor = parseInt(parts[1]);
+      const patch = parseInt(parts[2]);
+      return `${major}.${minor + 1}.0`;
+    }
+    return version;
+  }
+
+  /**
+   * Notify configuration change
+   */
+  private notifyConfigurationChange(): void {
+    this.configListeners.forEach(listener => listener(this.currentConfig));
+  }
+
+  /**
+   * Add configuration listener
+   */
+  public addConfigListener(listener: (config: ConfigurationManager) => void): void {
+    this.configListeners.push(listener);
+  }
+}

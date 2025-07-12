@@ -1,4 +1,0 @@
-import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
-export default function JSXErrorMonitorStoryboard() {
-    return (_jsx("div", { className: "bg-white p-6 min-h-screen", children: _jsxs("div", { className: "max-w-6xl mx-auto space-y-6", children: [_jsxs("div", { children: [_jsx("h1", { className: "text-3xl font-bold mb-2", children: "JSX Error Monitor" }), _jsx("p", { className: "text-gray-600", children: "Real-time monitoring and analysis of JSX parsing errors" })] }), _jsxs("div", { className: "p-6 bg-blue-50 rounded-lg border border-blue-200", children: [_jsx("h3", { className: "text-lg font-medium text-blue-900 mb-2", children: "JSX Error Monitor" }), _jsx("p", { className: "text-blue-700", children: "This component monitors JSX parsing errors in real-time and provides detailed analysis for debugging purposes." })] })] }) }));
-}

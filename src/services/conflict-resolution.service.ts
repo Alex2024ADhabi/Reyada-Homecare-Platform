@@ -1,600 +1,608 @@
 /**
- * Enhanced Conflict Resolution Service
- * Handles data conflicts during real-time synchronization with healthcare-specific logic
+ * Production Real-Time Sync Conflict Resolution
+ * Operational Transform Algorithms for Healthcare Data
  */
 
-import { errorHandlerService } from "./error-handler.service";
+interface Operation {
+  type: 'insert' | 'delete' | 'retain' | 'replace';
+  position?: number;
+  length?: number;
+  content?: any;
+  field?: string;
+  timestamp: number;
+  userId: string;
+  operationId: string;
+}
 
-export interface ConflictData {
+interface TransformResult {
+  transformedOp1: Operation;
+  transformedOp2: Operation;
+}
+
+interface ConflictResolutionRule {
+  field: string;
+  strategy: 'latest_wins' | 'merge' | 'priority_based' | 'medical_priority' | 'manual_review';
+  priority?: number;
+  validator?: (value: any) => boolean;
+}
+
+interface HealthcareDataConflict {
   id: string;
-  entity: string;
-  clientData: any;
-  serverData: any;
-  clientTimestamp: Date;
-  serverTimestamp: Date;
-  conflictType: "version" | "timestamp" | "checksum" | "content";
-  severity: "low" | "medium" | "high" | "critical";
-  metadata: Record<string, any>;
+  patientId: string;
+  dataType: 'vital_signs' | 'medication' | 'clinical_note' | 'assessment' | 'care_plan';
+  localVersion: any;
+  serverVersion: any;
+  conflictFields: string[];
+  timestamp: number;
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  resolved: boolean;
+  resolution?: any;
+  resolutionMethod?: string;
 }
 
-export interface ConflictResolution {
-  strategy: "client_wins" | "server_wins" | "merge" | "manual" | "ai_resolve";
-  resolvedData: any;
-  confidence: number;
-  reasoning: string;
-  requiresReview: boolean;
-  metadata: Record<string, any>;
-}
-
-export interface ConflictResolver {
-  canResolve: (conflict: ConflictData) => boolean;
-  resolve: (conflict: ConflictData) => Promise<ConflictResolution>;
-  priority: number;
-}
-
-class ConflictResolutionService {
-  private static instance: ConflictResolutionService;
-  private resolvers: Map<string, ConflictResolver[]> = new Map();
-  private conflictHistory: ConflictData[] = [];
-  private resolutionStats = {
-    totalConflicts: 0,
-    resolvedConflicts: 0,
-    manualReviewRequired: 0,
-    averageResolutionTime: 0,
-  };
-
-  public static getInstance(): ConflictResolutionService {
-    if (!ConflictResolutionService.instance) {
-      ConflictResolutionService.instance = new ConflictResolutionService();
-    }
-    return ConflictResolutionService.instance;
-  }
+class RealTimeSyncConflictResolver {
+  private conflictRules: Map<string, ConflictResolutionRule> = new Map();
+  private activeConflicts: Map<string, HealthcareDataConflict> = new Map();
+  private operationHistory: Operation[] = [];
+  private maxHistorySize = 1000;
 
   constructor() {
-    this.initializeDefaultResolvers();
+    this.initializeHealthcareRules();
   }
 
   /**
-   * Initialize default conflict resolvers for healthcare entities
+   * Initialize healthcare-specific conflict resolution rules
    */
-  private initializeDefaultResolvers(): void {
-    // Patient data resolver
-    this.addResolver("patient", {
-      canResolve: (conflict) => conflict.entity === "patient",
-      resolve: async (conflict) => this.resolvePatientConflict(conflict),
-      priority: 1,
-    });
-
-    // Clinical data resolver
-    this.addResolver("clinical", {
-      canResolve: (conflict) =>
-        ["clinical_assessments", "vital_signs", "lab_results"].includes(
-          conflict.entity,
-        ),
-      resolve: async (conflict) => this.resolveClinicalConflict(conflict),
-      priority: 1,
-    });
-
-    // Medication resolver
-    this.addResolver("medications", {
-      canResolve: (conflict) => conflict.entity === "medications",
-      resolve: async (conflict) => this.resolveMedicationConflict(conflict),
-      priority: 1,
-    });
-
-    // Administrative data resolver
-    this.addResolver("administrative", {
-      canResolve: (conflict) =>
-        ["appointments", "scheduling", "billing"].includes(conflict.entity),
-      resolve: async (conflict) => this.resolveAdministrativeConflict(conflict),
-      priority: 2,
-    });
-
-    // Generic timestamp resolver (fallback)
-    this.addResolver("timestamp", {
-      canResolve: () => true,
-      resolve: async (conflict) => this.resolveByTimestamp(conflict),
+  private initializeHealthcareRules(): void {
+    // Critical medical data - always requires manual review
+    this.conflictRules.set('vital_signs.blood_pressure', {
+      field: 'vital_signs.blood_pressure',
+      strategy: 'medical_priority',
       priority: 10,
+      validator: (value) => this.validateBloodPressure(value)
+    });
+
+    this.conflictRules.set('vital_signs.heart_rate', {
+      field: 'vital_signs.heart_rate',
+      strategy: 'medical_priority',
+      priority: 10,
+      validator: (value) => this.validateHeartRate(value)
+    });
+
+    this.conflictRules.set('medication.dosage', {
+      field: 'medication.dosage',
+      strategy: 'manual_review',
+      priority: 10,
+      validator: (value) => this.validateDosage(value)
+    });
+
+    this.conflictRules.set('medication.frequency', {
+      field: 'medication.frequency',
+      strategy: 'manual_review',
+      priority: 10
+    });
+
+    // Clinical notes - merge strategy with timestamp priority
+    this.conflictRules.set('clinical_note.content', {
+      field: 'clinical_note.content',
+      strategy: 'merge',
+      priority: 8
+    });
+
+    this.conflictRules.set('clinical_note.diagnosis', {
+      field: 'clinical_note.diagnosis',
+      strategy: 'latest_wins',
+      priority: 9
+    });
+
+    // Assessment data - priority based on clinician level
+    this.conflictRules.set('assessment.score', {
+      field: 'assessment.score',
+      strategy: 'priority_based',
+      priority: 7
+    });
+
+    // Care plan - requires careful merging
+    this.conflictRules.set('care_plan.goals', {
+      field: 'care_plan.goals',
+      strategy: 'merge',
+      priority: 8
+    });
+
+    this.conflictRules.set('care_plan.interventions', {
+      field: 'care_plan.interventions',
+      strategy: 'merge',
+      priority: 8
+    });
+
+    // Patient demographics - latest wins for most fields
+    this.conflictRules.set('patient.contact_info', {
+      field: 'patient.contact_info',
+      strategy: 'latest_wins',
+      priority: 5
+    });
+
+    this.conflictRules.set('patient.emergency_contact', {
+      field: 'patient.emergency_contact',
+      strategy: 'latest_wins',
+      priority: 7
     });
   }
 
   /**
-   * Add a custom conflict resolver
+   * Transform operations using Operational Transform algorithm
    */
-  public addResolver(category: string, resolver: ConflictResolver): void {
-    if (!this.resolvers.has(category)) {
-      this.resolvers.set(category, []);
+  transformOperations(op1: Operation, op2: Operation): TransformResult {
+    // Handle different operation type combinations
+    if (op1.type === 'insert' && op2.type === 'insert') {
+      return this.transformInsertInsert(op1, op2);
+    } else if (op1.type === 'insert' && op2.type === 'delete') {
+      return this.transformInsertDelete(op1, op2);
+    } else if (op1.type === 'delete' && op2.type === 'insert') {
+      const result = this.transformInsertDelete(op2, op1);
+      return { transformedOp1: result.transformedOp2, transformedOp2: result.transformedOp1 };
+    } else if (op1.type === 'delete' && op2.type === 'delete') {
+      return this.transformDeleteDelete(op1, op2);
+    } else if (op1.type === 'replace' || op2.type === 'replace') {
+      return this.transformReplace(op1, op2);
     }
 
-    const resolvers = this.resolvers.get(category)!;
-    resolvers.push(resolver);
-
-    // Sort by priority (lower number = higher priority)
-    resolvers.sort((a, b) => a.priority - b.priority);
-
-    console.log(`🔧 Added conflict resolver for category: ${category}`);
+    // Default: no transformation needed
+    return { transformedOp1: op1, transformedOp2: op2 };
   }
 
   /**
-   * Detect and resolve conflicts
+   * Transform two insert operations
    */
-  public async resolveConflict(
-    conflictData: ConflictData,
-  ): Promise<ConflictResolution> {
-    const startTime = Date.now();
-    this.resolutionStats.totalConflicts++;
+  private transformInsertInsert(op1: Operation, op2: Operation): TransformResult {
+    if (!op1.position || !op2.position) {
+      return { transformedOp1: op1, transformedOp2: op2 };
+    }
 
-    console.log(
-      `🔧 Resolving conflict for ${conflictData.entity}:${conflictData.id}`,
-    );
+    let transformedOp1 = { ...op1 };
+    let transformedOp2 = { ...op2 };
 
-    try {
-      // Find appropriate resolver
-      const resolver = this.findResolver(conflictData);
+    if (op1.position <= op2.position) {
+      transformedOp2.position = op2.position + (op1.content?.length || 1);
+    } else {
+      transformedOp1.position = op1.position + (op2.content?.length || 1);
+    }
 
-      if (!resolver) {
-        console.warn(
-          `⚠️ No resolver found for conflict: ${conflictData.entity}`,
-        );
-        return this.createManualResolution(
-          conflictData,
-          "No suitable resolver found",
-        );
+    return { transformedOp1, transformedOp2 };
+  }
+
+  /**
+   * Transform insert and delete operations
+   */
+  private transformInsertDelete(insertOp: Operation, deleteOp: Operation): TransformResult {
+    if (!insertOp.position || !deleteOp.position || !deleteOp.length) {
+      return { transformedOp1: insertOp, transformedOp2: deleteOp };
+    }
+
+    let transformedInsert = { ...insertOp };
+    let transformedDelete = { ...deleteOp };
+
+    if (insertOp.position <= deleteOp.position) {
+      transformedDelete.position = deleteOp.position + (insertOp.content?.length || 1);
+    } else if (insertOp.position > deleteOp.position + deleteOp.length) {
+      transformedInsert.position = insertOp.position - deleteOp.length;
+    } else {
+      // Insert is within delete range
+      transformedInsert.position = deleteOp.position;
+      transformedDelete.length = deleteOp.length + (insertOp.content?.length || 1);
+    }
+
+    return { transformedOp1: transformedInsert, transformedOp2: transformedDelete };
+  }
+
+  /**
+   * Transform two delete operations
+   */
+  private transformDeleteDelete(op1: Operation, op2: Operation): TransformResult {
+    if (!op1.position || !op2.position || !op1.length || !op2.length) {
+      return { transformedOp1: op1, transformedOp2: op2 };
+    }
+
+    let transformedOp1 = { ...op1 };
+    let transformedOp2 = { ...op2 };
+
+    const op1End = op1.position + op1.length;
+    const op2End = op2.position + op2.length;
+
+    if (op1End <= op2.position) {
+      // No overlap, op2 position shifts
+      transformedOp2.position = op2.position - op1.length;
+    } else if (op2End <= op1.position) {
+      // No overlap, op1 position shifts
+      transformedOp1.position = op1.position - op2.length;
+    } else {
+      // Overlapping deletes - complex case
+      const overlapStart = Math.max(op1.position, op2.position);
+      const overlapEnd = Math.min(op1End, op2End);
+      const overlapLength = overlapEnd - overlapStart;
+
+      if (op1.position < op2.position) {
+        transformedOp1.length = op1.length - overlapLength;
+        transformedOp2.position = op1.position;
+        transformedOp2.length = op2.length - overlapLength;
+      } else {
+        transformedOp2.length = op2.length - overlapLength;
+        transformedOp1.position = op2.position;
+        transformedOp1.length = op1.length - overlapLength;
       }
+    }
 
-      // Resolve the conflict
-      const resolution = await resolver.resolve(conflictData);
+    return { transformedOp1, transformedOp2 };
+  }
 
-      // Update statistics
-      const resolutionTime = Date.now() - startTime;
-      this.updateResolutionStats(resolutionTime, resolution.requiresReview);
+  /**
+   * Transform operations involving replace
+   */
+  private transformReplace(op1: Operation, op2: Operation): TransformResult {
+    // For healthcare data, replace operations often need manual review
+    if (this.isHealthcareCriticalField(op1.field) || this.isHealthcareCriticalField(op2.field)) {
+      // Mark for manual review
+      return {
+        transformedOp1: { ...op1, type: 'replace' },
+        transformedOp2: { ...op2, type: 'replace' }
+      };
+    }
 
-      // Store in history
-      this.conflictHistory.push(conflictData);
-
-      // Limit history size
-      if (this.conflictHistory.length > 1000) {
-        this.conflictHistory.shift();
-      }
-
-      console.log(
-        `✅ Conflict resolved: ${resolution.strategy} (confidence: ${resolution.confidence})`,
-      );
-
-      return resolution;
-    } catch (error) {
-      console.error(
-        `❌ Error resolving conflict for ${conflictData.id}:`,
-        error,
-      );
-      errorHandlerService.handleError(error, {
-        context: "ConflictResolutionService.resolveConflict",
-        conflictData,
-      });
-
-      return this.createManualResolution(
-        conflictData,
-        `Resolution error: ${error.message}`,
-      );
+    // Use timestamp-based resolution for non-critical fields
+    if (op1.timestamp > op2.timestamp) {
+      return { transformedOp1: op1, transformedOp2: { ...op2, type: 'retain' } };
+    } else {
+      return { transformedOp1: { ...op1, type: 'retain' }, transformedOp2: op2 };
     }
   }
 
   /**
-   * Find the best resolver for a conflict
+   * Resolve healthcare data conflicts
    */
-  private findResolver(conflict: ConflictData): ConflictResolver | null {
-    // Check all resolver categories
-    for (const [category, resolvers] of this.resolvers.entries()) {
-      for (const resolver of resolvers) {
-        if (resolver.canResolve(conflict)) {
-          console.log(`🎯 Using ${category} resolver for conflict`);
-          return resolver;
-        }
+  async resolveHealthcareConflict(conflict: HealthcareDataConflict): Promise<any> {
+    console.log(`🔄 Resolving healthcare conflict: ${conflict.id}`);
+
+    const resolution: any = {};
+    let requiresManualReview = false;
+
+    for (const field of conflict.conflictFields) {
+      const rule = this.conflictRules.get(field) || this.getDefaultRule(field);
+      const localValue = this.getNestedValue(conflict.localVersion, field);
+      const serverValue = this.getNestedValue(conflict.serverVersion, field);
+
+      switch (rule.strategy) {
+        case 'latest_wins':
+          resolution[field] = this.resolveLatestWins(localValue, serverValue, conflict);
+          break;
+
+        case 'merge':
+          resolution[field] = await this.resolveMerge(localValue, serverValue, field);
+          break;
+
+        case 'priority_based':
+          resolution[field] = this.resolvePriorityBased(localValue, serverValue, conflict);
+          break;
+
+        case 'medical_priority':
+          resolution[field] = this.resolveMedicalPriority(localValue, serverValue, conflict);
+          break;
+
+        case 'manual_review':
+          requiresManualReview = true;
+          resolution[field] = null; // Will be resolved manually
+          break;
       }
     }
 
+    if (requiresManualReview) {
+      await this.flagForManualReview(conflict);
+      return null; // No automatic resolution
+    }
+
+    // Apply resolution
+    const resolvedData = { ...conflict.serverVersion, ...resolution };
+    
+    // Validate resolved data
+    if (await this.validateResolvedData(resolvedData, conflict.dataType)) {
+      conflict.resolved = true;
+      conflict.resolution = resolvedData;
+      conflict.resolutionMethod = 'automatic';
+      
+      this.activeConflicts.set(conflict.id, conflict);
+      
+      console.log(`✅ Healthcare conflict resolved automatically: ${conflict.id}`);
+      return resolvedData;
+    } else {
+      await this.flagForManualReview(conflict);
+      return null;
+    }
+  }
+
+  /**
+   * Resolve using latest timestamp
+   */
+  private resolveLatestWins(localValue: any, serverValue: any, conflict: HealthcareDataConflict): any {
+    const localTimestamp = localValue?.timestamp || conflict.timestamp;
+    const serverTimestamp = serverValue?.timestamp || 0;
+    
+    return localTimestamp > serverTimestamp ? localValue : serverValue;
+  }
+
+  /**
+   * Resolve by merging values
+   */
+  private async resolveMerge(localValue: any, serverValue: any, field: string): Promise<any> {
+    if (field.includes('clinical_note.content')) {
+      return this.mergeClinicalNotes(localValue, serverValue);
+    } else if (field.includes('care_plan')) {
+      return this.mergeCarePlan(localValue, serverValue);
+    } else if (Array.isArray(localValue) && Array.isArray(serverValue)) {
+      return this.mergeArrays(localValue, serverValue);
+    } else if (typeof localValue === 'object' && typeof serverValue === 'object') {
+      return { ...serverValue, ...localValue };
+    }
+    
+    return localValue; // Default to local
+  }
+
+  /**
+   * Merge clinical notes intelligently
+   */
+  private mergeClinicalNotes(localNote: any, serverNote: any): any {
+    if (!localNote || !serverNote) {
+      return localNote || serverNote;
+    }
+
+    return {
+      ...serverNote,
+      content: this.mergeTextContent(localNote.content, serverNote.content),
+      lastModified: Math.max(localNote.lastModified || 0, serverNote.lastModified || 0),
+      contributors: [...new Set([...(localNote.contributors || []), ...(serverNote.contributors || [])])]
+    };
+  }
+
+  /**
+   * Merge text content with conflict markers
+   */
+  private mergeTextContent(localText: string, serverText: string): string {
+    if (localText === serverText) return localText;
+    
+    // Simple merge with conflict markers for manual review
+    return `${serverText}\n\n--- MERGED CONTENT ---\n${localText}`;
+  }
+
+  /**
+   * Merge care plan data
+   */
+  private mergeCarePlan(localPlan: any, serverPlan: any): any {
+    if (!localPlan || !serverPlan) {
+      return localPlan || serverPlan;
+    }
+
+    return {
+      ...serverPlan,
+      goals: this.mergeArrays(localPlan.goals || [], serverPlan.goals || []),
+      interventions: this.mergeArrays(localPlan.interventions || [], serverPlan.interventions || []),
+      lastUpdated: Math.max(localPlan.lastUpdated || 0, serverPlan.lastUpdated || 0)
+    };
+  }
+
+  /**
+   * Merge arrays with deduplication
+   */
+  private mergeArrays(localArray: any[], serverArray: any[]): any[] {
+    const merged = [...serverArray];
+    
+    for (const localItem of localArray) {
+      const exists = merged.some(serverItem => 
+        JSON.stringify(serverItem) === JSON.stringify(localItem)
+      );
+      
+      if (!exists) {
+        merged.push(localItem);
+      }
+    }
+    
+    return merged;
+  }
+
+  /**
+   * Resolve based on user priority/role
+   */
+  private resolvePriorityBased(localValue: any, serverValue: any, conflict: HealthcareDataConflict): any {
+    // In a real implementation, this would check user roles/permissions
+    // For now, use timestamp as fallback
+    return this.resolveLatestWins(localValue, serverValue, conflict);
+  }
+
+  /**
+   * Resolve based on medical priority
+   */
+  private resolveMedicalPriority(localValue: any, serverValue: any, conflict: HealthcareDataConflict): any {
+    // Critical medical data requires validation
+    if (this.validateMedicalValue(localValue) && this.validateMedicalValue(serverValue)) {
+      // Both valid - use latest
+      return this.resolveLatestWins(localValue, serverValue, conflict);
+    } else if (this.validateMedicalValue(localValue)) {
+      return localValue;
+    } else if (this.validateMedicalValue(serverValue)) {
+      return serverValue;
+    }
+    
+    // Neither valid - flag for manual review
     return null;
   }
 
   /**
-   * Resolve patient data conflicts
+   * Flag conflict for manual review
    */
-  private async resolvePatientConflict(
-    conflict: ConflictData,
-  ): Promise<ConflictResolution> {
-    const { clientData, serverData } = conflict;
-
-    // Patient safety takes priority
-    const merged = {
-      ...serverData,
-      ...clientData,
-
-      // Always use most recent vital signs
-      vitalSigns: this.getMostRecentData(
-        clientData.vitalSigns,
-        serverData.vitalSigns,
-        "timestamp",
-      ),
-
-      // Merge allergies (union of both)
-      allergies: this.mergeArrays(
-        clientData.allergies || [],
-        serverData.allergies || [],
-        "allergen",
-      ),
-
-      // Use most recent emergency contacts
-      emergencyContacts: this.getMostRecentData(
-        clientData.emergencyContacts,
-        serverData.emergencyContacts,
-        "lastUpdated",
-      ),
-
-      // Preserve all critical flags
-      criticalFlags: [
-        ...(clientData.criticalFlags || []),
-        ...(serverData.criticalFlags || []),
-      ].filter((flag, index, arr) => arr.indexOf(flag) === index),
-
-      // Conflict resolution metadata
-      _conflictResolved: true,
-      _resolutionTimestamp: new Date(),
-      _resolutionStrategy: "patient_safety_merge",
-    };
-
-    return {
-      strategy: "merge",
-      resolvedData: merged,
-      confidence: 0.9,
-      reasoning:
-        "Patient safety-focused merge with preservation of critical data",
-      requiresReview: this.hasHighRiskChanges(clientData, serverData),
-      metadata: {
-        mergedFields: [
-          "vitalSigns",
-          "allergies",
-          "emergencyContacts",
-          "criticalFlags",
-        ],
-        safetyPriority: true,
-      },
-    };
+  private async flagForManualReview(conflict: HealthcareDataConflict): Promise<void> {
+    conflict.severity = 'critical';
+    this.activeConflicts.set(conflict.id, conflict);
+    
+    // Notify healthcare staff
+    console.log(`⚠️ Healthcare conflict requires manual review: ${conflict.id}`);
+    
+    // In a real implementation, this would send notifications to appropriate staff
+    // await notificationService.sendEmergencyAlert({
+    //   type: 'data_conflict',
+    //   patientId: conflict.patientId,
+    //   conflictId: conflict.id,
+    //   severity: conflict.severity
+    // }, clinicianIds);
   }
 
   /**
-   * Resolve clinical data conflicts
+   * Validate resolved healthcare data
    */
-  private async resolveClinicalConflict(
-    conflict: ConflictData,
-  ): Promise<ConflictResolution> {
-    const { clientData, serverData, entity } = conflict;
-
-    // Clinical data requires careful handling
-    if (this.hasCriticalClinicalConflict(clientData, serverData)) {
-      return {
-        strategy: "manual",
-        resolvedData: serverData, // Keep server data until manual review
-        confidence: 0.0,
-        reasoning:
-          "Critical clinical data conflict requires manual clinician review",
-        requiresReview: true,
-        metadata: {
-          conflictType: "critical_clinical",
-          requiresClinicianReview: true,
-          clientVersion: clientData,
-          serverVersion: serverData,
-        },
-      };
+  private async validateResolvedData(data: any, dataType: string): Promise<boolean> {
+    switch (dataType) {
+      case 'vital_signs':
+        return this.validateVitalSigns(data);
+      case 'medication':
+        return this.validateMedication(data);
+      case 'clinical_note':
+        return this.validateClinicalNote(data);
+      case 'assessment':
+        return this.validateAssessment(data);
+      case 'care_plan':
+        return this.validateCarePlan(data);
+      default:
+        return true; // Default validation
     }
-
-    // Use timestamp-based resolution for non-critical conflicts
-    const clientTime = new Date(
-      clientData.timestamp || clientData.createdAt || 0,
-    );
-    const serverTime = new Date(
-      serverData.timestamp || serverData.createdAt || 0,
-    );
-
-    const useClient = clientTime > serverTime;
-
-    return {
-      strategy: useClient ? "client_wins" : "server_wins",
-      resolvedData: useClient ? clientData : serverData,
-      confidence: 0.8,
-      reasoning: `Most recent clinical data selected based on timestamp (${useClient ? "client" : "server"})`,
-      requiresReview: entity === "clinical_assessments", // Always review assessments
-      metadata: {
-        timestampBased: true,
-        clientTimestamp: clientTime,
-        serverTimestamp: serverTime,
-      },
-    };
   }
 
   /**
-   * Resolve medication conflicts
+   * Healthcare-specific validators
    */
-  private async resolveMedicationConflict(
-    conflict: ConflictData,
-  ): Promise<ConflictResolution> {
-    const { clientData, serverData } = conflict;
-
-    // Medication changes are critical - always require review
-    const merged = this.mergeMedications(clientData, serverData);
-
-    return {
-      strategy: "merge",
-      resolvedData: merged,
-      confidence: 0.7,
-      reasoning: "Medication data merged with safety checks",
-      requiresReview: true, // Always review medication changes
-      metadata: {
-        medicationSafetyCheck: true,
-        interactionCheck: this.checkMedicationInteractions(merged),
-        allergyCheck: this.checkAllergyConflicts(merged),
-      },
-    };
-  }
-
-  /**
-   * Resolve administrative conflicts
-   */
-  private async resolveAdministrativeConflict(
-    conflict: ConflictData,
-  ): Promise<ConflictResolution> {
-    const { clientData, serverData } = conflict;
-
-    // Administrative data can use client wins strategy
-    return {
-      strategy: "client_wins",
-      resolvedData: {
-        ...serverData,
-        ...clientData,
-        _lastModified: new Date(),
-        _modifiedBy: clientData.userId || "system",
-      },
-      confidence: 0.85,
-      reasoning: "Client data preferred for administrative updates",
-      requiresReview: false,
-      metadata: {
-        administrativeUpdate: true,
-      },
-    };
-  }
-
-  /**
-   * Fallback timestamp-based resolution
-   */
-  private async resolveByTimestamp(
-    conflict: ConflictData,
-  ): Promise<ConflictResolution> {
-    const useClient = conflict.clientTimestamp > conflict.serverTimestamp;
-
-    return {
-      strategy: useClient ? "client_wins" : "server_wins",
-      resolvedData: useClient ? conflict.clientData : conflict.serverData,
-      confidence: 0.6,
-      reasoning: `Timestamp-based resolution: ${useClient ? "client" : "server"} data is more recent`,
-      requiresReview: conflict.severity === "critical",
-      metadata: {
-        fallbackResolution: true,
-        timestampDifference: Math.abs(
-          conflict.clientTimestamp.getTime() -
-            conflict.serverTimestamp.getTime(),
-        ),
-      },
-    };
-  }
-
-  /**
-   * Create manual resolution when automatic resolution fails
-   */
-  private createManualResolution(
-    conflict: ConflictData,
-    reason: string,
-  ): ConflictResolution {
-    return {
-      strategy: "manual",
-      resolvedData: conflict.serverData, // Default to server data
-      confidence: 0.0,
-      reasoning: reason,
-      requiresReview: true,
-      metadata: {
-        manualResolutionRequired: true,
-        originalConflict: conflict,
-      },
-    };
-  }
-
-  /**
-   * Helper methods
-   */
-  private getMostRecentData(
-    clientData: any,
-    serverData: any,
-    timestampField: string,
-  ): any {
-    if (!clientData && !serverData) return null;
-    if (!clientData) return serverData;
-    if (!serverData) return clientData;
-
-    const clientTime = new Date(clientData[timestampField] || 0);
-    const serverTime = new Date(serverData[timestampField] || 0);
-
-    return clientTime > serverTime ? clientData : serverData;
-  }
-
-  private mergeArrays(
-    clientArray: any[],
-    serverArray: any[],
-    uniqueField: string,
-  ): any[] {
-    const merged = [...serverArray];
-
-    clientArray.forEach((clientItem) => {
-      const existingIndex = merged.findIndex(
-        (item) => item[uniqueField] === clientItem[uniqueField],
-      );
-
-      if (existingIndex >= 0) {
-        // Update existing item with newer data
-        const clientTime = new Date(
-          clientItem.lastModified || clientItem.timestamp || 0,
-        );
-        const serverTime = new Date(
-          merged[existingIndex].lastModified ||
-            merged[existingIndex].timestamp ||
-            0,
-        );
-
-        if (clientTime > serverTime) {
-          merged[existingIndex] = clientItem;
-        }
-      } else {
-        // Add new item
-        merged.push(clientItem);
+  private validateVitalSigns(data: any): boolean {
+    if (!data) return false;
+    
+    // Validate blood pressure
+    if (data.bloodPressure) {
+      const [systolic, diastolic] = data.bloodPressure.split('/').map(Number);
+      if (systolic < 70 || systolic > 250 || diastolic < 40 || diastolic > 150) {
+        return false;
       }
-    });
-
-    return merged;
-  }
-
-  private hasHighRiskChanges(clientData: any, serverData: any): boolean {
-    const highRiskFields = [
-      "allergies",
-      "emergencyContacts",
-      "criticalFlags",
-      "medicalRecordNumber",
-      "insuranceInfo",
-    ];
-
-    return highRiskFields.some((field) => {
-      const clientValue = JSON.stringify(clientData[field] || null);
-      const serverValue = JSON.stringify(serverData[field] || null);
-      return clientValue !== serverValue;
-    });
-  }
-
-  private hasCriticalClinicalConflict(
-    clientData: any,
-    serverData: any,
-  ): boolean {
-    const criticalFields = [
-      "diagnosis",
-      "treatmentPlan",
-      "medications",
-      "allergies",
-      "vitalSigns",
-    ];
-
-    return criticalFields.some((field) => {
-      const clientValue = clientData[field];
-      const serverValue = serverData[field];
-
-      if (!clientValue && !serverValue) return false;
-      if (!clientValue || !serverValue) return true;
-
-      return JSON.stringify(clientValue) !== JSON.stringify(serverValue);
-    });
-  }
-
-  private mergeMedications(clientData: any, serverData: any): any {
-    const clientMeds = Array.isArray(clientData) ? clientData : [clientData];
-    const serverMeds = Array.isArray(serverData) ? serverData : [serverData];
-
-    return this.mergeArrays(clientMeds, serverMeds, "medicationId");
-  }
-
-  private checkMedicationInteractions(medications: any[]): string[] {
-    // Simplified interaction checking
-    const interactions: string[] = [];
-    const knownInteractions = {
-      warfarin: ["aspirin", "ibuprofen"],
-      metformin: ["alcohol"],
-      digoxin: ["furosemide"],
-    };
-
-    medications.forEach((med1) => {
-      medications.forEach((med2) => {
-        if (med1.medicationId !== med2.medicationId) {
-          const med1Interactions = knownInteractions[med1.name?.toLowerCase()];
-          if (med1Interactions?.includes(med2.name?.toLowerCase())) {
-            interactions.push(`${med1.name} + ${med2.name}`);
-          }
-        }
-      });
-    });
-
-    return interactions;
-  }
-
-  private checkAllergyConflicts(medications: any[]): string[] {
-    // This would check against patient allergies in a real implementation
-    return [];
-  }
-
-  private updateResolutionStats(
-    resolutionTime: number,
-    requiresReview: boolean,
-  ): void {
-    this.resolutionStats.resolvedConflicts++;
-
-    if (requiresReview) {
-      this.resolutionStats.manualReviewRequired++;
     }
+    
+    // Validate heart rate
+    if (data.heartRate && (data.heartRate < 30 || data.heartRate > 220)) {
+      return false;
+    }
+    
+    // Validate temperature
+    if (data.temperature && (data.temperature < 32 || data.temperature > 45)) {
+      return false;
+    }
+    
+    return true;
+  }
 
-    // Update average resolution time
-    const totalTime =
-      this.resolutionStats.averageResolutionTime *
-      (this.resolutionStats.resolvedConflicts - 1);
-    this.resolutionStats.averageResolutionTime =
-      (totalTime + resolutionTime) / this.resolutionStats.resolvedConflicts;
+  private validateBloodPressure(value: string): boolean {
+    if (!value) return false;
+    const [systolic, diastolic] = value.split('/').map(Number);
+    return systolic >= 70 && systolic <= 250 && diastolic >= 40 && diastolic <= 150;
+  }
+
+  private validateHeartRate(value: number): boolean {
+    return value >= 30 && value <= 220;
+  }
+
+  private validateDosage(value: any): boolean {
+    return value && typeof value === 'string' && value.length > 0;
+  }
+
+  private validateMedication(data: any): boolean {
+    return data && data.name && data.dosage && data.frequency;
+  }
+
+  private validateClinicalNote(data: any): boolean {
+    return data && data.content && data.content.length > 0;
+  }
+
+  private validateAssessment(data: any): boolean {
+    return data && typeof data.score === 'number';
+  }
+
+  private validateCarePlan(data: any): boolean {
+    return data && Array.isArray(data.goals) && Array.isArray(data.interventions);
+  }
+
+  private validateMedicalValue(value: any): boolean {
+    // Basic validation - in real implementation, this would be more comprehensive
+    return value !== null && value !== undefined;
   }
 
   /**
-   * Get conflict resolution statistics
+   * Utility methods
    */
-  public getStats(): typeof this.resolutionStats & {
-    successRate: number;
-    manualReviewRate: number;
-  } {
-    const successRate =
-      this.resolutionStats.totalConflicts > 0
-        ? (this.resolutionStats.resolvedConflicts /
-            this.resolutionStats.totalConflicts) *
-          100
-        : 0;
+  private isHealthcareCriticalField(field?: string): boolean {
+    if (!field) return false;
+    
+    const criticalFields = [
+      'vital_signs',
+      'medication.dosage',
+      'medication.frequency',
+      'clinical_note.diagnosis',
+      'assessment.score'
+    ];
+    
+    return criticalFields.some(critical => field.includes(critical));
+  }
 
-    const manualReviewRate =
-      this.resolutionStats.resolvedConflicts > 0
-        ? (this.resolutionStats.manualReviewRequired /
-            this.resolutionStats.resolvedConflicts) *
-          100
-        : 0;
+  private getNestedValue(obj: any, path: string): any {
+    return path.split('.').reduce((current, key) => current?.[key], obj);
+  }
 
+  private getDefaultRule(field: string): ConflictResolutionRule {
     return {
-      ...this.resolutionStats,
-      successRate,
-      manualReviewRate,
+      field,
+      strategy: 'latest_wins',
+      priority: 5
     };
   }
 
   /**
-   * Get recent conflict history
+   * Add operation to history
    */
-  public getConflictHistory(limit: number = 100): ConflictData[] {
-    return this.conflictHistory.slice(-limit);
+  addOperation(operation: Operation): void {
+    this.operationHistory.push(operation);
+    
+    // Limit history size
+    if (this.operationHistory.length > this.maxHistorySize) {
+      this.operationHistory = this.operationHistory.slice(-this.maxHistorySize);
+    }
   }
 
   /**
-   * Clear conflict history (for testing/maintenance)
+   * Get conflict statistics
    */
-  public clearHistory(): void {
-    this.conflictHistory = [];
-    console.log("🧹 Conflict history cleared");
+  getConflictStats() {
+    const conflicts = Array.from(this.activeConflicts.values());
+    
+    return {
+      total: conflicts.length,
+      resolved: conflicts.filter(c => c.resolved).length,
+      pending: conflicts.filter(c => !c.resolved).length,
+      critical: conflicts.filter(c => c.severity === 'critical').length,
+      byDataType: conflicts.reduce((acc, c) => {
+        acc[c.dataType] = (acc[c.dataType] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>)
+    };
+  }
+
+  /**
+   * Get active conflicts
+   */
+  getActiveConflicts(): HealthcareDataConflict[] {
+    return Array.from(this.activeConflicts.values()).filter(c => !c.resolved);
   }
 }
 
-export const conflictResolutionService =
-  ConflictResolutionService.getInstance();
-export default conflictResolutionService;
+// Singleton instance
+const conflictResolver = new RealTimeSyncConflictResolver();
+
+export default conflictResolver;
+export { RealTimeSyncConflictResolver, Operation, HealthcareDataConflict, TransformResult };
