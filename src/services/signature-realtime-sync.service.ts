@@ -60,9 +60,9 @@ export interface SyncConfiguration {
 }
 
 class SignatureRealtimeSyncService {
-  private syncStates: Map<string, SyncState> = new Map();
-  private pendingOperations: Map<string, SyncOperation> = new Map();
-  private conflicts: Map<string, SyncConflict> = new Map();
+  private syncStates: Map<string, RefreshCwState> = new Map();
+  private pendingOperations: Map<string, RefreshCwOperation> = new Map();
+  private conflicts: Map<string, RefreshCwConflict> = new Map();
   private offlineQueue: Map<string, OfflineQueueItem> = new Map();
   private websocket: WebSocket | null = null;
   private isOnline: boolean = navigator.onLine;

@@ -51,7 +51,7 @@ export interface SyncStats {
 
 class RealTimeSyncService {
   private static instance: RealTimeSyncService;
-  private subscriptions = new Map<string, SyncSubscription>();
+  private subscriptions = new Map<string, RefreshCwSubscription>();
   private offlineQueue: SyncEvent[] = [];
   private conflictResolvers = new Map<string, ConflictResolution>();
   private isConnected = false;
@@ -60,7 +60,7 @@ class RealTimeSyncService {
   private heartbeatInterval: NodeJS.Timeout | null = null;
   private stats: SyncStats;
   private websocket: WebSocket | null = null;
-  private syncBuffer = new Map<string, SyncEvent[]>();
+  private syncBuffer = new Map<string, RefreshCwEvent[]>();
   private batchSize = 50;
   private batchTimeout = 1000;
   private lastHeartbeat: Date | null = null;
@@ -397,7 +397,7 @@ class RealTimeSyncService {
   /**
    * Enhanced event publishing with offline queue support
    */
-  public publishEvent(event: Omit<SyncEvent, "id" | "timestamp">): void {
+  public publishEvent(event: Omit<RefreshCwEvent, "id" | "timestamp">): void {
     const syncEvent: SyncEvent = {
       ...event,
       id: `event_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -1162,7 +1162,7 @@ class RealTimeSyncService {
    */
   private async resolveHealthcareConflict(
     event: SyncEvent,
-  ): Promise<SyncEvent> {
+  ): Promise<RefreshCwEvent> {
     console.log(
       `🏥 Resolving healthcare-specific conflict for ${event.entity}:${event.id}`,
     );

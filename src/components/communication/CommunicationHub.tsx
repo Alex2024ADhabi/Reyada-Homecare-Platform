@@ -195,7 +195,7 @@ const CommunicationHub: React.FC<CommunicationHubProps> = ({
       activeEmergencies: activeEmergencies.length,
       messagesProcessed: 156, // Mock data
       workflowsActive: workflowStats.totalExecutions,
-      syncOperations: pendingSync,
+      syncOperations: pendingRefreshCw,
       integrationStatus:
         syncConnected && networkInfo.online ? "operational" : "degraded",
       systemHealth:

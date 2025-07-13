@@ -792,7 +792,7 @@ export default function TawteenComplianceTracker({
                         <span className="text-sm">
                           {currentReport?.tamm_integration.lastSync
                             ? new Date(
-                                currentReport.tamm_integration.lastSync,
+                                currentReport.tamm_integration.lastRefreshCw,
                               ).toLocaleDateString()
                             : "Never"}
                         </span>

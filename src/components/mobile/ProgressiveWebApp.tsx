@@ -27,7 +27,7 @@ import {
   Battery,
   Signal,
   Globe,
-  Sync,
+  RefreshCw,
   Database,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -273,7 +273,7 @@ const ProgressiveWebApp: React.FC<ProgressiveWebAppProps> = ({
                 {isSyncing ? (
                   <RefreshCw className="h-4 w-4 animate-spin" />
                 ) : (
-                  <Sync className="h-4 w-4" />
+                  <RefreshCw className="h-4 w-4" />
                 )}
                 Sync When Online
               </Button>
@@ -507,7 +507,7 @@ const ProgressiveWebApp: React.FC<ProgressiveWebAppProps> = ({
                 {isSyncing ? (
                   <RefreshCw className="h-4 w-4 animate-spin" />
                 ) : (
-                  <Sync className="h-4 w-4" />
+                  <RefreshCw className="h-4 w-4" />
                 )}
                 Sync Now
               </Button>

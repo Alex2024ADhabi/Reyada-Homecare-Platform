@@ -40,7 +40,7 @@ export function SyncStatus({
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
   const [syncProgress, setSyncProgress] = useState(0);
   const [syncErrors, setSyncErrors] = useState<string[]>([]);
-  const [autoSync, setAutoSync] = useState(true);
+  const [autoRefreshCw, setAutoSync] = useState(true);
   const [syncInterval, setSyncInterval] = useState<NodeJS.Timeout | null>(null);
 
   // Calculate total pending items
@@ -62,7 +62,7 @@ export function SyncStatus({
         if (interval) clearInterval(interval);
       };
     }
-  }, [autoSync, isOnline, totalPendingItems, isSyncing]);
+  }, [autoRefreshCw, isOnline, totalPendingItems, isSyncing]);
 
   // Handle manual sync
   const handleSync = async () => {

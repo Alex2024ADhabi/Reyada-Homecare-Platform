@@ -24,7 +24,7 @@ import {
   WifiOff,
   Wifi,
   Database,
-  Sync,
+  RefreshCw,
   Clock,
   TrendingUp,
   TrendingDown,
@@ -84,7 +84,7 @@ export default function OfflineAnalyticsDashboard({ className = "" }: OfflineAna
     networkEfficiency: 0,
     userProductivity: 0,
   });
-  const [syncActivity, setSyncActivity] = useState<SyncActivity[]>([]);
+  const [syncActivity, setSyncActivity] = useState<RefreshCwActivity[]>([]);
   const [dataPatterns, setDataPatterns] = useState<DataUsagePattern[]>([]);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
@@ -394,7 +394,7 @@ export default function OfflineAnalyticsDashboard({ className = "" }: OfflineAna
                   </p>
                 </div>
               </div>
-              <Sync className="h-8 w-8 text-green-600" />
+              <RefreshCw className="h-8 w-8 text-green-600" />
             </div>
           </CardContent>
         </Card>
@@ -430,7 +430,7 @@ export default function OfflineAnalyticsDashboard({ className = "" }: OfflineAna
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center">
-                <Sync className="h-5 w-5 mr-2" />
+                <RefreshCw className="h-5 w-5 mr-2" />
                 Sync Success Rate Over Time
               </CardTitle>
             </CardHeader>

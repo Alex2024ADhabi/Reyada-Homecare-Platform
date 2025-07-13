@@ -568,7 +568,7 @@ export default function AdvancedMobileOptimizationEngine() {
             PWA Install
           </Button>
           <Button size="lg" variant="outline" className="border-purple-300 text-purple-700">
-            <Sync className="h-5 w-5 mr-2" />
+            <RefreshCw className="h-5 w-5 mr-2" />
             Sync Optimization
           </Button>
         </div>

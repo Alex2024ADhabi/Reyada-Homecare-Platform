@@ -120,7 +120,7 @@ interface ConflictMetrics {
 
 class RealTimeSyncConflictResolutionService extends EventEmitter {
   private config: ConflictResolutionConfig;
-  private activeConflicts: Map<string, SyncConflict> = new Map();
+  private activeConflicts: Map<string, RefreshCwConflict> = new Map();
   private resourceLocks: Map<
     string,
     { userId: string; timestamp: Date; expires: Date }
@@ -237,7 +237,7 @@ class RealTimeSyncConflictResolutionService extends EventEmitter {
     clientData: any,
     clientVersion: number,
     userId: string,
-  ): Promise<SyncConflict | null> {
+  ): Promise<RefreshCwConflict | null> {
     try {
       // Simulate server data retrieval
       const serverData = await this.getServerData(resourceId);

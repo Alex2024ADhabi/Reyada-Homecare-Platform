@@ -2655,7 +2655,7 @@ export const TelehealthIntegration = {
 // Export the main healthcare integration functions
 export {
   PatientDataIntegration,
-  ClinicalDataSync,
+  ClinicalDataRefreshCw,
   MedicationManagement,
   LaboratoryIntegration,
   InsuranceVerification,

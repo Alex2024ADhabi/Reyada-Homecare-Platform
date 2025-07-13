@@ -14,7 +14,7 @@ import {
   Zap,
   Settings,
   Download,
-  Sync,
+  RefreshCw,
   Database,
   Signal,
   Battery,
@@ -265,7 +265,7 @@ export const MobileAppAccess: React.FC<{
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
     };
-  }, [pwaCapabilities.backgroundSync, pwaCapabilities.offlineStorage]);
+  }, [pwaCapabilities.backgroundRefreshCw, pwaCapabilities.offlineStorage]);
 
   // Helper functions
   const generateDeviceId = () => {
@@ -495,7 +495,7 @@ export const MobileAppAccess: React.FC<{
             </div>
           </div>
           <div className="text-center p-3 bg-white rounded-lg border">
-            <Sync
+            <RefreshCw
               className={`h-6 w-6 mx-auto mb-2 ${pwaCapabilities.backgroundSync ? "text-green-600" : "text-gray-400"}`}
             />
             <div className="text-xs font-medium">Sync</div>

@@ -90,7 +90,7 @@ import {
   MessageSquare,
   Globe,
   Wifi,
-  CloudSync,
+  CloudRefreshCw,
   HardDrive,
   Award,
   BookOpen,
@@ -536,7 +536,7 @@ const ClinicalDocumentation = ({
     });
   const [isLoadingHealthcareData, setIsLoadingHealthcareData] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [realTimeSync, setRealTimeSync] = useState(true);
+  const [realTimeRefreshCw, setRealTimeSync] = useState(true);
   const [networkStatus, setNetworkStatus] = useState({ online: true });
   const [clinicalDecisionSupport, setClinicalDecisionSupport] = useState<any[]>(
     [],

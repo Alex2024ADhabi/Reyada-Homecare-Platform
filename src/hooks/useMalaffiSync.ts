@@ -665,7 +665,7 @@ export const useMalaffiSync = (): UseMalaffiSyncReturn => {
     getMedicalRecords,
     syncPatientToMalaffi,
     createMedicalRecord,
-    performBidirectionalSync,
+    performBidirectionalRefreshCw,
     resolveConflict,
 
     // Real-time monitoring actions
@@ -679,7 +679,7 @@ export const useMalaffiSync = (): UseMalaffiSyncReturn => {
 
     // Error handling
     clearError,
-    resetSync,
+    resetRefreshCw,
     retryFailedOperations,
   };
 };

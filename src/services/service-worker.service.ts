@@ -224,7 +224,7 @@ export class ServiceWorkerService {
   /**
    * Add task for background sync
    */
-  addSyncTask(task: Omit<SyncTask, "id" | "timestamp" | "retryCount">): string {
+  addSyncTask(task: Omit<RefreshCwTask, "id" | "timestamp" | "retryCount">): string {
     const syncTask: SyncTask = {
       ...task,
       id: this.generateTaskId(),

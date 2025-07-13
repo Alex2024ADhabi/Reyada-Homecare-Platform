@@ -35,7 +35,7 @@ import {
   VolumeX,
   Loader2,
   Shield,
-  Sync,
+  RefreshCw,
   SyncOff,
   Navigation,
   Settings,
@@ -111,7 +111,7 @@ const MobileOptimizedComponents: React.FC<MobileOptimizedComponentsProps> = ({
   const [activeTab, setActiveTab] = useState("basic");
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [lastSync, setLastSync] = useState(new Date());
+  const [lastRefreshCw, setLastSync] = useState(new Date());
   const recordingTimer = useRef<NodeJS.Timeout | null>(null);
 
   const [notifications, setNotifications] = useState([
@@ -447,11 +447,11 @@ const MobileOptimizedComponents: React.FC<MobileOptimizedComponentsProps> = ({
   const getSyncStatusIcon = () => {
     switch (syncStatus) {
       case "synced":
-        return <Sync className="h-4 w-4 text-green-600" />;
+        return <RefreshCw className="h-4 w-4 text-green-600" />;
       case "pending":
-        return <SyncOff className="h-4 w-4 text-yellow-600" />;
+        return <RefreshCwOff className="h-4 w-4 text-yellow-600" />;
       default:
-        return <SyncOff className="h-4 w-4 text-gray-600" />;
+        return <RefreshCwOff className="h-4 w-4 text-gray-600" />;
     }
   };
 

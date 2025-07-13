@@ -777,7 +777,7 @@ class OfflineQueueManagementService extends EventEmitter {
     performanceMonitoringService.recordMetric({
       type: "offline-queue",
       name: "Pending_Sync",
-      value: this.metrics.pendingSync,
+      value: this.metrics.pendingRefreshCw,
       unit: "count",
     });
 

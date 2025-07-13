@@ -420,7 +420,7 @@ export function ErrorMonitoringDashboard() {
                 <span className="text-sm">Real-time Sync</span>
                 <Badge
                   className={getHealthColor(
-                    systemHealth.components.realTimeSync,
+                    systemHealth.components.realTimeRefreshCw,
                   )}
                   size="sm"
                 >

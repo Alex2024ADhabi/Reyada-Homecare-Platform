@@ -43,8 +43,8 @@ export interface SyncConflict {
 }
 
 export interface OfflineStorage {
-  operations: Map<string, SyncOperation>;
-  conflicts: Map<string, SyncConflict>;
+  operations: Map<string, RefreshCwOperation>;
+  conflicts: Map<string, RefreshCwConflict>;
   metadata: {
     lastSync: string;
     totalOperations: number;
@@ -110,9 +110,9 @@ export interface SyncPolicy {
 
 class OfflineSyncOrchestrator extends EventEmitter {
   private storage: OfflineStorage;
-  private syncSessions: Map<string, SyncSession> = new Map();
+  private syncSessions: Map<string, RefreshCwSession> = new Map();
   private networkStatus: NetworkStatus;
-  private syncPolicies: Map<string, SyncPolicy> = new Map();
+  private syncPolicies: Map<string, RefreshCwPolicy> = new Map();
   private isInitialized = false;
   private syncInterval: NodeJS.Timeout | null = null;
   private networkCheckInterval: NodeJS.Timeout | null = null;
@@ -173,7 +173,7 @@ class OfflineSyncOrchestrator extends EventEmitter {
   /**
    * Queue operation for offline sync
    */
-  async queueOperation(operation: Omit<SyncOperation, 'id' | 'timestamp' | 'status' | 'retryCount' | 'metadata'>): Promise<SyncOperation> {
+  async queueOperation(operation: Omit<RefreshCwOperation, 'id' | 'timestamp' | 'status' | 'retryCount' | 'metadata'>): Promise<RefreshCwOperation> {
     try {
       if (!this.isInitialized) {
         throw new Error("Orchestrator not initialized");
@@ -224,7 +224,7 @@ class OfflineSyncOrchestrator extends EventEmitter {
   /**
    * Perform synchronization with server
    */
-  async performSync(sessionId?: string): Promise<SyncSession> {
+  async performSync(sessionId?: string): Promise<RefreshCwSession> {
     try {
       if (!this.networkStatus.online) {
         throw new Error("Cannot sync while offline");
@@ -337,7 +337,7 @@ class OfflineSyncOrchestrator extends EventEmitter {
 
     return {
       online: this.networkStatus.online,
-      lastSync: this.storage.metadata.lastSync,
+      lastSync: this.storage.metadata.lastRefreshCw,
       pendingOperations: pendingOps.length,
       failedOperations: failedOps.length,
       unresolvedConflicts: conflicts.length,
@@ -479,7 +479,7 @@ class OfflineSyncOrchestrator extends EventEmitter {
     }
   }
 
-  private async createSyncSession(sessionId?: string): Promise<SyncSession> {
+  private async createSyncSession(sessionId?: string): Promise<RefreshCwSession> {
     const session: SyncSession = {
       id: sessionId || this.generateSessionId(),
       startTime: new Date().toISOString(),

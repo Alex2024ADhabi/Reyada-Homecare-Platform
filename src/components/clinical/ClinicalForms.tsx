@@ -10,7 +10,8 @@ import {
   AlertTriangle,
   Heart,
   Stethoscope,
-  Clipboard
+  Clipboard,
+  RefreshCw
 } from 'lucide-react';
 
 export default function ClinicalForms() {

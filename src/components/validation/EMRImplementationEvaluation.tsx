@@ -36,7 +36,7 @@ import {
   Cpu,
   HardDrive,
   Wifi,
-  CloudSync,
+  CloudRefreshCw,
   RefreshCw,
   CheckSquare,
   AlertCircle,

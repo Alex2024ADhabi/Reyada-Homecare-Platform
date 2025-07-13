@@ -2320,7 +2320,7 @@ const PlatformValidator: React.FC<PlatformValidatorProps> = ({
                 <div className="space-y-2">
                   {Object.entries(
                     validationResult.integrationWorkflowAssessment
-                      .mobileApplicationSync,
+                      .mobileApplicationRefreshCw,
                   )
                     .slice(0, 5)
                     .map(([key, value]) => (

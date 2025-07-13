@@ -737,7 +737,7 @@ const PatientEpisode: React.FC<PatientEpisodeProps> = ({
   const [cameraIntegrated, setCameraIntegrated] = useState(false);
   const [touchEnabled, setTouchEnabled] = useState(false);
   const [offlineCapable, setOfflineCapable] = useState(false);
-  const [realTimeSync, setRealTimeSync] = useState(false);
+  const [realTimeRefreshCw, setRealTimeSync] = useState(false);
   const [enhancedFeatures, setEnhancedFeatures] = useState({
     voiceNotes: false,
     cameraCapture: false,

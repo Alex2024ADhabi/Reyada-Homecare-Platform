@@ -30,7 +30,7 @@ import {
   RefreshCw,
   Wifi,
   WifiOff,
-  CloudSync,
+  CloudRefreshCw,
   AlertCircle,
   Info,
   TrendingUp,
@@ -726,7 +726,7 @@ export const PatientCard: React.FC<PatientCardProps> = ({
   const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
   const [retryCount, setRetryCount] = useState<number>(0);
   const [autoSyncEnabled, setAutoSyncEnabled] = useState<boolean>(true);
-  const [realTimeSync, setRealTimeSync] = useState<boolean>(false);
+  const [realTimeRefreshCw, setRealTimeSync] = useState<boolean>(false);
   const [advancedMetrics, setAdvancedMetrics] = useState<any>(null);
   const [systemHealth, setSystemHealth] = useState<any>(null);
   const [clinicalIntegration, setClinicalIntegration] =
@@ -845,7 +845,7 @@ export const PatientCard: React.FC<PatientCardProps> = ({
     performanceMonitor.startOperation('emr_sync', {
       patientId: patient.id,
       emiratesId: patient.emiratesId,
-      forceSync,
+      forceRefreshCw,
       timestamp: new Date().toISOString()
     });
     
@@ -855,7 +855,7 @@ export const PatientCard: React.FC<PatientCardProps> = ({
       patientId: patient.id,
       action: 'emr_sync_initiated',
       timestamp: new Date().toISOString(),
-      metadata: { forceSync, userAgent: navigator.userAgent }
+      metadata: { forceRefreshCw, userAgent: navigator.userAgent }
     });
     
     if (!isOnline && !forceSync) {
@@ -1228,7 +1228,7 @@ export const PatientCard: React.FC<PatientCardProps> = ({
       };
 
       try {
-        const [allSystemsSync, comprehensiveSync] = await Promise.allSettled([
+        const [allSystemsRefreshCw, comprehensiveSync] = await Promise.allSettled([
           syncPatientAcrossAllSystems(patient.id),
           syncComprehensivePatientData(patient.id),
         ]);
@@ -3216,7 +3216,7 @@ export const PatientCard: React.FC<PatientCardProps> = ({
         handleEMRSync();
       }
     }
-  }, [patient.id, emrAutoSync, autoSyncEnabled]);
+  }, [patient.id, emrAutoRefreshCw, autoSyncEnabled]);
 
   // Periodic sync for active patients
   useEffect(() => {
@@ -3333,7 +3333,7 @@ export const PatientCard: React.FC<PatientCardProps> = ({
         description: "Analyzing medical records"
       },
       integrating: {
-        icon: CloudSync,
+        icon: CloudRefreshCw,
         color: "text-teal-600",
         bg: "bg-teal-100 animate-pulse",
         label: "Integrating",
@@ -3349,7 +3349,7 @@ export const PatientCard: React.FC<PatientCardProps> = ({
         description: "Validating data integrity"
       },
       synchronizing: {
-        icon: CloudSync,
+        icon: CloudRefreshCw,
         color: "text-blue-600",
         bg: "bg-blue-100 animate-pulse",
         label: "Syncing",
@@ -3357,7 +3357,7 @@ export const PatientCard: React.FC<PatientCardProps> = ({
         description: "Syncing patient records"
       },
       syncing: {
-        icon: CloudSync,
+        icon: CloudRefreshCw,
         color: "text-blue-600",
         bg: "bg-blue-100 animate-pulse",
         label: "Syncing",
@@ -4258,7 +4258,7 @@ export const PatientCard: React.FC<PatientCardProps> = ({
             <div className="mt-6 p-4 bg-gradient-to-r from-cyan-50 to-blue-50 rounded-lg border border-cyan-200">
               <div className="flex items-center justify-between mb-4">
                 <h4 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                  <CloudSync className="w-5 h-5 text-cyan-600" />
+                  <CloudRefreshCw className="w-5 h-5 text-cyan-600" />
                   Malaffi FHIR R4 Integration
                   <Badge className="bg-cyan-100 text-cyan-700 text-xs">
                     ✓ Active
@@ -4968,7 +4968,7 @@ export const PatientCard: React.FC<PatientCardProps> = ({
                     <span className="text-lg font-bold text-cyan-600">
                       {malaffiIntegration?.interoperabilityScore || 0}%
                     </span>
-                    <CloudSync className="w-4 h-4 text-cyan-600" />
+                    <CloudRefreshCw className="w-4 h-4 text-cyan-600" />
                   </div>
                   <div className="text-xs text-gray-500 mt-1">
                     Malaffi: Active

@@ -156,7 +156,7 @@ const MobileSignaturePad: React.FC<MobileSignaturePadProps> = ({
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
     };
-  }, [autoSync, offlineSignatures]);
+  }, [autoRefreshCw, offlineSignatures]);
 
   // Load offline signatures from localStorage
   useEffect(() => {

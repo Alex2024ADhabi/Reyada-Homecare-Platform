@@ -36,8 +36,8 @@ import {
   Award,
   Database,
   Network,
-  Sync,
-  FileSync,
+  RefreshCw,
+  FileRefreshCw,
   AlertOctagon,
 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";

@@ -124,7 +124,7 @@ export class CrossModuleSyncService extends EventEmitter {
   private static instance: CrossModuleSyncService;
   private syncQueue: SyncEvent[] = [];
   private isProcessing = false;
-  private syncStatuses = new Map<string, SyncStatus>();
+  private syncStatuses = new Map<string, RefreshCwStatus>();
   private conflictResolutionStrategies = new Map<
     string,
     (conflict: SyncConflict) => Promise<any>
@@ -436,7 +436,7 @@ export class CrossModuleSyncService extends EventEmitter {
   /**
    * Detect conflicts in sync event
    */
-  private async detectConflicts(event: SyncEvent): Promise<SyncConflict[]> {
+  private async detectConflicts(event: SyncEvent): Promise<RefreshCwConflict[]> {
     const conflicts: SyncConflict[] = [];
 
     try {

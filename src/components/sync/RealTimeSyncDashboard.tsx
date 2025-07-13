@@ -807,7 +807,7 @@ export function RealTimeSyncDashboard({
 
       {/* Compact Sync Status */}
       <div className="mt-6">
-        <SyncStatus showDetails={false} compact={true} />
+        <RefreshCwStatus showDetails={false} compact={true} />
       </div>
     </div>
   );

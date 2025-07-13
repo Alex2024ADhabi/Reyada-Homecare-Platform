@@ -62,7 +62,7 @@ interface SyncStatus {
 const EMRIntegrationPanel: React.FC = () => {
   const [patients, setPatients] = useState<FHIRResource[]>([]);
   const [observations, setObservations] = useState<FHIRResource[]>([]);
-  const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
+  const [syncStatus, setSyncStatus] = useState<RefreshCwStatus | null>(null);
   const [selectedPatient, setSelectedPatient] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");

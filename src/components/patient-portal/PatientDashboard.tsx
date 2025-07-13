@@ -40,7 +40,7 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({
   className = "",
 }) => {
   const { pendingSurveys } = useSatisfactionSurveys(patient.id);
-  const { syncStatus, lastSync, triggerSync } = useMalaffiSync(patient.id);
+  const { syncStatus, lastRefreshCw, triggerSync } = useMalaffiSync(patient.id);
   const {
     patientData,
     isLoading: patientDataLoading,

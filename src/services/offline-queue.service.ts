@@ -438,7 +438,7 @@ class OfflineQueueManager {
   /**
    * Get conflict by ID
    */
-  private async getConflict(id: string): Promise<SyncConflict | null> {
+  private async getConflict(id: string): Promise<RefreshCwConflict | null> {
     if (!this.db) return null;
 
     return new Promise((resolve, reject) => {
@@ -459,7 +459,7 @@ class OfflineQueueManager {
   /**
    * Update conflict
    */
-  private async updateConflict(id: string, updates: Partial<SyncConflict>): Promise<void> {
+  private async updateConflict(id: string, updates: Partial<RefreshCwConflict>): Promise<void> {
     if (!this.db) return;
 
     return new Promise((resolve, reject) => {
@@ -639,4 +639,4 @@ class OfflineQueueManager {
 const offlineQueueManager = new OfflineQueueManager();
 
 export default offlineQueueManager;
-export { OfflineQueueManager, QueueItem, SyncConflict };
+export { OfflineQueueManager, QueueItem, RefreshCwConflict };

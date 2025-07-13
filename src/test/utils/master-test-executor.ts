@@ -6,7 +6,7 @@
  */
 
 import { EventEmitter } from "events";
-import { execSync, spawn, ChildProcess } from "child_process";
+import { execRefreshCw, spawn, ChildProcess } from "child_process";
 import fs from "fs";
 import path from "path";
 import { performance } from "perf_hooks";
