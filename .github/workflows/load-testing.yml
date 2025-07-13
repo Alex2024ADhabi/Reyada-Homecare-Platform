@@ -1,0 +1,381 @@
+name: Healthcare Load Testing
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 4 * * 1' # Weekly on Monday at 4 AM
+  workflow_dispatch:
+    inputs:
+      test_duration:
+        description: 'Test duration in minutes'
+        required: false
+        default: '10'
+        type: string
+      max_users:
+        description: 'Maximum concurrent users'
+        required: false
+        default: '100'
+        type: string
+      test_environment:
+        description: 'Test environment'
+        required: false
+        default: 'staging'
+        type: choice
+        options:
+        - staging
+        - production
+
+env:
+  NODE_VERSION: '20'
+  HEALTHCARE_LOAD_TEST_MODE: 'true'
+  DOH_PERFORMANCE_VALIDATION: 'true'
+
+jobs:
+  # K6 Load Testing
+  k6-load-testing:
+    name: K6 Healthcare Load Testing
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        test-scenario: [baseline, stress, spike, volume]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build application
+        run: npm run build
+
+      - name: Start application for testing
+        run: |
+          npm run preview &
+          sleep 30
+          curl -f http://localhost:4173 || exit 1
+        env:
+          VITE_LOAD_TEST_MODE: 'true'
+          VITE_MOCK_EXTERNAL_APIS: 'true'
+
+      - name: Install K6
+        run: |
+          sudo gpg -k
+          sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install k6
+
+      - name: Run K6 Load Tests - Baseline
+        if: matrix.test-scenario == 'baseline'
+        run: |
+          k6 run --out json=k6-baseline-results.json src/test/load/k6-enhanced-load-test.js
+        env:
+          BASE_URL: http://localhost:4173
+          TEST_SCENARIO: baseline
+          MAX_USERS: ${{ github.event.inputs.max_users || '50' }}
+          TEST_DURATION: ${{ github.event.inputs.test_duration || '10' }}m
+
+      - name: Run K6 Load Tests - Stress
+        if: matrix.test-scenario == 'stress'
+        run: |
+          k6 run --out json=k6-stress-results.json src/test/load/k6-stress-test.js
+        env:
+          BASE_URL: http://localhost:4173
+          TEST_SCENARIO: stress
+          MAX_USERS: ${{ github.event.inputs.max_users || '100' }}
+          TEST_DURATION: ${{ github.event.inputs.test_duration || '15' }}m
+
+      - name: Run K6 Load Tests - Spike
+        if: matrix.test-scenario == 'spike'
+        run: |
+          k6 run --out json=k6-spike-results.json src/test/load/k6-spike-test.js
+        env:
+          BASE_URL: http://localhost:4173
+          TEST_SCENARIO: spike
+          MAX_USERS: ${{ github.event.inputs.max_users || '200' }}
+          SPIKE_DURATION: '2m'
+
+      - name: Run K6 Load Tests - Volume
+        if: matrix.test-scenario == 'volume'
+        run: |
+          k6 run --out json=k6-volume-results.json src/test/load/k6-volume-test.js
+        env:
+          BASE_URL: http://localhost:4173
+          TEST_SCENARIO: volume
+          MAX_USERS: ${{ github.event.inputs.max_users || '75' }}
+          TEST_DURATION: ${{ github.event.inputs.test_duration || '30' }}m
+
+      - name: Upload K6 Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: k6-results-${{ matrix.test-scenario }}
+          path: |
+            k6-*-results.json
+            test-results/
+
+  # Artillery Load Testing
+  artillery-load-testing:
+    name: Artillery Healthcare Load Testing
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build application
+        run: npm run build
+
+      - name: Start application for testing
+        run: |
+          npm run preview &
+          sleep 30
+          curl -f http://localhost:4173 || exit 1
+
+      - name: Run Artillery Load Tests - Healthcare Workflows
+        run: |
+          npx artillery run src/test/load/artillery-healthcare-config.yml --output artillery-healthcare-results.json
+          npx artillery report artillery-healthcare-results.json --output artillery-healthcare-report.html
+
+      - name: Run Artillery Load Tests - DAMAN Integration
+        run: |
+          npx artillery run src/test/load/artillery-daman-config.yml --output artillery-daman-results.json
+          npx artillery report artillery-daman-results.json --output artillery-daman-report.html
+
+      - name: Run Artillery Load Tests - Clinical Workflows
+        run: |
+          npx artillery run src/test/load/artillery-clinical-config.yml --output artillery-clinical-results.json
+          npx artillery report artillery-clinical-results.json --output artillery-clinical-report.html
+
+      - name: Upload Artillery Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: artillery-results
+          path: |
+            artillery-*-results.json
+            artillery-*-report.html
+
+  # Performance Regression Testing
+  performance-regression:
+    name: Performance Regression Analysis
+    runs-on: ubuntu-latest
+    needs: [k6-load-testing, artillery-load-testing]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download load test results
+        uses: actions/download-artifact@v4
+        with:
+          path: load-test-results/
+
+      - name: Run Performance Regression Analysis
+        run: |
+          npm run test:performance:regression
+          npm run analyze:performance:trends
+          npm run validate:performance:thresholds
+
+      - name: Generate Performance Report
+        run: |
+          npm run generate:performance:report
+          npm run generate:performance:recommendations
+
+      - name: Upload Performance Analysis
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-analysis
+          path: |
+            performance-regression-report.json
+            performance-trends-analysis.html
+            performance-recommendations.md
+
+  # Healthcare-Specific Load Testing
+  healthcare-load-scenarios:
+    name: Healthcare-Specific Load Scenarios
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        scenario: [patient-registration, clinical-assessment, daman-authorization, emergency-load]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build application
+        run: npm run build
+
+      - name: Start application for testing
+        run: |
+          npm run preview &
+          sleep 30
+          curl -f http://localhost:4173 || exit 1
+
+      - name: Install K6
+        run: |
+          sudo gpg -k
+          sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install k6
+
+      - name: Run Patient Registration Load Test
+        if: matrix.scenario == 'patient-registration'
+        run: |
+          k6 run --out json=patient-registration-results.json src/test/load/k6-patient-registration.js
+        env:
+          BASE_URL: http://localhost:4173
+          SCENARIO: patient-registration
+          EMIRATES_ID_VALIDATION: 'true'
+          INSURANCE_VERIFICATION: 'true'
+
+      - name: Run Clinical Assessment Load Test
+        if: matrix.scenario == 'clinical-assessment'
+        run: |
+          k6 run --out json=clinical-assessment-results.json src/test/load/k6-clinical-assessment.js
+        env:
+          BASE_URL: http://localhost:4173
+          SCENARIO: clinical-assessment
+          DOH_9_DOMAINS: 'true'
+          COMPLIANCE_VALIDATION: 'true'
+
+      - name: Run DAMAN Authorization Load Test
+        if: matrix.scenario == 'daman-authorization'
+        run: |
+          k6 run --out json=daman-authorization-results.json src/test/load/k6-daman-authorization.js
+        env:
+          BASE_URL: http://localhost:4173
+          SCENARIO: daman-authorization
+          AUTHORIZATION_COMPLEXITY: 'high'
+          DOCUMENT_UPLOAD: 'true'
+
+      - name: Run Emergency Load Test
+        if: matrix.scenario == 'emergency-load'
+        run: |
+          k6 run --out json=emergency-load-results.json src/test/load/k6-emergency-load.js
+        env:
+          BASE_URL: http://localhost:4173
+          SCENARIO: emergency-load
+          EMERGENCY_PROTOCOLS: 'true'
+          HIGH_PRIORITY_PROCESSING: 'true'
+
+      - name: Upload Healthcare Scenario Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: healthcare-scenario-${{ matrix.scenario }}
+          path: |
+            *-results.json
+            test-results/
+
+  # Load Test Report Generation
+  load-test-report:
+    name: Generate Load Test Report
+    runs-on: ubuntu-latest
+    needs: [k6-load-testing, artillery-load-testing, performance-regression, healthcare-load-scenarios]
+    if: always()
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all load test artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: load-test-results/
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate comprehensive load test report
+        run: |
+          npm run generate:load-test:comprehensive-report
+          npm run validate:load-test:thresholds
+          npm run analyze:load-test:healthcare-metrics
+
+      - name: Upload comprehensive load test report
+        uses: actions/upload-artifact@v4
+        with:
+          name: comprehensive-load-test-report
+          path: |
+            comprehensive-load-test-report.html
+            load-test-summary.json
+            healthcare-performance-analysis.json
+            load-test-recommendations.md
+          retention-days: 30
+
+      - name: Comment load test summary on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            try {
+              const summary = JSON.parse(fs.readFileSync('load-test-summary.json', 'utf8'));
+              const comment = `## ⚡ Load Test Results
+              
+              **Overall Performance Score:** ${summary.overallScore}/100
+              
+              **Response Times (95th percentile):**
+              - Patient Registration: ${summary.patientRegistrationP95}ms
+              - Clinical Assessment: ${summary.clinicalAssessmentP95}ms
+              - DAMAN Authorization: ${summary.damanAuthorizationP95}ms
+              
+              **Throughput:**
+              - Requests/second: ${summary.requestsPerSecond}
+              - Concurrent Users: ${summary.maxConcurrentUsers}
+              
+              **Healthcare Metrics:**
+              - DOH Compliance: ${summary.dohComplianceScore}%
+              - Error Rate: ${summary.errorRate}%
+              - Availability: ${summary.availability}%
+              
+              **Status:** ${summary.passed ? '✅ PASSED' : '❌ FAILED'}
+              
+              [View Full Load Test Report](${summary.reportUrl})`;
+              
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: comment
+              });
+            } catch (error) {
+              console.log('Could not post load test summary:', error);
+            }

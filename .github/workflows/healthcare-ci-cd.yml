@@ -1,0 +1,452 @@
+# Healthcare Platform CI/CD Pipeline
+# DOH-compliant continuous integration and deployment
+
+name: Healthcare Platform CI/CD
+
+on:
+  push:
+    branches: [main, develop, feature/*]
+  pull_request:
+    branches: [main, develop]
+  schedule:
+    - cron: '0 2 * * *'  # Daily security scans at 2 AM UAE time
+
+env:
+  NODE_VERSION: '18'
+  REGISTRY: ghcr.io
+  IMAGE_NAME: reyada/healthcare-platform
+  HEALTHCARE_COMPLIANCE: 'true'
+  DOH_VALIDATION: 'enabled'
+
+jobs:
+  # Healthcare Compliance Validation
+  compliance-check:
+    name: DOH Compliance Validation
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: DOH Compliance Check
+        run: |
+          echo "🏥 Running DOH compliance validation..."
+          npm run test:compliance
+          npm run validate:doh-schema
+
+      - name: HIPAA Compliance Validation
+        run: |
+          echo "🔒 Validating HIPAA compliance..."
+          npm run test:hipaa
+
+      - name: Upload compliance report
+        uses: actions/upload-artifact@v4
+        with:
+          name: compliance-report
+          path: test-results/compliance/
+          retention-days: 30
+
+  # Code Quality and Security
+  quality-security:
+    name: Code Quality & Security
+    runs-on: ubuntu-latest
+    needs: compliance-check
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint and Format Check
+        run: |
+          npm run lint
+          npm run format:check
+
+      - name: Type Check
+        run: npm run type-check
+
+      - name: Security Audit
+        run: |
+          npm audit --audit-level=moderate
+          npm run security:scan
+
+      - name: OWASP ZAP Security Scan
+        run: |
+          echo "🔍 Running OWASP ZAP security scan..."
+          docker run -v $(pwd):/zap/wrk/:rw \
+            -t owasp/zap2docker-stable zap-baseline.py \
+            -t http://localhost:3000 \
+            -J zap-report.json || true
+
+      - name: Upload security report
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-report
+          path: zap-report.json
+          retention-days: 30
+
+  # Comprehensive Testing Suite
+  testing:
+    name: Comprehensive Testing
+    runs-on: ubuntu-latest
+    needs: quality-security
+    strategy:
+      matrix:
+        test-suite: [unit, integration, e2e, performance, accessibility]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        if: matrix.test-suite == 'e2e' || matrix.test-suite == 'accessibility'
+        run: npx playwright install --with-deps
+
+      - name: Run Unit Tests
+        if: matrix.test-suite == 'unit'
+        run: |
+          echo "🧪 Running unit tests..."
+          npm run test:unit -- --coverage
+
+      - name: Run Integration Tests
+        if: matrix.test-suite == 'integration'
+        run: |
+          echo "🔗 Running integration tests..."
+          npm run test:integration
+
+      - name: Run E2E Tests
+        if: matrix.test-suite == 'e2e'
+        run: |
+          echo "🎭 Running E2E tests..."
+          npm run build
+          npm run test:e2e
+
+      - name: Run Performance Tests
+        if: matrix.test-suite == 'performance'
+        run: |
+          echo "⚡ Running performance tests..."
+          npm run test:performance
+          npm run test:load
+
+      - name: Run Accessibility Tests
+        if: matrix.test-suite == 'accessibility'
+        run: |
+          echo "♿ Running accessibility tests..."
+          npm run test:accessibility
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.test-suite }}
+          path: test-results/
+          retention-days: 30
+
+  # Database Schema Optimization
+  database-optimization:
+    name: Database Schema Optimization
+    runs-on: ubuntu-latest
+    needs: testing
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Database Schema Optimization
+        run: |
+          echo "🗄️ Running database schema optimization..."
+          npm run db:optimize
+          npm run db:analyze-performance
+
+      - name: Generate Optimization Report
+        run: |
+          echo "📊 Generating optimization report..."
+          npm run db:optimization-report
+
+      - name: Upload optimization report
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-optimization-report
+          path: reports/database-optimization/
+          retention-days: 90
+
+  # Build and Package
+  build:
+    name: Build Application
+    runs-on: ubuntu-latest
+    needs: [compliance-check, quality-security, testing]
+    outputs:
+      image-digest: ${{ steps.build.outputs.digest }}
+      image-tag: ${{ steps.meta.outputs.tags }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build application
+        run: |
+          echo "🏗️ Building healthcare platform..."
+          npm run build
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push Docker image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            HEALTHCARE_COMPLIANCE=true
+            DOH_VALIDATION=enabled
+
+  # Blue-Green Deployment to Staging
+  deploy-staging:
+    name: Deploy to Staging (Blue-Green)
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/develop'
+    environment:
+      name: staging
+      url: https://staging.reyada.ae
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.28.0'
+
+      - name: Configure kubectl
+        run: |
+          echo "${{ secrets.KUBE_CONFIG_STAGING }}" | base64 -d > kubeconfig
+          export KUBECONFIG=kubeconfig
+
+      - name: Blue-Green Deployment to Staging
+        run: |
+          echo "🔄 Starting blue-green deployment to staging..."
+          ./scripts/blue-green-deploy.sh staging ${{ needs.build.outputs.image-tag }}
+
+      - name: Run Smoke Tests
+        run: |
+          echo "💨 Running smoke tests on staging..."
+          npm run test:smoke -- --env=staging
+
+      - name: Healthcare Compliance Validation
+        run: |
+          echo "🏥 Validating healthcare compliance on staging..."
+          npm run test:compliance -- --env=staging
+
+  # Blue-Green Deployment to Production
+  deploy-production:
+    name: Deploy to Production (Blue-Green)
+    runs-on: ubuntu-latest
+    needs: [build, deploy-staging]
+    if: github.ref == 'refs/heads/main'
+    environment:
+      name: production
+      url: https://app.reyada.ae
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.28.0'
+
+      - name: Configure kubectl
+        run: |
+          echo "${{ secrets.KUBE_CONFIG_PRODUCTION }}" | base64 -d > kubeconfig
+          export KUBECONFIG=kubeconfig
+
+      - name: Pre-deployment Health Check
+        run: |
+          echo "🏥 Running pre-deployment health checks..."
+          ./scripts/health-check.sh production
+
+      - name: Blue-Green Deployment to Production
+        run: |
+          echo "🚀 Starting blue-green deployment to production..."
+          ./scripts/blue-green-deploy.sh production ${{ needs.build.outputs.image-tag }}
+
+      - name: Post-deployment Validation
+        run: |
+          echo "✅ Running post-deployment validation..."
+          npm run test:smoke -- --env=production
+          npm run test:compliance -- --env=production
+
+      - name: Update Monitoring Dashboards
+        run: |
+          echo "📊 Updating monitoring dashboards..."
+          ./scripts/update-monitoring.sh production
+
+      - name: Notify Deployment Success
+        run: |
+          echo "📢 Notifying deployment success..."
+          curl -X POST ${{ secrets.SLACK_WEBHOOK_URL }} \
+            -H 'Content-type: application/json' \
+            --data '{"text":"🏥 Healthcare Platform deployed successfully to production!"}'
+
+  # Performance Regression Testing
+  performance-regression:
+    name: Performance Regression Testing
+    runs-on: ubuntu-latest
+    needs: deploy-staging
+    if: github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run K6 Load Tests
+        run: |
+          echo "📈 Running K6 load tests..."
+          npm run test:load:k6
+
+      - name: Run Artillery Load Tests
+        run: |
+          echo "🎯 Running Artillery load tests..."
+          npm run test:load:artillery
+
+      - name: Performance Regression Analysis
+        run: |
+          echo "📊 Analyzing performance regression..."
+          npm run analyze:performance-regression
+
+      - name: Upload performance reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-reports
+          path: test-results/performance/
+          retention-days: 90
+
+  # Security Scanning
+  security-scan:
+    name: Security Scanning
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+      - name: OWASP Dependency Check
+        run: |
+          echo "🔍 Running OWASP dependency check..."
+          docker run --rm -v $(pwd):/src \
+            owasp/dependency-check:latest \
+            --scan /src \
+            --format JSON \
+            --out /src/dependency-check-report.json
+
+      - name: Upload security scan results
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-scan-results
+          path: |
+            trivy-results.sarif
+            dependency-check-report.json
+          retention-days: 90
+
+  # Cleanup
+  cleanup:
+    name: Cleanup Resources
+    runs-on: ubuntu-latest
+    needs: [deploy-production, performance-regression, security-scan]
+    if: always()
+    steps:
+      - name: Cleanup old artifacts
+        run: |
+          echo "🧹 Cleaning up old artifacts and resources..."
+          # Cleanup logic here
+
+      - name: Update deployment metrics
+        run: |
+          echo "📊 Updating deployment metrics..."
+          # Metrics update logic here

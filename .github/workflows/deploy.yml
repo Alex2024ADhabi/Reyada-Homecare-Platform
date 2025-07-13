@@ -1,0 +1,85 @@
+name: Deploy Reyada Homecare Platform
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: me-south-1
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v1
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v2
+
+    - name: Build and push frontend image
+      uses: docker/build-push-action@v4
+      with:
+        context: .
+        file: ./Dockerfile.frontend
+        push: true
+        tags: ${{ steps.login-ecr.outputs.registry }}/reyada-frontend:latest
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Update kubeconfig
+      run: aws eks update-kubeconfig --name reyada-homecare-cluster --region me-south-1
+
+    - name: Deploy to Kubernetes
+      run: |
+        # Replace placeholders in Kubernetes manifests
+        export ECR_REPOSITORY_URI=${{ steps.login-ecr.outputs.registry }}
+        export ACM_CERTIFICATE_ARN=${{ secrets.ACM_CERTIFICATE_ARN }}
+        
+        # Apply Kubernetes manifests
+        envsubst < kubernetes/frontend-deployment.yaml | kubectl apply -f -
+        envsubst < kubernetes/api-gateway-deployment.yaml | kubectl apply -f -
+        envsubst < kubernetes/database-deployment.yaml | kubectl apply -f -
+        envsubst < kubernetes/messaging-deployment.yaml | kubectl apply -f -
+
+    - name: Verify deployment
+      run: |
+        kubectl rollout status deployment/reyada-frontend -n reyada-homecare
+        kubectl rollout status deployment/reyada-api-gateway -n reyada-homecare
+
+    - name: Configure AWS credentials for secondary region
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: eu-west-1
+
+    - name: Update kubeconfig for secondary region
+      run: aws eks update-kubeconfig --name reyada-homecare-cluster-dr --region eu-west-1
+
+    - name: Deploy to secondary region Kubernetes
+      run: |
+        # Replace placeholders in Kubernetes manifests
+        export ECR_REPOSITORY_URI=${{ steps.login-ecr.outputs.registry }}
+        export ACM_CERTIFICATE_ARN=${{ secrets.ACM_CERTIFICATE_ARN_EU }}
+        
+        # Apply Kubernetes manifests
+        envsubst < kubernetes/frontend-deployment.yaml | kubectl apply -f -
+        envsubst < kubernetes/api-gateway-deployment.yaml | kubectl apply -f -
+        envsubst < kubernetes/database-deployment.yaml | kubectl apply -f -
+        envsubst < kubernetes/messaging-deployment.yaml | kubectl apply -f -
+
+    - name: Verify secondary deployment
+      run: |
+        kubectl rollout status deployment/reyada-frontend -n reyada-homecare
+        kubectl rollout status deployment/reyada-api-gateway -n reyada-homecare

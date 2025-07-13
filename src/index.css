@@ -59,8 +59,8 @@
     --radius: 0.5rem;
 
     /* Reyada Brand Font Families */
-    --font-arabic:
-      "Noto Naskh Arabic", "Arabic Typesetting", "Traditional Arabic", serif;
+    --font-arabic: "Noto Naskh Arabic", "Arabic Typesetting",
+      "Traditional Arabic", serif;
     --font-english: "Inter", "Segoe UI", system-ui, sans-serif;
   }
 
@@ -97,7 +97,7 @@
 
 @layer base {
   * {
-    @apply border-border;
+    @apply border-gray-200;
   }
   body {
     @apply bg-background text-foreground;

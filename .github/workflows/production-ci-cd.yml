@@ -1,0 +1,441 @@
+name: Production CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, production]
+  pull_request:
+    branches: [main, production]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+        - staging
+        - production
+      deployment_strategy:
+        description: 'Deployment strategy'
+        required: true
+        default: 'blue-green'
+        type: choice
+        options:
+        - blue-green
+        - rolling
+        - canary
+
+env:
+  NODE_VERSION: '18'
+  DOCKER_REGISTRY: 'ghcr.io'
+  IMAGE_NAME: 'reyada-healthcare/reyada-homecare'
+  HEALTHCARE_COMPLIANCE: 'true'
+  DOH_VALIDATION: 'true'
+
+jobs:
+  # Security and Vulnerability Scanning
+  security-scan:
+    name: Security & Vulnerability Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+      - name: OWASP ZAP Baseline Scan
+        uses: zaproxy/action-baseline@v0.7.0
+        with:
+          target: 'https://blissful-albattani8-tujc4.view-2.tempo-dev.app'
+          rules_file_name: '.zap/rules.tsv'
+          cmd_options: '-a'
+
+  # Code Quality and Compliance
+  code-quality:
+    name: Code Quality & DOH Compliance
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ESLint
+        run: npm run lint
+
+      - name: Run TypeScript check
+        run: npx tsc --noEmit
+
+      - name: Run DOH Compliance Tests
+        run: npm test src/test/compliance/doh-compliance-comprehensive.test.ts
+
+      - name: Run Healthcare Security Tests
+        run: npm test src/test/security/healthcare-security.test.ts
+
+      - name: Generate Code Coverage
+        run: npm run test:coverage
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./coverage/lcov.info
+          flags: healthcare-compliance
+
+  # Comprehensive Testing Suite
+  comprehensive-testing:
+    name: Comprehensive Testing
+    runs-on: ubuntu-latest
+    needs: [security-scan, code-quality]
+    strategy:
+      matrix:
+        test-suite:
+          - unit
+          - integration
+          - e2e
+          - accessibility
+          - performance
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ${{ matrix.test-suite }} tests
+        run: |
+          case "${{ matrix.test-suite }}" in
+            "unit")
+              npm run test:unit
+              ;;
+            "integration")
+              npm run test:integration
+              ;;
+            "e2e")
+              npm run test:e2e
+              ;;
+            "accessibility")
+              npm run test:accessibility
+              ;;
+            "performance")
+              npm run test:performance
+              ;;
+          esac
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: test-results-${{ matrix.test-suite }}
+          path: |
+            test-results/
+            coverage/
+            playwright-report/
+
+  # Build and Package
+  build:
+    name: Build & Package
+    runs-on: ubuntu-latest
+    needs: [comprehensive-testing]
+    outputs:
+      image-tag: ${{ steps.meta.outputs.tags }}
+      image-digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build application
+        run: npm run build
+        env:
+          NODE_ENV: production
+          HEALTHCARE_COMPLIANCE: ${{ env.HEALTHCARE_COMPLIANCE }}
+          DOH_VALIDATION: ${{ env.DOH_VALIDATION }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.DOCKER_REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push Docker image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile.production
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            NODE_ENV=production
+            HEALTHCARE_COMPLIANCE=${{ env.HEALTHCARE_COMPLIANCE }}
+            DOH_VALIDATION=${{ env.DOH_VALIDATION }}
+
+      - name: Generate SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ steps.meta.outputs.tags }}
+          format: spdx-json
+          output-file: sbom.spdx.json
+
+      - name: Upload SBOM
+        uses: actions/upload-artifact@v3
+        with:
+          name: sbom
+          path: sbom.spdx.json
+
+  # Infrastructure Validation
+  infrastructure-validation:
+    name: Infrastructure Validation
+    runs-on: ubuntu-latest
+    needs: [build]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.5.0
+
+      - name: Terraform Format Check
+        run: terraform fmt -check -recursive terraform/
+
+      - name: Terraform Init
+        run: terraform init terraform/
+        env:
+          TF_VAR_environment: staging
+
+      - name: Terraform Validate
+        run: terraform validate terraform/
+
+      - name: Terraform Plan
+        run: terraform plan -no-color terraform/
+        env:
+          TF_VAR_environment: staging
+          TF_VAR_image_tag: ${{ needs.build.outputs.image-tag }}
+
+      - name: Validate Kubernetes manifests
+        run: |
+          kubectl --dry-run=client apply -f kubernetes/
+
+  # Staging Deployment
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: [build, infrastructure-validation]
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    environment:
+      name: staging
+      url: https://staging.reyada-homecare.ae
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.28.0'
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Update kubeconfig
+        run: aws eks update-kubeconfig --name reyada-staging-cluster
+
+      - name: Deploy to staging
+        run: |
+          ./scripts/blue-green-deploy.sh staging ${{ needs.build.outputs.image-tag }}
+        env:
+          ENVIRONMENT: staging
+          IMAGE_TAG: ${{ needs.build.outputs.image-tag }}
+          HEALTHCARE_COMPLIANCE: ${{ env.HEALTHCARE_COMPLIANCE }}
+
+      - name: Run health checks
+        run: |
+          ./scripts/health-check.sh staging
+        timeout-minutes: 10
+
+      - name: Run smoke tests
+        run: |
+          npm run test:smoke -- --env=staging
+
+  # Production Deployment (Manual Approval)
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [deploy-staging]
+    if: github.ref == 'refs/heads/production' || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'production')
+    environment:
+      name: production
+      url: https://reyada-homecare.ae
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.28.0'
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Update kubeconfig
+        run: aws eks update-kubeconfig --name reyada-production-cluster
+
+      - name: Pre-deployment backup
+        run: |
+          ./scripts/healthcare-backup-automation.sh create-backup production
+
+      - name: Deploy to production
+        run: |
+          ./scripts/blue-green-deploy.sh production ${{ needs.build.outputs.image-tag }}
+        env:
+          ENVIRONMENT: production
+          IMAGE_TAG: ${{ needs.build.outputs.image-tag }}
+          HEALTHCARE_COMPLIANCE: ${{ env.HEALTHCARE_COMPLIANCE }}
+          DEPLOYMENT_STRATEGY: ${{ github.event.inputs.deployment_strategy || 'blue-green' }}
+
+      - name: Run comprehensive health checks
+        run: |
+          ./scripts/health-check.sh production --comprehensive
+        timeout-minutes: 15
+
+      - name: Run production smoke tests
+        run: |
+          npm run test:smoke -- --env=production
+
+      - name: Verify DOH compliance
+        run: |
+          npm run test:compliance -- --env=production
+
+      - name: Update monitoring dashboards
+        run: |
+          kubectl apply -f monitoring/grafana/healthcare-dashboards.yaml
+
+  # Post-deployment monitoring
+  post-deployment-monitoring:
+    name: Post-deployment Monitoring
+    runs-on: ubuntu-latest
+    needs: [deploy-production]
+    if: always() && (needs.deploy-production.result == 'success' || needs.deploy-staging.result == 'success')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup monitoring alerts
+        run: |
+          kubectl apply -f monitoring/prometheus/healthcare-alerts.yaml
+
+      - name: Verify application metrics
+        run: |
+          ./scripts/verify-metrics.sh
+        timeout-minutes: 5
+
+      - name: Send deployment notification
+        uses: 8398a7/action-slack@v3
+        if: always()
+        with:
+          status: ${{ job.status }}
+          channel: '#deployments'
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+          fields: repo,message,commit,author,action,eventName,ref,workflow
+
+  # Rollback capability
+  rollback:
+    name: Rollback Deployment
+    runs-on: ubuntu-latest
+    if: failure() && (needs.deploy-production.result == 'failure' || needs.deploy-staging.result == 'failure')
+    needs: [deploy-production, deploy-staging]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.28.0'
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Rollback deployment
+        run: |
+          ./scripts/rollback-deployment.sh ${{ github.event.inputs.environment || 'staging' }}
+
+      - name: Verify rollback
+        run: |
+          ./scripts/health-check.sh ${{ github.event.inputs.environment || 'staging' }}
+
+      - name: Send rollback notification
+        uses: 8398a7/action-slack@v3
+        with:
+          status: 'warning'
+          channel: '#alerts'
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+          text: 'Deployment rollback completed for ${{ github.event.inputs.environment || "staging" }}'

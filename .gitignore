@@ -1,53 +1,33 @@
-# Logs
-logs
-*.log
+# Reyada Homecare Platform - Production Ready
+
+# Dependencies
+node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
 
-node_modules
-dist
-dist-ssr
-*.local
-
-# Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-.idea
-.DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
-
-# Tempo specific
-**/tempobook/dynamic/
-**/tempobook/storyboards/
-src/tempobook/routes.js
-
-# Webpack specific
-.webpack-cache/
-webpack-stats.json
-
-# Build artifacts
-.webpack-cache/
-build/
-*.tsbuildinfo
-
-# Build artifacts
+# Build outputs
 dist/
-dist-ssr/
-*.local
-
-# Cache directories
+build/
+.vite/
 .cache/
-.parcel-cache/
-.npm/
-.eslintcache
-.stylelintcache
+
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
 
 # OS generated files
 .DS_Store
@@ -58,18 +38,48 @@ dist-ssr/
 ehthumbs.db
 Thumbs.db
 
-# IDE files
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
+# Logs
+logs/
+*.log
 
-# Temporary files
-*.tmp
-*.temp
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
 
-core
+# Coverage directory used by tools like istanbul
+coverage/
+*.lcov
 
-.github/
+# Temporary folders
+tmp/
+temp/
 
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Storybook build outputs
+storybook-static/
+
+# Tempo platform specific (development only)
+**/tempobook/dynamic/
+**/tempobook/storyboards/
+
+# Healthcare platform specific
+uploads/
+patient-photos/
+clinical-documents/
+audit-logs/
+
+# Backup files
+*.bak
+*.backup
+
+# Test files
+test-results/
+playwright-report/
+coverage/

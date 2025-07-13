@@ -1,0 +1,201 @@
+name: Healthcare Compliance Validation
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 6 * * 1' # Weekly on Monday at 6 AM
+
+env:
+  DOH_COMPLIANCE_LEVEL: 'strict'
+  HIPAA_VALIDATION: 'enabled'
+  GDPR_COMPLIANCE: 'enabled'
+  HEALTHCARE_AUDIT_MODE: 'comprehensive'
+
+jobs:
+  doh-compliance:
+    name: DOH Compliance Validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: DOH 9-Domain Assessment Validation
+        run: |
+          npm run test:doh:nine-domains
+          npm run validate:doh:schema
+          npm run test:doh:audit-trail
+
+      - name: DOH Clinical Documentation Compliance
+        run: |
+          npm run test:clinical:documentation:compliance
+          npm run validate:clinical:forms:doh
+          npm run test:patient:safety:taxonomy
+
+      - name: DOH Reporting Standards Validation
+        run: |
+          npm run test:doh:reporting:standards
+          npm run validate:doh:export:capabilities
+          npm run test:doh:data:integrity
+
+      - name: Generate DOH Compliance Report
+        run: |
+          npm run generate:doh:compliance:report
+          npm run export:doh:audit:logs
+
+      - name: Upload DOH Compliance Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: doh-compliance-results
+          path: |
+            doh-compliance-report.json
+            doh-audit-logs.json
+            doh-validation-results.xml
+
+  hipaa-compliance:
+    name: HIPAA Compliance Validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: HIPAA Security Rule Validation
+        run: |
+          npm run test:hipaa:security:rule
+          npm run validate:encryption:standards
+          npm run test:access:controls:hipaa
+
+      - name: HIPAA Privacy Rule Validation
+        run: |
+          npm run test:hipaa:privacy:rule
+          npm run validate:phi:protection
+          npm run test:patient:consent:management
+
+      - name: HIPAA Breach Notification Compliance
+        run: |
+          npm run test:hipaa:breach:notification
+          npm run validate:incident:response
+          npm run test:audit:logging:hipaa
+
+      - name: Generate HIPAA Compliance Report
+        run: |
+          npm run generate:hipaa:compliance:report
+          npm run export:hipaa:audit:trail
+
+      - name: Upload HIPAA Compliance Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: hipaa-compliance-results
+          path: |
+            hipaa-compliance-report.json
+            hipaa-audit-trail.json
+            hipaa-risk-assessment.pdf
+
+  daman-integration-compliance:
+    name: DAMAN Integration Compliance
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: DAMAN Standards Validation
+        run: |
+          npm run test:daman:standards:compliance
+          npm run validate:daman:authorization:flow
+          npm run test:daman:claims:processing
+
+      - name: DAMAN Security Compliance
+        run: |
+          npm run test:daman:security:standards
+          npm run validate:daman:encryption
+          npm run test:daman:audit:requirements
+
+      - name: DAMAN Integration Testing
+        run: |
+          npm run test:daman:integration:comprehensive
+          npm run validate:daman:error:handling
+          npm run test:daman:performance:standards
+
+      - name: Generate DAMAN Compliance Report
+        run: |
+          npm run generate:daman:compliance:report
+          npm run export:daman:integration:logs
+
+      - name: Upload DAMAN Compliance Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: daman-compliance-results
+          path: |
+            daman-compliance-report.json
+            daman-integration-logs.json
+            daman-performance-metrics.json
+
+  comprehensive-compliance-report:
+    name: Comprehensive Compliance Report
+    runs-on: ubuntu-latest
+    needs: [doh-compliance, hipaa-compliance, daman-integration-compliance]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all compliance results
+        uses: actions/download-artifact@v4
+        with:
+          path: compliance-results
+
+      - name: Generate Master Compliance Report
+        run: |
+          npm run generate:master:compliance:report
+          npm run create:compliance:dashboard
+          npm run export:compliance:metrics
+
+      - name: Compliance Score Calculation
+        run: |
+          npm run calculate:compliance:score
+          npm run validate:compliance:thresholds
+          npm run generate:compliance:recommendations
+
+      - name: Upload Master Compliance Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: master-compliance-report
+          path: |
+            master-compliance-report.pdf
+            compliance-dashboard.html
+            compliance-metrics.json
+            compliance-recommendations.md
+
+      - name: Notify Compliance Team
+        if: always()
+        run: |
+          npm run notify:compliance:team
+          npm run update:compliance:status

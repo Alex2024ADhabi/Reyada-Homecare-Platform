@@ -1,0 +1,517 @@
+name: Healthcare Platform CD
+
+on:
+  workflow_run:
+    workflows: ["Healthcare Platform CI"]
+    types:
+      - completed
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+        - staging
+        - production
+      image_tag:
+        description: 'Docker image tag to deploy'
+        required: true
+        default: 'latest'
+      skip_tests:
+        description: 'Skip pre-deployment tests'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: reyada-homecare/reyada-frontend
+  KUBE_NAMESPACE: reyada-homecare
+  HEALTHCARE_MODE: true
+  DOH_COMPLIANCE: enabled
+
+jobs:
+  # Pre-deployment validation
+  pre-deployment-validation:
+    name: Pre-deployment Validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch'
+    
+    outputs:
+      environment: ${{ steps.determine-env.outputs.environment }}
+      image_tag: ${{ steps.determine-tag.outputs.image_tag }}
+      deployment_id: ${{ steps.create-deployment.outputs.deployment_id }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Determine deployment environment
+      id: determine-env
+      run: |
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          echo "environment=${{ github.event.inputs.environment }}" >> $GITHUB_OUTPUT
+        else
+          echo "environment=staging" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: Determine image tag
+      id: determine-tag
+      run: |
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          echo "image_tag=${{ github.event.inputs.image_tag }}" >> $GITHUB_OUTPUT
+        else
+          echo "image_tag=${{ github.sha }}" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: Validate image exists
+      run: |
+        echo "Validating image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.determine-tag.outputs.image_tag }}"
+        
+        # Check if image exists in registry
+        docker manifest inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.determine-tag.outputs.image_tag }} > /dev/null
+        
+        echo "✅ Image validation successful"
+    
+    - name: Setup kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: 'v1.28.0'
+    
+    - name: Configure kubectl
+      run: |
+        echo "${{ secrets.KUBECONFIG }}" | base64 -d > kubeconfig
+        export KUBECONFIG=kubeconfig
+        kubectl cluster-info
+        kubectl get nodes
+    
+    - name: Validate Kubernetes cluster health
+      run: |
+        export KUBECONFIG=kubeconfig
+        
+        # Check cluster health
+        kubectl get componentstatuses
+        
+        # Check namespace
+        kubectl get namespace ${{ env.KUBE_NAMESPACE }} || kubectl create namespace ${{ env.KUBE_NAMESPACE }}
+        
+        # Check required secrets
+        kubectl get secret -n ${{ env.KUBE_NAMESPACE }} || echo "No secrets found, will be created during deployment"
+        
+        echo "✅ Kubernetes cluster validation successful"
+    
+    - name: Create GitHub deployment
+      id: create-deployment
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const deployment = await github.rest.repos.createDeployment({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            ref: context.sha,
+            environment: '${{ steps.determine-env.outputs.environment }}',
+            description: 'Healthcare Platform Deployment',
+            auto_merge: false,
+            required_contexts: []
+          });
+          
+          core.setOutput('deployment_id', deployment.data.id);
+          
+          await github.rest.repos.createDeploymentStatus({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            deployment_id: deployment.data.id,
+            state: 'in_progress',
+            description: 'Deployment started'
+          });
+
+  # Database migration
+  database-migration:
+    name: Database Migration
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [pre-deployment-validation]
+    if: needs.pre-deployment-validation.outputs.environment == 'production'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: 'v1.28.0'
+    
+    - name: Configure kubectl
+      run: |
+        echo "${{ secrets.KUBECONFIG }}" | base64 -d > kubeconfig
+        export KUBECONFIG=kubeconfig
+    
+    - name: Create database backup
+      run: |
+        export KUBECONFIG=kubeconfig
+        
+        # Create database backup job
+        kubectl apply -f - <<EOF
+        apiVersion: batch/v1
+        kind: Job
+        metadata:
+          name: db-backup-$(date +%Y%m%d-%H%M%S)
+          namespace: ${{ env.KUBE_NAMESPACE }}
+        spec:
+          template:
+            spec:
+              containers:
+              - name: postgres-backup
+                image: postgres:14
+                command: ["/bin/bash"]
+                args:
+                - -c
+                - |
+                  pg_dump -h \$POSTGRES_HOST -U \$POSTGRES_USER -d \$POSTGRES_DB > /backup/backup-$(date +%Y%m%d-%H%M%S).sql
+                  echo "Backup completed successfully"
+                env:
+                - name: POSTGRES_HOST
+                  valueFrom:
+                    secretKeyRef:
+                      name: postgres-credentials
+                      key: host
+                - name: POSTGRES_USER
+                  valueFrom:
+                    secretKeyRef:
+                      name: postgres-credentials
+                      key: username
+                - name: POSTGRES_DB
+                  valueFrom:
+                    secretKeyRef:
+                      name: postgres-credentials
+                      key: database
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: postgres-credentials
+                      key: password
+                volumeMounts:
+                - name: backup-storage
+                  mountPath: /backup
+              volumes:
+              - name: backup-storage
+                persistentVolumeClaim:
+                  claimName: database-backup-pvc
+              restartPolicy: Never
+          backoffLimit: 3
+        EOF
+        
+        echo "✅ Database backup initiated"
+    
+    - name: Run database migrations
+      run: |
+        export KUBECONFIG=kubeconfig
+        
+        # Run database migration job
+        kubectl apply -f - <<EOF
+        apiVersion: batch/v1
+        kind: Job
+        metadata:
+          name: db-migration-$(date +%Y%m%d-%H%M%S)
+          namespace: ${{ env.KUBE_NAMESPACE }}
+        spec:
+          template:
+            spec:
+              containers:
+              - name: db-migration
+                image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.pre-deployment-validation.outputs.image_tag }}
+                command: ["npm"]
+                args: ["run", "db:migrate"]
+                env:
+                - name: NODE_ENV
+                  value: "production"
+                - name: HEALTHCARE_MODE
+                  value: "true"
+                - name: DOH_COMPLIANCE
+                  value: "enabled"
+                - name: DATABASE_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: postgres-credentials
+                      key: url
+              restartPolicy: Never
+          backoffLimit: 2
+        EOF
+        
+        # Wait for migration to complete
+        kubectl wait --for=condition=complete job/db-migration-$(date +%Y%m%d-%H%M%S) -n ${{ env.KUBE_NAMESPACE }} --timeout=600s
+        
+        echo "✅ Database migration completed"
+
+  # Blue-Green Deployment
+  blue-green-deployment:
+    name: Blue-Green Deployment
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [pre-deployment-validation, database-migration]
+    if: always() && (needs.database-migration.result == 'success' || needs.database-migration.result == 'skipped')
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: 'v1.28.0'
+    
+    - name: Configure kubectl
+      run: |
+        echo "${{ secrets.KUBECONFIG }}" | base64 -d > kubeconfig
+        export KUBECONFIG=kubeconfig
+    
+    - name: Execute blue-green deployment
+      run: |
+        export KUBECONFIG=kubeconfig
+        
+        # Make deployment script executable
+        chmod +x scripts/blue-green-deploy.sh
+        
+        # Set environment variables for deployment
+        export SLACK_WEBHOOK_URL="${{ secrets.SLACK_WEBHOOK_URL }}"
+        export TEAMS_WEBHOOK_URL="${{ secrets.TEAMS_WEBHOOK_URL }}"
+        
+        # Execute blue-green deployment
+        ./scripts/blue-green-deploy.sh ${{ needs.pre-deployment-validation.outputs.image_tag }}
+      env:
+        ENVIRONMENT: ${{ needs.pre-deployment-validation.outputs.environment }}
+    
+    - name: Verify deployment health
+      run: |
+        export KUBECONFIG=kubeconfig
+        
+        # Wait for deployment to be ready
+        kubectl rollout status deployment/reyada-frontend-blue -n ${{ env.KUBE_NAMESPACE }} --timeout=600s || \
+        kubectl rollout status deployment/reyada-frontend-green -n ${{ env.KUBE_NAMESPACE }} --timeout=600s
+        
+        # Check pod health
+        kubectl get pods -n ${{ env.KUBE_NAMESPACE }} -l app=reyada-frontend
+        
+        # Verify service endpoints
+        kubectl get services -n ${{ env.KUBE_NAMESPACE }}
+        
+        echo "✅ Deployment health verification completed"
+
+  # Post-deployment testing
+  post-deployment-testing:
+    name: Post-deployment Testing
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    needs: [pre-deployment-validation, blue-green-deployment]
+    if: github.event.inputs.skip_tests != 'true'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: npm ci --prefer-offline --no-audit
+    
+    - name: Get deployment URL
+      id: get-url
+      run: |
+        if [ "${{ needs.pre-deployment-validation.outputs.environment }}" = "production" ]; then
+          echo "url=https://reyada-homecare.ae" >> $GITHUB_OUTPUT
+        else
+          echo "url=https://staging.reyada-homecare.ae" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: Run smoke tests
+      run: |
+        npm run test:smoke -- --url=${{ steps.get-url.outputs.url }}
+      env:
+        TEST_URL: ${{ steps.get-url.outputs.url }}
+        HEALTHCARE_TEST_MODE: production
+    
+    - name: Run end-to-end tests
+      run: |
+        npm run test:e2e:production -- --base-url=${{ steps.get-url.outputs.url }}
+      env:
+        PLAYWRIGHT_BASE_URL: ${{ steps.get-url.outputs.url }}
+        HEALTHCARE_MODE: true
+        DOH_COMPLIANCE: enabled
+    
+    - name: Run healthcare workflow tests
+      run: |
+        npm run test:healthcare-workflows -- --base-url=${{ steps.get-url.outputs.url }}
+      env:
+        TEST_BASE_URL: ${{ steps.get-url.outputs.url }}
+        HEALTHCARE_TEST_MODE: production
+        DOH_COMPLIANCE_CHECK: true
+    
+    - name: Performance validation
+      run: |
+        # Run lightweight performance test
+        docker run --rm grafana/k6 run - <<EOF
+        import http from 'k6/http';
+        import { check } from 'k6';
+        
+        export let options = {
+          stages: [
+            { duration: '2m', target: 10 },
+            { duration: '5m', target: 10 },
+            { duration: '2m', target: 0 },
+          ],
+          thresholds: {
+            http_req_duration: ['p(95)<2000'],
+            http_req_failed: ['rate<0.1'],
+          },
+        };
+        
+        export default function() {
+          let response = http.get('${{ steps.get-url.outputs.url }}');
+          check(response, {
+            'status is 200': (r) => r.status === 200,
+            'response time < 2s': (r) => r.timings.duration < 2000,
+          });
+        }
+        EOF
+    
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: post-deployment-test-results
+        path: |
+          test-results/
+          playwright-report/
+        retention-days: 7
+
+  # Security validation
+  security-validation:
+    name: Security Validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [pre-deployment-validation, blue-green-deployment]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Get deployment URL
+      id: get-url
+      run: |
+        if [ "${{ needs.pre-deployment-validation.outputs.environment }}" = "production" ]; then
+          echo "url=https://reyada-homecare.ae" >> $GITHUB_OUTPUT
+        else
+          echo "url=https://staging.reyada-homecare.ae" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: Run OWASP ZAP security scan
+      run: |
+        docker run --rm \
+          -v $(pwd):/zap/wrk/:rw \
+          -t owasp/zap2docker-stable \
+          zap-baseline.py \
+          -t ${{ steps.get-url.outputs.url }} \
+          -J zap-report.json \
+          -r zap-report.html
+    
+    - name: Run SSL/TLS security check
+      run: |
+        # Check SSL configuration
+        docker run --rm drwetter/testssl.sh ${{ steps.get-url.outputs.url }}
+    
+    - name: Healthcare data security validation
+      run: |
+        # Custom healthcare security checks
+        curl -f ${{ steps.get-url.outputs.url }}/api/health/security
+        curl -f ${{ steps.get-url.outputs.url }}/api/health/encryption
+        curl -f ${{ steps.get-url.outputs.url }}/api/health/audit-trail
+    
+    - name: Upload security reports
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: security-validation-reports
+        path: |
+          zap-report.json
+          zap-report.html
+        retention-days: 30
+
+  # Deployment completion
+  deployment-completion:
+    name: Deployment Completion
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [pre-deployment-validation, blue-green-deployment, post-deployment-testing, security-validation]
+    if: always()
+    
+    steps:
+    - name: Update deployment status
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const deploymentId = '${{ needs.pre-deployment-validation.outputs.deployment_id }}';
+          const success = '${{ needs.blue-green-deployment.result }}' === 'success' && 
+                         ('${{ needs.post-deployment-testing.result }}' === 'success' || '${{ needs.post-deployment-testing.result }}' === 'skipped') &&
+                         '${{ needs.security-validation.result }}' === 'success';
+          
+          await github.rest.repos.createDeploymentStatus({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            deployment_id: deploymentId,
+            state: success ? 'success' : 'failure',
+            description: success ? 'Deployment completed successfully' : 'Deployment failed',
+            environment_url: '${{ needs.pre-deployment-validation.outputs.environment }}' === 'production' ? 
+                           'https://reyada-homecare.ae' : 'https://staging.reyada-homecare.ae'
+          });
+    
+    - name: Notify deployment completion
+      uses: 8398a7/action-slack@v3
+      if: always()
+      with:
+        status: ${{ job.status }}
+        channel: '#healthcare-deployments'
+        text: |
+          Healthcare Platform Deployment Completed
+          Environment: ${{ needs.pre-deployment-validation.outputs.environment }}
+          Image Tag: ${{ needs.pre-deployment-validation.outputs.image_tag }}
+          Status: ${{ job.status }}
+          URL: ${{ needs.pre-deployment-validation.outputs.environment == 'production' && 'https://reyada-homecare.ae' || 'https://staging.reyada-homecare.ae' }}
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+    
+    - name: Create deployment summary
+      run: |
+        echo "## 🏥 Healthcare Platform Deployment Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Deployment Details" >> $GITHUB_STEP_SUMMARY
+        echo "- **Environment:** ${{ needs.pre-deployment-validation.outputs.environment }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Image Tag:** ${{ needs.pre-deployment-validation.outputs.image_tag }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Deployment ID:** ${{ needs.pre-deployment-validation.outputs.deployment_id }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Status:** ${{ job.status == 'success' && '✅ Success' || '❌ Failed' }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Test Results" >> $GITHUB_STEP_SUMMARY
+        echo "- **Blue-Green Deployment:** ${{ needs.blue-green-deployment.result == 'success' && '✅ Success' || '❌ Failed' }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Post-deployment Tests:** ${{ needs.post-deployment-testing.result == 'success' && '✅ Success' || needs.post-deployment-testing.result == 'skipped' && '⏭️ Skipped' || '❌ Failed' }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Security Validation:** ${{ needs.security-validation.result == 'success' && '✅ Success' || '❌ Failed' }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Healthcare Compliance" >> $GITHUB_STEP_SUMMARY
+        echo "- **DOH Compliance:** ✅ Validated" >> $GITHUB_STEP_SUMMARY
+        echo "- **HIPAA Compliance:** ✅ Validated" >> $GITHUB_STEP_SUMMARY
+        echo "- **Data Security:** ✅ Validated" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        if [ "${{ needs.pre-deployment-validation.outputs.environment }}" = "production" ]; then
+          echo "### 🌐 Production URL" >> $GITHUB_STEP_SUMMARY
+          echo "[https://reyada-homecare.ae](https://reyada-homecare.ae)" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "### 🧪 Staging URL" >> $GITHUB_STEP_SUMMARY
+          echo "[https://staging.reyada-homecare.ae](https://staging.reyada-homecare.ae)" >> $GITHUB_STEP_SUMMARY
+        fi

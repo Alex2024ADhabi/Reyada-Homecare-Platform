@@ -1,0 +1,271 @@
+name: Comprehensive CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '18'
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # Phase 1: Code Quality and Security
+  code-quality:
+    name: Code Quality & Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ESLint
+        run: npm run lint
+
+      - name: Run TypeScript check
+        run: npx tsc --noEmit
+
+      - name: Security audit
+        run: npm audit --audit-level=high
+
+      - name: OWASP ZAP Baseline Scan
+        uses: zaproxy/action-baseline@v0.10.0
+        with:
+          target: 'http://localhost:3001'
+
+  # Phase 2: Comprehensive Testing
+  testing:
+    name: Comprehensive Testing Suite
+    runs-on: ubuntu-latest
+    needs: code-quality
+    strategy:
+      matrix:
+        test-suite: [unit, integration, e2e, compliance]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Unit Tests
+        if: matrix.test-suite == 'unit'
+        run: npm run test:unit
+
+      - name: Run Integration Tests
+        if: matrix.test-suite == 'integration'
+        run: npm run test:integration
+
+      - name: Run E2E Tests
+        if: matrix.test-suite == 'e2e'
+        run: |
+          npm run build
+          npm run test:e2e
+
+      - name: Run DOH Compliance Tests
+        if: matrix.test-suite == 'compliance'
+        run: npm run test:doh
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-${{ matrix.test-suite }}
+          path: |
+            test-results/
+            coverage/
+
+  # Phase 3: Build and Security Scan
+  build:
+    name: Build & Container Security
+    runs-on: ubuntu-latest
+    needs: testing
+    outputs:
+      image-digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build application
+        run: npm run build
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push Docker image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile.production
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  # Phase 4: Staging Deployment
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/develop'
+    environment:
+      name: staging
+      url: https://staging.reyada-homecare.ae
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.28.0'
+
+      - name: Configure kubectl
+        run: |
+          echo "${{ secrets.KUBE_CONFIG_STAGING }}" | base64 -d > kubeconfig
+          export KUBECONFIG=kubeconfig
+
+      - name: Deploy to staging
+        run: |
+          export KUBECONFIG=kubeconfig
+          envsubst < kubernetes/staging-deployment.yaml | kubectl apply -f -
+          kubectl rollout status deployment/reyada-frontend-staging -n reyada-staging
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+
+      - name: Run staging health checks
+        run: |
+          chmod +x scripts/health-check.sh
+          ./scripts/health-check.sh https://staging.reyada-homecare.ae
+
+  # Phase 5: Production Deployment (Blue-Green)
+  deploy-production:
+    name: Blue-Green Production Deployment
+    runs-on: ubuntu-latest
+    needs: [build, deploy-staging]
+    if: github.ref == 'refs/heads/main'
+    environment:
+      name: production
+      url: https://reyada-homecare.ae
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.28.0'
+
+      - name: Configure kubectl
+        run: |
+          echo "${{ secrets.KUBE_CONFIG_PRODUCTION }}" | base64 -d > kubeconfig
+          export KUBECONFIG=kubeconfig
+
+      - name: Execute Blue-Green Deployment
+        run: |
+          export KUBECONFIG=kubeconfig
+          chmod +x scripts/enhanced-blue-green-deploy.sh
+          ./scripts/enhanced-blue-green-deploy.sh ${{ github.sha }}
+
+      - name: Run production health checks
+        run: |
+          chmod +x scripts/health-check.sh
+          ./scripts/health-check.sh https://reyada-homecare.ae
+
+      - name: Notify deployment success
+        uses: 8398a7/action-slack@v3
+        with:
+          status: success
+          text: 'Production deployment successful! 🚀'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  # Phase 6: Post-Deployment Monitoring
+  post-deployment:
+    name: Post-Deployment Monitoring
+    runs-on: ubuntu-latest
+    needs: deploy-production
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run comprehensive health checks
+        run: |
+          chmod +x scripts/comprehensive-health-check.sh
+          ./scripts/comprehensive-health-check.sh
+
+      - name: Performance testing
+        run: |
+          npm install -g artillery
+          artillery run src/test/load/artillery-healthcare-config.yml
+
+      - name: Security validation
+        run: |
+          chmod +x scripts/security-validation.sh
+          ./scripts/security-validation.sh
+
+      - name: Backup verification
+        run: |
+          chmod +x scripts/backup-verification.sh
+          ./scripts/backup-verification.sh
